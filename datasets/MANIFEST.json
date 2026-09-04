@@ -1,6 +1,6 @@
 {
   "schema": "adversarial-graph/datasets/v1",
-  "fetched_at": "2026-09-04T20:21:21Z",
+  "fetched_at": "2026-09-04T20:44:52Z",
   "datasets": [
     {"name":"email-Eu-core","tier":"S","url":"https://snap.stanford.edu/data/email-Eu-core.txt.gz","file":"email-Eu-core.txt.gz","bytes":79754,"sha256":"4b47acdb80197b085fe63c819c357ae488131ee904ed93d1b219a68b0f9e245f","pathology":"labels"},
     {"name":"email-Eu-core-labels","tier":"S","url":"https://snap.stanford.edu/data/email-Eu-core-department-labels.txt.gz","file":"email-Eu-core-department-labels.txt.gz","bytes":2663,"sha256":"e5abe5b4581a480032a63adcf2576c161785f45692642c6ebb0b1276f0f33669","pathology":"labels"},
@@ -16,6 +16,9 @@
     {"name":"soc-Pokec-profiles","tier":"M","url":"https://snap.stanford.edu/data/soc-pokec-profiles.txt.gz","file":"soc-pokec-profiles.txt.gz","bytes":435512787,"sha256":"d4c6b0151cfa3571a7864ea12b06a7c5367e33ecbfe20358cf5420d76e40bad9","pathology":"typed-property-graph"},
     {"name":"soc-LiveJournal1","tier":"M","url":"https://snap.stanford.edu/data/soc-LiveJournal1.txt.gz","file":"soc-LiveJournal1.txt.gz","bytes":259619239,"sha256":"d7bcd5a87b88c896c35fdb9611e804c3f4033c39b58c4c9ea3ba53c680d516d8","pathology":"degree-skew"},
     {"name":"com-Orkut","tier":"M","url":"https://snap.stanford.edu/data/bigdata/communities/com-orkut.ungraph.txt.gz","file":"com-orkut.ungraph.txt.gz","bytes":447251958,"sha256":"f73e33fb685f411a10c952f2ba3ea788380b91a17bc636e38da1a23f6c6b2bc6","pathology":"dense-communities"},
-    {"name":"sx-stackoverflow","tier":"M","url":"https://snap.stanford.edu/data/sx-stackoverflow.txt.gz","file":"sx-stackoverflow.txt.gz","bytes":529869668,"sha256":"fc04264de1652bbf91c10eb8ec2465df082fc0aec2012e5f4a8edc6400f0d7a3","pathology":"temporal-multi-edge"}
+    {"name":"sx-stackoverflow","tier":"M","url":"https://snap.stanford.edu/data/sx-stackoverflow.txt.gz","file":"sx-stackoverflow.txt.gz","bytes":529869668,"sha256":"fc04264de1652bbf91c10eb8ec2465df082fc0aec2012e5f4a8edc6400f0d7a3","pathology":"temporal-multi-edge"},
+    {"name":"twitter-2010","tier":"L","url":"https://snap.stanford.edu/data/twitter-2010.txt.gz","file":"twitter-2010.txt.gz","bytes":5501785223,"sha256":"28096920aa5684262044b05f3b5e7874377d7df3a60cd7670e1feabe92f1238f","pathology":"super-node,scale"},
+    {"name":"com-Friendster","tier":"L","url":"https://snap.stanford.edu/data/bigdata/communities/com-friendster.ungraph.txt.gz","file":"com-friendster.ungraph.txt.gz","bytes":9371322431,"sha256":"2efc60acf958220467b0bfc4ffcd2be9f46804dbfd9899e9796204d0ee41a5c6","pathology":"dense-communities,scale"},
+    {"name":"GAP-road","tier":"L","url":"https://sparse.tamu.edu/MM/GAP/GAP-road.tar.gz","file":"GAP-road.tar.gz","bytes":192775251,"sha256":"e7b5202b4d0c3c05e33cbe3b00f16ec5a7744215fe6f3eec0d727722a213c0ec","pathology":"high-diameter,scale"}
   ]
 }
