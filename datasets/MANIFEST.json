@@ -1,0 +1,21 @@
+{
+  "schema": "adversarial-graph/datasets/v1",
+  "fetched_at": "2026-09-04T20:21:21Z",
+  "datasets": [
+    {"name":"email-Eu-core","tier":"S","url":"https://snap.stanford.edu/data/email-Eu-core.txt.gz","file":"email-Eu-core.txt.gz","bytes":79754,"sha256":"4b47acdb80197b085fe63c819c357ae488131ee904ed93d1b219a68b0f9e245f","pathology":"labels"},
+    {"name":"email-Eu-core-labels","tier":"S","url":"https://snap.stanford.edu/data/email-Eu-core-department-labels.txt.gz","file":"email-Eu-core-department-labels.txt.gz","bytes":2663,"sha256":"e5abe5b4581a480032a63adcf2576c161785f45692642c6ebb0b1276f0f33669","pathology":"labels"},
+    {"name":"ego-Facebook","tier":"S","url":"https://snap.stanford.edu/data/facebook_combined.txt.gz","file":"facebook_combined.txt.gz","bytes":218576,"sha256":"125e84db872eeba443d270c70315c256b0af43a502fcfe51f50621166ad035d7","pathology":"small-social"},
+    {"name":"wiki-Talk","tier":"S","url":"https://snap.stanford.edu/data/wiki-Talk.txt.gz","file":"wiki-Talk.txt.gz","bytes":16947922,"sha256":"0f3fd7bb8435ad0d46bd3cd06d2fb947c72d298a9310c8ce82b4d29ef973fb9f","pathology":"super-node,small-scc"},
+    {"name":"roadNet-CA","tier":"S","url":"https://snap.stanford.edu/data/roadNet-CA.txt.gz","file":"roadNet-CA.txt.gz","bytes":17892860,"sha256":"383f7b14424530a9e25c392969a9c19dace32ebcfd141f0967a1433498c2acdd","pathology":"high-diameter"},
+    {"name":"web-Google","tier":"S","url":"https://snap.stanford.edu/data/web-Google.txt.gz","file":"web-Google.txt.gz","bytes":21168784,"sha256":"bcac0af0471d749f4a8c010bca92b61cf2868a0570741de06892fc062f265ea6","pathology":"many-components"},
+    {"name":"ldbc-snb-sf0.1","tier":"S","url":"https://datasets.ldbcouncil.org/snb-interactive-v1/social_network-sf0.1-CsvBasic-LongDateFormatter.tar.zst","file":"social_network-sf0.1-CsvBasic-LongDateFormatter.tar.zst","bytes":18369356,"sha256":"5c476e25e9074f5b37cfe569f718aa43bef0187747b2c3bb2f02d5714c96820b","pathology":"typed-property-graph"},
+    {"name":"icij-offshore-leaks","tier":"S","url":"https://offshoreleaks-data.icij.org/offshoreleaks/csv/full-oldb.LATEST.zip","file":"full-oldb.LATEST.zip","bytes":71934796,"sha256":"34475194b6a8c2d683fddc55cca02f88f08f0a538521fb13a324975221624380","pathology":"typed-property-graph"},
+    {"name":"cit-Patents","tier":"M","url":"https://snap.stanford.edu/data/cit-Patents.txt.gz","file":"cit-Patents.txt.gz","bytes":85139832,"sha256":"9d05955aa997fbc84953c9eb7786675af80336a356404e75dc18aaa90d3553b0","pathology":"dag"},
+    {"name":"ldbc-snb-sf1","tier":"M","url":"https://datasets.ldbcouncil.org/snb-interactive-v1/social_network-sf1-CsvBasic-LongDateFormatter.tar.zst","file":"social_network-sf1-CsvBasic-LongDateFormatter.tar.zst","bytes":230446796,"sha256":"3c34eca7f8e8632d5f3bf95921d3adc9cf0dce080acd6a94e3d2624ab704eb63","pathology":"typed-property-graph"},
+    {"name":"soc-Pokec-relationships","tier":"M","url":"https://snap.stanford.edu/data/soc-pokec-relationships.txt.gz","file":"soc-pokec-relationships.txt.gz","bytes":132454730,"sha256":"1a23e0ec8a4e497752125f6b3f01696fea7fcdb696fa61d1e822faf4d0d69b14","pathology":"typed-property-graph"},
+    {"name":"soc-Pokec-profiles","tier":"M","url":"https://snap.stanford.edu/data/soc-pokec-profiles.txt.gz","file":"soc-pokec-profiles.txt.gz","bytes":435512787,"sha256":"d4c6b0151cfa3571a7864ea12b06a7c5367e33ecbfe20358cf5420d76e40bad9","pathology":"typed-property-graph"},
+    {"name":"soc-LiveJournal1","tier":"M","url":"https://snap.stanford.edu/data/soc-LiveJournal1.txt.gz","file":"soc-LiveJournal1.txt.gz","bytes":259619239,"sha256":"d7bcd5a87b88c896c35fdb9611e804c3f4033c39b58c4c9ea3ba53c680d516d8","pathology":"degree-skew"},
+    {"name":"com-Orkut","tier":"M","url":"https://snap.stanford.edu/data/bigdata/communities/com-orkut.ungraph.txt.gz","file":"com-orkut.ungraph.txt.gz","bytes":447251958,"sha256":"f73e33fb685f411a10c952f2ba3ea788380b91a17bc636e38da1a23f6c6b2bc6","pathology":"dense-communities"},
+    {"name":"sx-stackoverflow","tier":"M","url":"https://snap.stanford.edu/data/sx-stackoverflow.txt.gz","file":"sx-stackoverflow.txt.gz","bytes":529869668,"sha256":"fc04264de1652bbf91c10eb8ec2465df082fc0aec2012e5f4a8edc6400f0d7a3","pathology":"temporal-multi-edge"}
+  ]
+}

@@ -1,0 +1,4 @@
+datasets/*
+!datasets/MANIFEST.json
+target/
+reports/*/
