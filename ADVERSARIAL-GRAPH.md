@@ -378,3 +378,38 @@ Milestones:
 
 Comparison with the in-tree Grust LSQB harness happens after M2; the two
 were designed independently on purpose.
+
+---
+
+## 7. First results (M1, 2026-09-04)
+
+Host: Apple Silicon laptop, `cargo build --release`, `grust-graph` 0.13.0,
+Turso 0.7.2. These are correctness observations with latency context, not a
+ranking; the Turso rows are single-process embedded stores, the memory row is
+the reference.
+
+**Smoke ladder** (wiki-Talk, roadNet-CA, web-Google truncated to 200k edges;
+memory, turso-wal, turso-mvcc): 36 `pass`, 9 `unsupported` (A3 needs the
+reference executor's materialized graph, A7 needs a `GraphCommitStore`),
+**0 hard-gate failures**. A4 attached 4×25 edges to the hub from four handles
+on every store with no lost or duplicated write; A7 replayed the same
+idempotency key from eight concurrent Turso handles and produced exactly one
+commit id on both WAL and MVCC.
+
+**Full size, memory backend:**
+
+| Dataset | Scenario | Observation | p50 |
+|---|---|---|---|
+| wiki-Talk (2.39M / 5.02M) | A1 fan-out | hub out-degree **100,022**; 1-hop layer matches oracle | 75 ms |
+| wiki-Talk | A3 policy | 7/7 attacks refused (graph exceeds `max_graph_nodes`, refused before execution) | 11 µs |
+| wiki-Talk | A4 hot node | 16 writers × 200 edges: 3,200 accepted, 0 conflicts, 0 lost | 39 µs |
+| roadNet-CA (1.97M / 5.53M) | A2 deep paths | depth-50 BFS from vertex 0 reaches 20,242; 200-hop Cypher pattern refused by `max_path_length=4` | 205 ms |
+| roadNet-CA | A3 policy | 7/7 refused | 4 µs |
+
+Known M1 limits, to be closed in M2: A2 starts from the lowest id (on
+wiki-Talk that vertex sits in a one-node component, so the deep-path run is
+trivial there); A4 is closed-loop (open-loop scheduling with coordinated-
+omission correction is M2); Turso full-size loads are slow through per-batch
+upserts (≈20k edges/s) and are run separately from the smoke ladder; only
+the memory backend can run A3 because the reference executor needs a
+materialized `Graph`.
