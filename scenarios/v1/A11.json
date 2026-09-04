@@ -1,0 +1,27 @@
+{
+  "id": "A11",
+  "name": "semantic-answer-drift",
+  "layers": [
+    "L5",
+    "L6",
+    "L7"
+  ],
+  "datasets": [
+    "ldbc-snb-sf1"
+  ],
+  "hard_gates": [
+    "non_deterministic_receipt"
+  ],
+  "choke_points": [],
+  "implemented": "M3",
+  "parameters": {
+    "drift_dimensions": [
+      "artifact",
+      "model",
+      "policy",
+      "plan",
+      "graph",
+      "lineage"
+    ]
+  }
+}

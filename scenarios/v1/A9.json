@@ -1,0 +1,17 @@
+{
+  "id": "A9",
+  "name": "governed-memory-under-strain",
+  "layers": [
+    "L4"
+  ],
+  "datasets": [
+    "icij-offshore-leaks",
+    "synthetic-tenants"
+  ],
+  "hard_gates": [
+    "unauthorized_disclosure"
+  ],
+  "choke_points": [],
+  "implemented": "M3",
+  "parameters": {}
+}

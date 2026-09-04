@@ -1,0 +1,21 @@
+{
+  "id": "A8",
+  "name": "differential-cypher",
+  "layers": [
+    "L2"
+  ],
+  "datasets": [
+    "ldbc-snb-sf0.1",
+    "icij-offshore-leaks"
+  ],
+  "hard_gates": [
+    "wrong_answer"
+  ],
+  "choke_points": [
+    "CP-8"
+  ],
+  "implemented": "M2",
+  "parameters": {
+    "oracle": "grust-cypher reference executor"
+  }
+}

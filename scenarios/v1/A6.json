@@ -1,0 +1,18 @@
+{
+  "id": "A6",
+  "name": "isolation-under-mixed-load",
+  "layers": [
+    "L3"
+  ],
+  "datasets": [
+    "ldbc-snb-sf0.1"
+  ],
+  "hard_gates": [
+    "isolation_anomaly"
+  ],
+  "choke_points": [],
+  "implemented": "M2",
+  "parameters": {
+    "checker": "Elle-style register + list-append histories"
+  }
+}

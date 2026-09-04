@@ -1,0 +1,19 @@
+{
+  "id": "A7",
+  "name": "ambiguous-commit-and-restart",
+  "layers": [
+    "L0",
+    "L3"
+  ],
+  "datasets": [
+    "any-M"
+  ],
+  "hard_gates": [
+    "duplicate_durable_mutation",
+    "lost_write",
+    "non_deterministic_receipt"
+  ],
+  "choke_points": [],
+  "implemented": "M1 (replay); M2 (process kill)",
+  "parameters": {}
+}

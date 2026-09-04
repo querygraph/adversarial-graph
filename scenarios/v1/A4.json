@@ -1,0 +1,31 @@
+{
+  "id": "A4",
+  "name": "hot-node-write-contention",
+  "layers": [
+    "L0",
+    "L1",
+    "L3"
+  ],
+  "datasets": [
+    "wiki-Talk",
+    "synthetic-star"
+  ],
+  "hard_gates": [
+    "lost_write",
+    "duplicate_durable_mutation"
+  ],
+  "choke_points": [
+    "CP-6",
+    "CP-9.2"
+  ],
+  "implemented": "M1",
+  "parameters": {
+    "writers": [
+      8,
+      32,
+      128
+    ],
+    "edges_per_writer": 200,
+    "load": "closed-loop in M1, open-loop in M2"
+  }
+}

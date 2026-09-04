@@ -1,0 +1,23 @@
+{
+  "id": "A5",
+  "name": "recursive-deletes",
+  "layers": [
+    "L1",
+    "L3"
+  ],
+  "datasets": [
+    "ldbc-snb-sf1",
+    "sx-stackoverflow"
+  ],
+  "hard_gates": [
+    "wrong_answer",
+    "lost_write"
+  ],
+  "choke_points": [
+    "CP-9.3",
+    "CP-9.4",
+    "CP-9.5"
+  ],
+  "implemented": "M2",
+  "parameters": {}
+}

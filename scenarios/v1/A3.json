@@ -1,0 +1,24 @@
+{
+  "id": "A3",
+  "name": "unbounded-results",
+  "layers": [
+    "L2"
+  ],
+  "datasets": [
+    "com-Orkut",
+    "web-Google"
+  ],
+  "hard_gates": [
+    "policy_bypass",
+    "oom_or_crash",
+    "hang_or_timeout_without_refusal"
+  ],
+  "choke_points": [
+    "CP-1.3",
+    "CP-2.3"
+  ],
+  "implemented": "M1",
+  "parameters": {
+    "attacks": "see src/scenarios/a3_policy_bounds.rs"
+  }
+}

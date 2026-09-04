@@ -1,0 +1,19 @@
+{
+  "id": "A10",
+  "name": "catalog-projection-replay",
+  "layers": [
+    "L5",
+    "L1"
+  ],
+  "datasets": [
+    "synthetic-catalog-10k"
+  ],
+  "hard_gates": [
+    "duplicate_durable_mutation",
+    "lost_write",
+    "wrong_answer"
+  ],
+  "choke_points": [],
+  "implemented": "M3",
+  "parameters": {}
+}

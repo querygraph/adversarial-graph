@@ -1,0 +1,30 @@
+{
+  "id": "A1",
+  "name": "super-node-fan-out",
+  "layers": [
+    "L0",
+    "L1",
+    "L2"
+  ],
+  "datasets": [
+    "wiki-Talk",
+    "soc-LiveJournal1",
+    "twitter-2010"
+  ],
+  "hard_gates": [
+    "wrong_answer",
+    "oom_or_crash"
+  ],
+  "choke_points": [
+    "CP-3.3",
+    "CP-7.3"
+  ],
+  "implemented": "M1",
+  "parameters": {
+    "k": [
+      1,
+      2
+    ],
+    "rounds": 3
+  }
+}

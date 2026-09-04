@@ -1,0 +1,22 @@
+{
+  "id": "A12",
+  "name": "cold-start-and-footprint",
+  "layers": [
+    "L0",
+    "L1",
+    "L2"
+  ],
+  "datasets": [
+    "ladder"
+  ],
+  "hard_gates": [],
+  "choke_points": [],
+  "implemented": "M2",
+  "parameters": {
+    "metrics": [
+      "cold_start_ms",
+      "peak_rss_bytes",
+      "p999_us"
+    ]
+  }
+}

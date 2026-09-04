@@ -1,0 +1,30 @@
+{
+  "id": "A2",
+  "name": "deep-paths",
+  "layers": [
+    "L1",
+    "L2"
+  ],
+  "datasets": [
+    "roadNet-CA",
+    "GAP-road"
+  ],
+  "hard_gates": [
+    "hang_or_timeout_without_refusal",
+    "wrong_answer",
+    "policy_bypass"
+  ],
+  "choke_points": [
+    "CP-7.1",
+    "CP-7.4",
+    "CP-7.5"
+  ],
+  "implemented": "M1",
+  "parameters": {
+    "depth": [
+      50,
+      200,
+      849
+    ]
+  }
+}
