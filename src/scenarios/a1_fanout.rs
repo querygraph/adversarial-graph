@@ -32,7 +32,11 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                 last = layers;
             }
             Err(e) => {
-                r.gates.oom_or_crash += 1;
+                if crate::backends::Backend::is_unsupported(&e) {
+                r.unsupported(&format!("backend cannot traverse: {e}"));
+                return r;
+            }
+            r.gates.oom_or_crash += 1;
                 r.notes.push(format!("khop failed: {e}"));
                 return r;
             }

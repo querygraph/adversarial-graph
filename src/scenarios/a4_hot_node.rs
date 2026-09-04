@@ -29,6 +29,10 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     let (hub, _) = ctx.oracle.max_out_degree_vertex();
     let initial_degree = match ctx.backend.out_edges(&hub).await {
         Ok(edges) => edges.len(),
+        Err(e) if crate::backends::Backend::is_unsupported(&e) => {
+            r.unsupported(&format!("backend cannot read edges back: {e}"));
+            return r;
+        }
         Err(e) => {
             r.gates.oom_or_crash += 1;
             r.notes.push(format!("could not read hub degree: {e}"));
@@ -103,6 +107,10 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         r.observe("non_conflict_error_sample", sample);
     }
     match ctx.backend.out_degree_after_reopen(&hub).await {
+        Err(e) if crate::backends::Backend::is_unsupported(&e) => {
+            r.unsupported(&format!("backend cannot read edges back: {e}"));
+            return r;
+        }
         Ok(final_degree) => {
             r.observe("final_out_degree", final_degree);
             let expected = initial_degree + accepted;

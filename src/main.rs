@@ -99,6 +99,7 @@ async fn main() {
             for b in BackendKind::all() {
                 println!("{}", b.name());
             }
+            println!("(network/embedded backends need --features postgres,surreal,falkor,lancedb and compose.yaml)");
         }
         "run" => run(&root, &args).await,
         _ => usage(),

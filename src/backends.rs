@@ -5,6 +5,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use grust::{Edge, EdgeQuery, Graph, GraphAdminStore, GraphStore, NodeId, Traversal};
+#[allow(unused_imports)]
+use grust::GraphAdminStore as _;
 use grust::{TursoConfig, TursoGraphStore, TursoJournalMode};
 
 use crate::dataset::EDGE_LABEL;
@@ -14,6 +16,14 @@ pub enum BackendKind {
     Memory,
     TursoWal,
     TursoMvcc,
+    #[cfg(feature = "postgres")]
+    Postgres,
+    #[cfg(feature = "surreal")]
+    Surreal,
+    #[cfg(feature = "falkor")]
+    Falkor,
+    #[cfg(feature = "lancedb")]
+    LanceDb,
 }
 
 impl BackendKind {
@@ -22,6 +32,14 @@ impl BackendKind {
             "memory" => Some(Self::Memory),
             "turso" | "turso-wal" => Some(Self::TursoWal),
             "turso-mvcc" => Some(Self::TursoMvcc),
+            #[cfg(feature = "postgres")]
+            "postgres" => Some(Self::Postgres),
+            #[cfg(feature = "surreal")]
+            "surreal" => Some(Self::Surreal),
+            #[cfg(feature = "falkor")]
+            "falkor" => Some(Self::Falkor),
+            #[cfg(feature = "lancedb")]
+            "lancedb" => Some(Self::LanceDb),
             _ => None,
         }
     }
@@ -30,11 +48,88 @@ impl BackendKind {
             Self::Memory => "memory",
             Self::TursoWal => "turso-wal",
             Self::TursoMvcc => "turso-mvcc",
+            #[cfg(feature = "postgres")]
+            Self::Postgres => "postgres",
+            #[cfg(feature = "surreal")]
+            Self::Surreal => "surreal",
+            #[cfg(feature = "falkor")]
+            Self::Falkor => "falkor",
+            #[cfg(feature = "lancedb")]
+            Self::LanceDb => "lancedb",
         }
     }
-    pub fn all() -> &'static [BackendKind] {
-        &[Self::Memory, Self::TursoWal, Self::TursoMvcc]
+    pub fn all() -> Vec<BackendKind> {
+        vec![
+            Self::Memory,
+            Self::TursoWal,
+            Self::TursoMvcc,
+            #[cfg(feature = "postgres")]
+            Self::Postgres,
+            #[cfg(feature = "surreal")]
+            Self::Surreal,
+            #[cfg(feature = "falkor")]
+            Self::Falkor,
+            #[cfg(feature = "lancedb")]
+            Self::LanceDb,
+        ]
     }
+    pub fn is_turso(self) -> bool {
+        matches!(self, Self::TursoWal | Self::TursoMvcc)
+    }
+}
+
+fn env_or(key: &str, default: &str) -> String {
+    std::env::var(key).unwrap_or_else(|_| default.to_string())
+}
+
+#[cfg(feature = "postgres")]
+async fn connect_postgres(tag: &str) -> grust::Result<grust::PostgresGraphStore> {
+    grust::PostgresGraphStore::connect(grust::PostgresGraphConfig {
+        connection_string: env_or(
+            "AG_POSTGRES_URL",
+            "host=127.0.0.1 port=15432 user=postgres password=postgres dbname=graph",
+        ),
+        schema: "public".to_string(),
+        table_prefix: format!("ag_{}", tag.replace('-', "_").to_ascii_lowercase()),
+        batch_size: 500,
+    })
+    .await
+}
+
+#[cfg(feature = "surreal")]
+fn connect_surreal(tag: &str) -> grust::Result<grust::SurrealHttpGraphStore> {
+    grust::SurrealHttpGraphStore::connect(grust::SurrealConfig {
+        url: env_or("AG_SURREAL_URL", "http://127.0.0.1:18000/sql"),
+        user: "root".to_string(),
+        pass: "root".to_string(),
+        namespace: "ag".to_string(),
+        database: format!("ag_{}", tag.replace('-', "_").to_ascii_lowercase()),
+        batch_size: 100,
+        labels: vec![crate::dataset::NODE_LABEL.to_string()],
+        relationships: vec![EDGE_LABEL.to_string()],
+    })
+}
+
+#[cfg(feature = "falkor")]
+fn connect_falkor(tag: &str) -> grust::FalkorGraphStore {
+    grust::FalkorGraphStore::new(grust::FalkorConfig {
+        redis_url: env_or("AG_FALKOR_URL", "redis://127.0.0.1:16379"),
+        graph: format!("ag_{}", tag.replace('-', "_").to_ascii_lowercase()),
+        batch_size: 1_000,
+        pool_size: 16,
+        id_property: "id".to_string(),
+        labels_property: "labels".to_string(),
+    })
+}
+
+#[cfg(feature = "lancedb")]
+async fn connect_lancedb(work_dir: &std::path::Path, tag: &str) -> grust::Result<grust::LanceDbGraphStore> {
+    grust::LanceDbGraphStore::connect(grust::LanceDbConfig {
+        uri: work_dir.join(format!("lancedb-{tag}")).display().to_string(),
+        table_prefix: "ag".to_string(),
+        batch_size: 500,
+    })
+    .await
 }
 
 /// A live handle to a backend plus what the harness needs to reopen it.
@@ -44,6 +139,7 @@ pub struct Backend {
     pub memory: Option<grust::MemoryGraphStore>,
     pub turso: Option<Arc<TursoGraphStore>>,
     pub turso_path: Option<PathBuf>,
+    pub tag: String,
 }
 
 impl Backend {
@@ -57,7 +153,37 @@ impl Backend {
                     memory: Some(store),
                     turso: None,
                     turso_path: None,
+                    tag: tag.to_string(),
                 })
+            }
+            #[cfg(feature = "postgres")]
+            BackendKind::Postgres => {
+                let store = Arc::new(connect_postgres(tag).await?);
+                store.bootstrap().await?;
+                store.clear().await?;
+                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string() })
+            }
+            #[cfg(feature = "surreal")]
+            BackendKind::Surreal => {
+                let store = Arc::new(connect_surreal(tag)?);
+                store.bootstrap().await?;
+                store.clear().await?;
+                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string() })
+            }
+            #[cfg(feature = "falkor")]
+            BackendKind::Falkor => {
+                let store = Arc::new(connect_falkor(tag));
+                store.bootstrap().await?;
+                store.clear().await?;
+                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string() })
+            }
+            #[cfg(feature = "lancedb")]
+            BackendKind::LanceDb => {
+                std::fs::create_dir_all(work_dir).map_err(|e| grust::GrustError::Backend(e.to_string()))?;
+                let store = Arc::new(connect_lancedb(work_dir, tag).await?);
+                store.bootstrap().await?;
+                store.clear().await?;
+                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string() })
             }
             BackendKind::TursoWal | BackendKind::TursoMvcc => {
                 std::fs::create_dir_all(work_dir).map_err(|e| grust::GrustError::Backend(e.to_string()))?;
@@ -73,6 +199,7 @@ impl Backend {
                     memory: None,
                     turso: Some(store),
                     turso_path: Some(path),
+                    tag: tag.to_string(),
                 })
             }
         }
@@ -98,10 +225,18 @@ impl Backend {
     pub async fn extra_handle(&self) -> grust::Result<Arc<dyn GraphStore>> {
         match self.kind {
             BackendKind::Memory => Ok(self.store.clone()),
-            _ => {
+            BackendKind::TursoWal | BackendKind::TursoMvcc => {
                 let path = self.turso_path.as_ref().expect("turso path");
                 Ok(Arc::new(Self::connect_turso(self.kind, path).await?))
             }
+            #[cfg(feature = "postgres")]
+            BackendKind::Postgres => Ok(Arc::new(connect_postgres(&self.tag).await?)),
+            #[cfg(feature = "surreal")]
+            BackendKind::Surreal => Ok(Arc::new(connect_surreal(&self.tag)?)),
+            #[cfg(feature = "falkor")]
+            BackendKind::Falkor => Ok(Arc::new(connect_falkor(&self.tag))),
+            #[cfg(feature = "lancedb")]
+            BackendKind::LanceDb => Ok(self.store.clone()),
         }
     }
 
@@ -146,16 +281,26 @@ impl Backend {
     /// Count of edges leaving `from` after reopening the durable store from
     /// disk (Turso) or re-reading the shared memory store.
     pub async fn out_degree_after_reopen(&self, from: &NodeId) -> grust::Result<usize> {
-        match self.kind {
-            BackendKind::Memory => Ok(self.out_edges(from).await?.len()),
-            _ => {
-                let path = self.turso_path.as_ref().expect("turso path");
-                let store = Self::connect_turso(self.kind, path).await?;
-                Ok(store
-                    .get_edges(EdgeQuery { from: Some(from.clone()), to: None, label: Some(EDGE_LABEL.into()) })
-                    .await?
-                    .len())
-            }
+        if self.kind.is_turso() {
+            let path = self.turso_path.as_ref().expect("turso path");
+            let store = Self::connect_turso(self.kind, path).await?;
+            return Ok(store
+                .get_edges(EdgeQuery { from: Some(from.clone()), to: None, label: Some(EDGE_LABEL.into()) })
+                .await?
+                .len());
         }
+        // Network backends: a fresh handle is a fresh connection to the same
+        // durable state; embedded memory/Lance stores re-read in place.
+        let handle = self.extra_handle().await?;
+        Ok(handle
+            .get_edges(EdgeQuery { from: Some(from.clone()), to: None, label: Some(EDGE_LABEL.into()) })
+            .await?
+            .len())
+    }
+
+    /// Whether an error means the backend does not implement the operation
+    /// (reported as `unsupported`, never as a crash).
+    pub fn is_unsupported(err: &grust::GrustError) -> bool {
+        matches!(err, grust::GrustError::Unsupported(_))
     }
 }

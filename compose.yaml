@@ -23,7 +23,7 @@ services:
       timeout: 3s
       retries: 60
     shm_size: 512mb
-    ports: ["5432:5432"]
+    ports: ["15432:5432"]
 
   falkor:
     <<: *limits
@@ -33,13 +33,13 @@ services:
       interval: 1s
       timeout: 3s
       retries: 60
-    ports: ["6379:6379"]
+    ports: ["16379:6379"]
 
   surreal:
     <<: *limits
     image: "${SURREAL_IMAGE:-surrealdb/surrealdb:v3.2.4@sha256:51baed8709f57f67dcf04b30e3177db846803fa9342dae2be58c6fa5f8d59843}"
     command: ["start", "--log", "warn", "--user", "root", "--pass", "root", "memory"]
-    ports: ["8000:8000"]
+    ports: ["18000:8000"]
 
   pggraph:
     <<: *limits
@@ -48,7 +48,7 @@ services:
       POSTGRES_DB: graph
       POSTGRES_PASSWORD: postgres
       POSTGRES_USER: postgres
-    ports: ["55432:5432"]
+    ports: ["55433:5432"]
 
   # External comparison targets (M3). Memory tuning is applied from the
   # vendor's own recommendation for the container budget and recorded in the
@@ -62,12 +62,12 @@ services:
       NEO4J_server_memory_heap_max__size: "${NEO4J_HEAP:-2G}"
       NEO4J_server_memory_pagecache_size: "${NEO4J_PAGECACHE:-2G}"
       NEO4J_db_memory_transaction_total_max: "${NEO4J_TXN_MAX:-1G}"
-    ports: ["7687:7687"]
+    ports: ["17687:7687"]
     profiles: ["external"]
 
   memgraph:
     <<: *limits
     image: "${MEMGRAPH_IMAGE:-memgraph/memgraph:3.5}"
     command: ["--memory-limit=${MEMGRAPH_MEMORY_MB:-6144}", "--log-level=WARNING"]
-    ports: ["7688:7687"]
+    ports: ["17688:7687"]
     profiles: ["external"]
