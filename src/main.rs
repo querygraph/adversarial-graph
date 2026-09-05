@@ -118,6 +118,22 @@ async fn run(root: &Path, args: &Args) {
     let work_dir = out_dir.join("work");
     let mut report = Report::new();
     report.summary.insert("smoke".into(), args.smoke.into());
+    let report_path = out_dir.join("report.json");
+    let jsonl_path = out_dir.join("results.jsonl");
+    // Persist after every result so a crash never loses completed scenarios.
+    let persist = |report: &mut Report, result: &report::ScenarioResult| {
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&jsonl_path)
+            && let Ok(line) = serde_json::to_string(result)
+        {
+            let _ = writeln!(f, "{line}");
+        }
+        report.finalize();
+        let tmp = report_path.with_extension("json.tmp");
+        if std::fs::write(&tmp, serde_json::to_string_pretty(report).expect("json")).is_ok() {
+            let _ = std::fs::rename(&tmp, &report_path);
+        }
+    };
 
     for dataset_name in &args.datasets {
         let Some(entry) = by_name.get(dataset_name) else {
@@ -167,6 +183,7 @@ async fn run(root: &Path, args: &Args) {
             eprintln!("   LOAD {:<12} {:?}  cpu={:.2}  load1m={}", load_result.backend, load_result.outcome,
                 load_result.observations.get("client_cpu_ratio").and_then(|v| v.as_f64()).unwrap_or(0.0),
                 load_result.observations.get("host_loadavg_1m_end").cloned().unwrap_or_default());
+            persist(&mut report, &load_result);
             report.push(load_result);
             if load_failed { continue; }
             for scenario in &args.scenarios {
@@ -180,12 +197,13 @@ async fn run(root: &Path, args: &Args) {
                     result.observations.get("server_cpu_us").and_then(|v| v.as_u64()).map(|c| format!(" server_cpu={}ms", c / 1000)).unwrap_or_default(),
                     result.notes.join(" | ")
                 );
+                persist(&mut report, &result);
                 report.push(result);
             }
         }
     }
     report.finalize();
-    let path = out_dir.join("report.json");
+    let path = report_path.clone();
     std::fs::write(&path, serde_json::to_string_pretty(&report).expect("json")).expect("write report");
     let _ = std::fs::remove_dir_all(&work_dir);
     eprintln!("== report: {}  hard_gate_total={}  outcomes={}", path.display(), report.gates.total(), report.summary["outcomes"]);

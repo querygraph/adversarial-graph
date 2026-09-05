@@ -34,4 +34,4 @@ sail = ["grust/sail"]
 full-backends = ["postgres", "postgres-pgq", "pggraph", "surreal", "falkor", "lancedb", "sail"]
 
 [profile.release]
-debug = 1
+debug = 0
