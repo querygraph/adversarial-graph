@@ -453,7 +453,8 @@ wiki-Talk's 12,215-neighbour hub, A1 returned exactly **10,000** rows. The
 image ships `RESULTSET_SIZE 10000`, which silently truncates every result set
 at 10,000 rows with no error and no warning — a `wrong_answer` at default
 configuration. With the documented knob set to `-1` the full 12,215 come
-back. Both profiles are kept: the defaults row stays a failure in the report,
+back; the tuned-profile rerun (`reports/20260905T060047Z`) passes A1, A2, and
+A4 with 0 gates. Both profiles are kept: the defaults row stays a failure in the report,
 and the tuned profile (`FALKOR_RESULTSET_SIZE=-1` in `compose.yaml`) is the
 one comparable with the other stores, exactly as Neo4j's memory tuning is.
 
