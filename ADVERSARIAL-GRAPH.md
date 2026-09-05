@@ -685,6 +685,19 @@ single-sample or 100-sample scenario; the load halving and the hub-read
 gains are the changes' effect, and the memory store's load now carries the
 index build it previously did not have (about 230 ms at 200k edges).
 
+One backend's outcome did change under the pin, for a reason outside the
+four changes: `fdc685ee` sits on Grust `main`, which since v0.13.0 migrated
+`grust-helix`'s SDK path to the `helix-db` 3.0.0 client's typed queries
+(commit `7b12784`). Against the digest-pinned `enterprise-dev` image the
+harness runs, that path now fails at its first request, the label drop in
+`clear`, so `helix-sdk` cannot be opened at all and both datasets record a
+failing LOAD row (`open failed: Helix SDK replace/drop failed`; the adapter
+deliberately does not render the cause because the client's errors can carry
+the configured URL). At v0.13.0 the same path loaded and then rejected every
+read (§7.1). The LSQB harness qualifies the v3 SDK against a source-built
+Helix server; the strain ladder will need that server image before
+`helix-sdk` can be measured again. `helix-http` is unaffected.
+
 The memory A4 p99 rose from 81 µs to a few hundred: the one write that
 invalidates the snapshot spawns the thread that releases it. Before
 `traverse_ids` (change 4) the hub read measured 15.8 ms, so of the original

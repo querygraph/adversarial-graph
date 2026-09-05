@@ -106,27 +106,30 @@ Notes for this host:
 
 ## Grust store speed work (2026-09-05, evening)
 
-- Branch `fable/strain-adapter-reads` in `~/src/grust` (memory snapshot
-  reads, Turso single-transaction load; see ADVERSARIAL-GRAPH.md §7.2). It
-  is committed locally and **not pushed**: this host has no GitHub
-  credentials. `~/.ssh/id_ed25519.pub` was generated for the user to
-  authorize with write access to `querygraph/{grust,adversarial-graph,
-  adversarial-site}`; until then nothing can be pushed and the private site
-  repo cannot be cloned.
-- The harness `Cargo.toml`/`Cargo.lock` carry an uncommitted **dev-only**
-  `[patch.crates-io]` to the local checkout for measurement; never commit
-  it. The pinned original is `Cargo.toml.pinned` in the session scratch dir.
-- Once the key works: `final-pipeline.sh` in the session scratch dir pushes
-  the branch, pins helix/ladybug and the core/memory/turso patches to its
-  revision, builds all backends, runs the ladder for every backend, then
-  ladybug on both datasets (about 10 h). Then regenerate RESULTS.md, replace
-  the development table in §7.2 with the pinned rows, and bundle:
+- Branch `fable/strain-adapter-reads` in `~/src/grust`, pushed at
+  `fdc685ee` (memory snapshot reads, `traverse_ids`, Turso single-transaction
+  load; ADVERSARIAL-GRAPH.md §7.2). The harness pins every Grust crate to
+  that revision (`Cargo.toml` git `rev` plus `[patch.crates-io]`).
+- The pinned ladder for the 2026-09-06 publication runs from
+  `final-ladders.sh` (session scratch dir): every backend one at a time,
+  both Falkor profiles, Helix at 10k and 200k, then Ladybug on both datasets
+  (about 10 h). Then regenerate RESULTS.md and bundle:
   `scripts/bundle-site-evidence.py OUT --host "lakecat, 4 vCPU EC2, load ≈1" --since 20260905T082424Z`
   (`--since` keeps the laptop bundles out of the EC2 publication). The site
   verifier (`adversarial-site/scripts/verify-strain-evidence.mjs`) pins one
   manifest digest and harness revision per publication: add an entry, do not
   edit the laptop one.
-- Reports now carry `harness_revision` (build.rs stamps `git rev-parse`).
+- Reports now carry `harness_revision` and `grust_source` (build.rs stamps
+  `git rev-parse` and the Cargo.lock source of `grust-core`); a backend that
+  cannot be opened is a failing LOAD row, never a missing one.
+- `reports-dev/` (ignored) holds every bundle that is not publishable:
+  development builds against the local checkout, and `pinned-131308f/`,
+  a partial pinned run superseded by the rerun at `1baddcd`.
+- The key was authorized on 2026-09-05 evening; both repos' remotes are SSH.
+  The site is cloned at `~/src/adversarial-site`, node 20 is installed; the
+  strain page carries the drafted 2026-09-06 publication with placeholders
+  that `publish-site.py` (session scratch dir; steps in ADVERSARIAL-GRAPH.md
+  §7.2 and this file) fills from the bundle.
 
 ## What was in flight on the laptop when this was written
 
