@@ -437,6 +437,20 @@ trip per edge. FalkorDB itself answers all of these through `GRAPH.QUERY`.
 The harness therefore reads Falkor back through its own openCypher path
 (`read_path = "harness-native-cypher"` in the report, `src/falkor_reader.rs`)
 so the engine is measured; the portable-API gap is charged to the adapter.
+Two more `grust-falkor` facts the harness has to work around: node labels are
+lowercased through `schema_identifier` (`V` is stored as `v`, relationship
+types are kept as given), and the id index is created only inside
+`apply_schema`, which `put_graph` never calls — without it every edge
+`MATCH … {id}` scans all nodes (38k edges in eight minutes on a 73k-node
+slice). The harness creates the index at bootstrap, as it does for Neo4j,
+so the engine and not the missing index is what gets measured.
+
+**Neo4j 5.26 Community** (roadNet-CA 200k-edge slice, heap 3G / page cache
+3G, host load ≈300): A1 fan-out pass in 2.4 s wall / 0.57 s server CPU; A2
+depth-8 BFS pass in 3.9 s / 2.0 s; A4 hot node 4×25 writes pass with no
+lost write in 4.3 s wall and **4.5 s server CPU — about 45 ms of server CPU
+per single-edge `CREATE`** through Bolt with the id index present. Client
+CPU stayed at ≈1 %, i.e. the wall time is the server and the round trips.
 
 Known M1 limits, to be closed in M2: A2 starts from the lowest id (on
 wiki-Talk that vertex sits in a one-node component, so the deep-path run is

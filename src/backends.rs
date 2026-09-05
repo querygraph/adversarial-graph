@@ -219,6 +219,7 @@ impl Backend {
                     &env_or("AG_FALKOR_URL", "redis://127.0.0.1:16379"),
                     &format!("ag_{}", tag.replace('-', "_").to_ascii_lowercase()),
                 )?;
+                reader.ensure_index(crate::dataset::NODE_LABEL)?;
                 Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string(), falkor: Some(reader) })
             }
             #[cfg(feature = "neo4j")]

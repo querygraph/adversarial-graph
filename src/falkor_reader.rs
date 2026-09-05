@@ -70,16 +70,37 @@ impl FalkorReader {
         Ok(out)
     }
 
+    /// `grust-falkor` lowercases node labels through `schema_identifier`
+    /// (`V` is stored as `v`) and keeps relationship types as given.
+    fn label(node_label: &str) -> String {
+        node_label.to_ascii_lowercase()
+    }
+
+    /// The Grust adapter only creates its id index inside `apply_schema`,
+    /// which `put_graph` never calls; without it every edge write scans all
+    /// nodes. Create it up front so the engine, not the missing index, is
+    /// what gets measured. Idempotent: an existing index is not an error.
+    pub fn ensure_index(&self, node_label: &str) -> grust::Result<()> {
+        let label = Self::label(node_label);
+        match self.column(&format!("CREATE INDEX FOR (n:{label}) ON (n.id)")) {
+            Ok(_) => Ok(()),
+            Err(e) if e.to_string().contains("already indexed") => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
+
     pub fn out_neighbors(&self, node_label: &str, edge_label: &str, id: &str) -> grust::Result<Vec<String>> {
+        let label = Self::label(node_label);
         self.column(&format!(
-            "MATCH (a:{node_label} {{id: '{}'}})-[:{edge_label}]->(b) RETURN b.id",
+            "MATCH (a:{label} {{id: '{}'}})-[:{edge_label}]->(b) RETURN b.id",
             escape(id)
         ))
     }
 
     pub fn out_degree(&self, node_label: &str, edge_label: &str, id: &str) -> grust::Result<usize> {
+        let label = Self::label(node_label);
         let counts = self.column(&format!(
-            "MATCH (a:{node_label} {{id: '{}'}})-[r:{edge_label}]->() RETURN count(r)",
+            "MATCH (a:{label} {{id: '{}'}})-[r:{edge_label}]->() RETURN count(r)",
             escape(id)
         ))?;
         Ok(counts.first().and_then(|c| c.parse::<usize>().ok()).unwrap_or(0))
