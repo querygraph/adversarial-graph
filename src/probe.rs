@@ -53,7 +53,7 @@ pub fn container_usage(name: &str) -> ContainerUsage {
             "10",
             "--unix-socket",
             &sock,
-            &format!("http://localhost/containers/{name}/stats?stream=false"),
+            &format!("http://localhost/containers/{name}/stats?stream=false&one-shot=true"),
         ])
         .output();
     let Ok(out) = out else { return ContainerUsage::default() };
