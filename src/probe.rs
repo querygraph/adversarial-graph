@@ -1,7 +1,7 @@
 //! Resource accounting so a number is never just wall-clock on a shared host:
 //! client CPU (user + system) and peak RSS from `getrusage`, the host load
 //! average, and — for containerized backends — the server's cumulative CPU
-//! and current memory read from its cgroup through `docker exec`.
+//! and current memory read from the Docker Engine API.
 
 use std::process::Command;
 
@@ -36,27 +36,33 @@ pub struct ContainerUsage {
     pub memory_bytes: u64,
 }
 
-/// Cumulative CPU (`usage_usec` from cgroup v2 `cpu.stat`) and current memory
-/// (`memory.current`) of a container; zero if the container is not
-/// reachable or is not cgroup v2.
+/// Cumulative CPU and current memory of a container from the Docker
+/// Engine API (`GET /containers/{name}/stats?stream=false`), which works for
+/// distroless images that have no shell for `docker exec`. Zero when the
+/// daemon is unreachable.
 pub fn container_usage(name: &str) -> ContainerUsage {
-    let read = |path: &str| -> Option<String> {
-        let out = Command::new("docker")
-            .args(["exec", name, "cat", path])
-            .output()
-            .ok()?;
-        out.status.success().then(|| String::from_utf8_lossy(&out.stdout).to_string())
+    let sock = std::env::var("DOCKER_SOCK").ok().unwrap_or_else(|| {
+        let home = std::env::var("HOME").unwrap_or_default();
+        let desktop = format!("{home}/.docker/run/docker.sock");
+        if std::path::Path::new(&desktop).exists() { desktop } else { "/var/run/docker.sock".to_string() }
+    });
+    let out = Command::new("curl")
+        .args([
+            "-s",
+            "--max-time",
+            "10",
+            "--unix-socket",
+            &sock,
+            &format!("http://localhost/containers/{name}/stats?stream=false"),
+        ])
+        .output();
+    let Ok(out) = out else { return ContainerUsage::default() };
+    let Ok(json) = serde_json::from_slice::<serde_json::Value>(&out.stdout) else {
+        return ContainerUsage::default();
     };
-    let cpu_usec = read("/sys/fs/cgroup/cpu.stat")
-        .and_then(|s| {
-            s.lines()
-                .find_map(|l| l.strip_prefix("usage_usec ").and_then(|v| v.trim().parse().ok()))
-        })
-        .unwrap_or(0);
-    let memory_bytes = read("/sys/fs/cgroup/memory.current")
-        .and_then(|s| s.trim().parse().ok())
-        .unwrap_or(0);
-    ContainerUsage { cpu_usec, memory_bytes }
+    let cpu_ns = json["cpu_stats"]["cpu_usage"]["total_usage"].as_u64().unwrap_or(0);
+    let memory_bytes = json["memory_stats"]["usage"].as_u64().unwrap_or(0);
+    ContainerUsage { cpu_usec: cpu_ns / 1_000, memory_bytes }
 }
 
 /// Snapshot taken before a scenario; `finish` turns it into observations.
