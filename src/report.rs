@@ -136,6 +136,9 @@ pub struct Report {
     pub benchmark: &'static str,
     pub generated_at: String,
     pub harness_version: &'static str,
+    /// Git revision of the harness that produced this report (`-dirty` when
+    /// the tree had uncommitted changes), stamped at build time.
+    pub harness_revision: &'static str,
     pub grust_version: &'static str,
     pub host: BTreeMap<String, String>,
     pub datasets: Vec<serde_json::Value>,
@@ -158,6 +161,7 @@ impl Report {
             benchmark: "GRAPH-ADVERSARIAL-v1",
             generated_at: chrono::Utc::now().to_rfc3339(),
             harness_version: env!("CARGO_PKG_VERSION"),
+            harness_revision: env!("AG_GIT_REV"),
             grust_version: "0.13.0",
             host,
             datasets: Vec::new(),
