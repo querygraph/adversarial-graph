@@ -23,8 +23,8 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     };
     let (hub, _) = ctx.oracle.max_out_degree_vertex();
     // Earlier scenarios may have mutated the hub; measure the live degree.
-    let initial_degree = match ctx.backend.out_edges(&hub).await {
-        Ok(edges) => edges.len(),
+    let initial_degree = match ctx.backend.out_degree(&hub).await {
+        Ok(degree) => degree,
         Err(e) => {
             r.gates.oom_or_crash += 1;
             r.notes.push(format!("could not read hub degree: {e}"));

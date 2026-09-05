@@ -429,6 +429,15 @@ adapter (an `in,out` index at bootstrap, or deterministic edge record ids so
 `RELATE` alone is idempotent); until then Surreal loads are recorded with
 `edges_per_s` and are not comparable to the other stores' load figures.
 
+FalkorDB is a second adapter finding: `grust-falkor` 0.13 is write-only —
+`get_node`, `get_edges`, and `traverse` return `Unsupported("… does not
+implement reads yet")`, its native-Cypher escape hatch discards results, its
+Redis calls are synchronous inside `async fn`s, and `put_edge` is one round
+trip per edge. FalkorDB itself answers all of these through `GRAPH.QUERY`.
+The harness therefore reads Falkor back through its own openCypher path
+(`read_path = "harness-native-cypher"` in the report, `src/falkor_reader.rs`)
+so the engine is measured; the portable-API gap is charged to the adapter.
+
 Known M1 limits, to be closed in M2: A2 starts from the lowest id (on
 wiki-Talk that vertex sits in a one-node component, so the deep-path run is
 trivial there); A4 is closed-loop (open-loop scheduling with coordinated-

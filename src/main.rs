@@ -7,6 +7,8 @@
 
 mod backends;
 mod dataset;
+#[cfg(feature = "falkor")]
+mod falkor_reader;
 mod oracle;
 mod probe;
 mod report;

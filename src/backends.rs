@@ -156,6 +156,8 @@ pub struct Backend {
     pub turso: Option<Arc<TursoGraphStore>>,
     pub turso_path: Option<PathBuf>,
     pub tag: String,
+    #[cfg(feature = "falkor")]
+    pub falkor: Option<crate::falkor_reader::FalkorReader>,
 }
 
 impl Backend {
@@ -170,6 +172,8 @@ impl Backend {
                     turso: None,
                     turso_path: None,
                     tag: tag.to_string(),
+                    #[cfg(feature = "falkor")]
+                    falkor: None,
                 })
             }
             #[cfg(feature = "postgres")]
@@ -177,21 +181,25 @@ impl Backend {
                 let store = Arc::new(connect_postgres(tag).await?);
                 store.bootstrap().await?;
                 store.clear().await?;
-                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string() })
+                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string(), #[cfg(feature = "falkor")] falkor: None })
             }
             #[cfg(feature = "surreal")]
             BackendKind::Surreal => {
                 let store = Arc::new(connect_surreal(tag).await?);
                 store.bootstrap().await?;
                 store.clear().await?;
-                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string() })
+                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string(), #[cfg(feature = "falkor")] falkor: None })
             }
             #[cfg(feature = "falkor")]
             BackendKind::Falkor => {
                 let store = Arc::new(connect_falkor(tag));
                 store.bootstrap().await?;
                 store.clear().await?;
-                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string() })
+                let reader = crate::falkor_reader::FalkorReader::new(
+                    &env_or("AG_FALKOR_URL", "redis://127.0.0.1:16379"),
+                    &format!("ag_{}", tag.replace('-', "_").to_ascii_lowercase()),
+                )?;
+                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string(), falkor: Some(reader) })
             }
             #[cfg(feature = "lancedb")]
             BackendKind::LanceDb => {
@@ -199,7 +207,7 @@ impl Backend {
                 let store = Arc::new(connect_lancedb(work_dir, tag).await?);
                 store.bootstrap().await?;
                 store.clear().await?;
-                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string() })
+                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string(), #[cfg(feature = "falkor")] falkor: None })
             }
             BackendKind::TursoWal | BackendKind::TursoMvcc => {
                 std::fs::create_dir_all(work_dir).map_err(|e| grust::GrustError::Backend(e.to_string()))?;
@@ -216,6 +224,8 @@ impl Backend {
                     turso: Some(store),
                     turso_path: Some(path),
                     tag: tag.to_string(),
+                    #[cfg(feature = "falkor")]
+                    falkor: None,
                 })
             }
         }
@@ -272,10 +282,10 @@ impl Backend {
         for _ in 0..k {
             let mut next = Vec::new();
             for v in &frontier {
-                let nodes = self.store.traverse(Traversal::from_node(v.clone()).out(EDGE_LABEL)).await?;
-                for n in nodes {
-                    if visited.insert(n.id.clone()) {
-                        next.push(n.id);
+                let ids: Vec<NodeId> = self.neighbors(v).await?;
+                for id in ids {
+                    if visited.insert(id.clone()) {
+                        next.push(id);
                     }
                 }
             }
@@ -286,6 +296,48 @@ impl Backend {
             }
         }
         Ok(layers)
+    }
+
+    /// Out-neighbour ids of one vertex: the portable traversal IR, or the
+    /// harness-native Cypher path for stores whose Grust adapter cannot read.
+    pub async fn neighbors(&self, v: &NodeId) -> grust::Result<Vec<NodeId>> {
+        #[cfg(feature = "falkor")]
+        if let Some(reader) = &self.falkor {
+            let reader = reader.clone();
+            let id = v.as_str().to_string();
+            return tokio::task::spawn_blocking(move || {
+                reader.out_neighbors(crate::dataset::NODE_LABEL, EDGE_LABEL, &id)
+            })
+            .await
+            .map_err(|e| grust::GrustError::Backend(e.to_string()))?
+            .map(|ids| ids.into_iter().map(NodeId::new).collect());
+        }
+        let nodes = self.store.traverse(Traversal::from_node(v.clone()).out(EDGE_LABEL)).await?;
+        Ok(nodes.into_iter().map(|n| n.id).collect())
+    }
+
+    /// Out-degree of one vertex through the same read path as `neighbors`.
+    pub async fn out_degree(&self, from: &NodeId) -> grust::Result<usize> {
+        #[cfg(feature = "falkor")]
+        if let Some(reader) = &self.falkor {
+            let reader = reader.clone();
+            let id = from.as_str().to_string();
+            return tokio::task::spawn_blocking(move || {
+                reader.out_degree(crate::dataset::NODE_LABEL, EDGE_LABEL, &id)
+            })
+            .await
+            .map_err(|e| grust::GrustError::Backend(e.to_string()))?;
+        }
+        Ok(self.out_edges(from).await?.len())
+    }
+
+    /// Which read path `neighbors`/`out_degree` use, recorded in reports.
+    pub fn read_path(&self) -> &'static str {
+        #[cfg(feature = "falkor")]
+        if self.falkor.is_some() {
+            return "harness-native-cypher";
+        }
+        "grust-portable-api"
     }
 
     pub async fn out_edges(&self, from: &NodeId) -> grust::Result<Vec<Edge>> {
@@ -304,6 +356,10 @@ impl Backend {
                 .get_edges(EdgeQuery { from: Some(from.clone()), to: None, label: Some(EDGE_LABEL.into()) })
                 .await?
                 .len());
+        }
+        #[cfg(feature = "falkor")]
+        if self.falkor.is_some() {
+            return self.out_degree(from).await;
         }
         // Network backends: a fresh handle is a fresh connection to the same
         // durable state; embedded memory/Lance stores re-read in place.

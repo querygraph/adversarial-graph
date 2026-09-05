@@ -37,6 +37,7 @@ pub async fn run(id: &str, ctx: &Ctx<'_>) -> ScenarioResult {
         }
     };
     result.wall_ms = started.elapsed().as_millis();
+    result.observe("read_path", ctx.backend.read_path());
     probe.finish(&mut result);
     result.finish();
     result

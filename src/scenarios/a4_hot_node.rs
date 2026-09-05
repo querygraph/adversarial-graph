@@ -27,8 +27,8 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     let writers = if ctx.smoke { 4 } else { 16 };
     let per_writer = if ctx.smoke { 25 } else { 200 };
     let (hub, _) = ctx.oracle.max_out_degree_vertex();
-    let initial_degree = match ctx.backend.out_edges(&hub).await {
-        Ok(edges) => edges.len(),
+    let initial_degree = match ctx.backend.out_degree(&hub).await {
+        Ok(degree) => degree,
         Err(e) if crate::backends::Backend::is_unsupported(&e) => {
             r.unsupported(&format!("backend cannot read edges back: {e}"));
             return r;
