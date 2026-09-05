@@ -12,6 +12,11 @@ path = "src/main.rs"
 
 [dependencies]
 grust = { package = "grust-graph", version = "0.13.0", features = ["memory", "turso", "cypher"] }
+# Internal Grust backends that are deliberately not on crates.io
+# (`publish = false`): pinned to the same release tag as the published 0.13
+# crates so the harness still never depends on a local Grust checkout.
+grust-helix = { git = "https://github.com/querygraph/grust", tag = "v0.13.0", optional = true }
+grust-ladybug = { git = "https://github.com/querygraph/grust", tag = "v0.13.0", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -22,6 +27,7 @@ chrono = { version = "0.4", features = ["serde"] }
 libc = "0.2"
 redis = { version = "1", optional = true }
 neo4rs = { version = "0.8", optional = true }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"], optional = true }
 async-trait = { version = "0.1", optional = true }
 
 [features]
@@ -33,8 +39,17 @@ surreal = ["grust/surreal"]
 falkor = ["grust/falkor", "dep:redis"]
 lancedb = ["grust/lancedb"]
 sail = ["grust/sail"]
-neo4j = ["dep:neo4rs", "dep:async-trait"]
-full-backends = ["postgres", "postgres-pgq", "pggraph", "surreal", "falkor", "lancedb", "sail", "neo4j"]
+helix = ["dep:grust-helix"]
+ladybug = ["dep:grust-ladybug"]
+neo4j = ["dep:neo4rs", "dep:reqwest", "dep:async-trait"]
+full-backends = ["postgres", "postgres-pgq", "pggraph", "surreal", "falkor", "lancedb", "sail", "helix", "ladybug", "neo4j"]
+
+# The git-pinned internal backends carry `grust-core` as a path dependency
+# inside the Grust workspace; this makes the registry `grust-core 0.13.0` the
+# published `grust-graph` uses resolve to the identical tagged source so both
+# sides share one `GraphStore` trait.
+[patch.crates-io]
+grust-core = { git = "https://github.com/querygraph/grust", tag = "v0.13.0" }
 
 [profile.release]
 debug = 0

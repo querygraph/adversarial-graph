@@ -30,7 +30,7 @@ for path in reports:
     data = json.load(open(path))
     smoke = data.get("summary", {}).get("smoke", False)
     for r in data["results"]:
-        key = (r["dataset"], r["backend"], r["scenario"], bool(smoke))
+        key = (r["dataset"], alias.get(r["backend"], r["backend"]), r["scenario"], bool(smoke))
         if key in rows:
             prev = rows[key]
             history.setdefault(key, []).append((prev["run"], prev["outcome"], prev["gates"], prev["notes"]))
@@ -47,12 +47,16 @@ for path in reports:
             "p50_us": lat.get("p50_us"),
             "p99_us": lat.get("p99_us"),
             "path": o.get("read_path") or o.get("load_path") or "",
+            "transport": o.get("transport"),
             "edges_per_s": o.get("edges_per_s"),
             "notes": "; ".join(r.get("notes", []))[:120],
             "smoke": smoke,
         }
 
-order = ["memory", "turso-wal", "turso-mvcc", "postgres", "surreal", "falkor", "lancedb", "neo4j"]
+order = ["memory", "turso-wal", "turso-mvcc", "ladybug", "lancedb", "postgres", "surreal-http", "surreal-sdk",
+         "falkor", "helix-http", "helix-sdk", "neo4j", "neo4j-http"]
+# Runs before the HTTP/SDK split recorded the SDK store as plain "surreal".
+alias = {"surreal": "surreal-sdk"}
 def sort_key(k):
     d, b, s, smoke = k
     return (d, order.index(b) if b in order else 99, s, smoke)

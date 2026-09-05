@@ -263,15 +263,23 @@ they are reported as stack-integrity evidence, not as a comparison.
 | Grust `MemoryGraphStore` | in-process | reference; oracle host |
 | Grust `TursoGraphStore` (WAL and MVCC) | embedded | only `GraphCommitStore`; `BEGIN CONCURRENT` under MVCC |
 | Grust `PostgresGraphStore`, `PostgresPgqStore`, `PgGraphStore` | Postgres 18.6 / 19β PGQ / pgGraph 1.2 | digest-pinned images |
-| Grust `SurrealHttpGraphStore` / SDK | SurrealDB 3.2.4 | |
+| Grust `SurrealHttpGraphStore` and `SurrealSdkGraphStore` | SurrealDB 3.2.4 | two backends, `surreal-http` (SurrealQL over `/sql`) and `surreal-sdk` (native WebSocket through the `surrealdb` crate), so the transport is measured, not assumed |
 | Grust `FalkorGraphStore` | FalkorDB 4.20.4 | write path only through `GraphStore` (reads return `Unsupported`); native Cypher for reads |
 | Grust `LanceDbGraphStore` | embedded | load/read only |
+| Grust `LadybugGraphStore` | embedded LadybugDB (the `lbug` 0.20.2 crate) | Grust's internal adapter, `publish = false`, reached through a `git` dependency on the same Grust release tag as the published crates; on-disk under the run's work directory, untyped mode |
+| Grust `HelixHttpGraphStore` and `HelixSdkGraphStore` | HelixDB (`enterprise-dev`, digest-pinned) | same internal-adapter route as Ladybug; two backends, `helix-http` (dynamic queries posted to `/v1/query`) and `helix-sdk` (the `helix-db` client crate, pinned `=2.0.0` by the adapter) against one container |
 | Grust `SailGraphStore` | Sail Spark Connect, pinned rev | Cypher pushdown |
-| Grust `HelixHttpGraphStore`, `LadybugGraphStore` | unpublished crates | via `git` dependency on the Grust tag, feature-gated |
-| Neo4j 5.26 Community (Bolt, `neo4rs`) | `src/neo4j.rs`, a harness-side `GraphStore` | heap 3G / page cache 3G / `db.memory.transaction.total.max` 1G in an 8 GiB container (`compose.yaml`); `UNWIND`-batched loads, `(:V {id})` index; `read_path = harness-native-cypher` |
-| Memgraph, Kuzu/LadybugDB native, Apache AGE | external adapters (phase 2) | |
+| Neo4j 5.26 Community | Bolt (`neo4rs`, `src/neo4j.rs`) and the HTTP Query API (`POST /db/neo4j/query/v2`, `src/neo4j_http.rs`) | two backends, `neo4j` and `neo4j-http`, sharing Cypher, labels, batching and the `(:V {id})` index; heap 3G / page cache 3G / `db.memory.transaction.total.max` 1G in an 8 GiB container (`compose.yaml`); `read_path = harness-native-cypher` |
+| Memgraph, Apache AGE | external adapters (phase 2) | |
 
 ### 4.2 Report contract
+
+Where a system offers both an HTTP API and a Rust client, the harness runs
+both as separate backends and records `transport` in every LOAD row
+(`http-sql`, `rust-sdk-ws`, `http-json`, `rust-sdk-http`, `bolt`,
+`http-query-api`, `pg-wire`, `resp`, `embedded`). Same engine, same adapter
+logic, same container: a difference between the pair is the wire and the
+client, nothing else.
 
 `reports/<run>/report.json`: run provenance (dataset hashes, image digests,
 crate versions, host, limits), per-system × per-scenario outcome

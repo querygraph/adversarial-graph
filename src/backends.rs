@@ -1,5 +1,8 @@
-//! Systems under test. Each backend is reached only through the published
-//! `grust-graph` 0.13 API so the harness never depends on a Grust checkout.
+//! Systems under test. Each backend is reached through the published
+//! `grust-graph` 0.13 API, or through a Grust internal adapter pinned to the
+//! same release tag, so the harness never depends on a Grust checkout. Where
+//! a system offers both an HTTP API and a Rust SDK, both are separate
+//! backends so the transport cost is measured rather than assumed.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -9,7 +12,7 @@ use grust::{Edge, EdgeQuery, Graph, GraphAdminStore, GraphStore, NodeId, Travers
 use grust::GraphAdminStore as _;
 use grust::{TursoConfig, TursoGraphStore, TursoJournalMode};
 
-use crate::dataset::EDGE_LABEL;
+use crate::dataset::{EDGE_LABEL, NODE_LABEL};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BackendKind {
@@ -19,13 +22,23 @@ pub enum BackendKind {
     #[cfg(feature = "postgres")]
     Postgres,
     #[cfg(feature = "surreal")]
-    Surreal,
+    SurrealHttp,
+    #[cfg(feature = "surreal")]
+    SurrealSdk,
     #[cfg(feature = "falkor")]
     Falkor,
     #[cfg(feature = "lancedb")]
     LanceDb,
+    #[cfg(feature = "ladybug")]
+    Ladybug,
+    #[cfg(feature = "helix")]
+    HelixHttp,
+    #[cfg(feature = "helix")]
+    HelixSdk,
     #[cfg(feature = "neo4j")]
     Neo4j,
+    #[cfg(feature = "neo4j")]
+    Neo4jHttp,
 }
 
 impl BackendKind {
@@ -37,13 +50,23 @@ impl BackendKind {
             #[cfg(feature = "postgres")]
             "postgres" => Some(Self::Postgres),
             #[cfg(feature = "surreal")]
-            "surreal" => Some(Self::Surreal),
+            "surreal-http" => Some(Self::SurrealHttp),
+            #[cfg(feature = "surreal")]
+            "surreal" | "surreal-sdk" => Some(Self::SurrealSdk),
             #[cfg(feature = "falkor")]
             "falkor" => Some(Self::Falkor),
             #[cfg(feature = "lancedb")]
             "lancedb" => Some(Self::LanceDb),
+            #[cfg(feature = "ladybug")]
+            "ladybug" => Some(Self::Ladybug),
+            #[cfg(feature = "helix")]
+            "helix-http" => Some(Self::HelixHttp),
+            #[cfg(feature = "helix")]
+            "helix" | "helix-sdk" => Some(Self::HelixSdk),
             #[cfg(feature = "neo4j")]
-            "neo4j" => Some(Self::Neo4j),
+            "neo4j" | "neo4j-bolt" => Some(Self::Neo4j),
+            #[cfg(feature = "neo4j")]
+            "neo4j-http" => Some(Self::Neo4jHttp),
             _ => None,
         }
     }
@@ -55,13 +78,51 @@ impl BackendKind {
             #[cfg(feature = "postgres")]
             Self::Postgres => "postgres",
             #[cfg(feature = "surreal")]
-            Self::Surreal => "surreal",
+            Self::SurrealHttp => "surreal-http",
+            #[cfg(feature = "surreal")]
+            Self::SurrealSdk => "surreal-sdk",
             #[cfg(feature = "falkor")]
             Self::Falkor => "falkor",
             #[cfg(feature = "lancedb")]
             Self::LanceDb => "lancedb",
+            #[cfg(feature = "ladybug")]
+            Self::Ladybug => "ladybug",
+            #[cfg(feature = "helix")]
+            Self::HelixHttp => "helix-http",
+            #[cfg(feature = "helix")]
+            Self::HelixSdk => "helix-sdk",
             #[cfg(feature = "neo4j")]
             Self::Neo4j => "neo4j",
+            #[cfg(feature = "neo4j")]
+            Self::Neo4jHttp => "neo4j-http",
+        }
+    }
+    /// How the harness reaches the system: recorded per run so HTTP and
+    /// SDK rows of the same engine can be compared.
+    pub fn transport(self) -> &'static str {
+        match self {
+            Self::Memory => "embedded",
+            Self::TursoWal | Self::TursoMvcc => "embedded",
+            #[cfg(feature = "postgres")]
+            Self::Postgres => "pg-wire",
+            #[cfg(feature = "surreal")]
+            Self::SurrealHttp => "http-sql",
+            #[cfg(feature = "surreal")]
+            Self::SurrealSdk => "rust-sdk-ws",
+            #[cfg(feature = "falkor")]
+            Self::Falkor => "resp",
+            #[cfg(feature = "lancedb")]
+            Self::LanceDb => "embedded",
+            #[cfg(feature = "ladybug")]
+            Self::Ladybug => "embedded",
+            #[cfg(feature = "helix")]
+            Self::HelixHttp => "http-json",
+            #[cfg(feature = "helix")]
+            Self::HelixSdk => "rust-sdk-http",
+            #[cfg(feature = "neo4j")]
+            Self::Neo4j => "bolt",
+            #[cfg(feature = "neo4j")]
+            Self::Neo4jHttp => "http-query-api",
         }
     }
     pub fn all() -> Vec<BackendKind> {
@@ -72,13 +133,23 @@ impl BackendKind {
             #[cfg(feature = "postgres")]
             Self::Postgres,
             #[cfg(feature = "surreal")]
-            Self::Surreal,
+            Self::SurrealHttp,
+            #[cfg(feature = "surreal")]
+            Self::SurrealSdk,
             #[cfg(feature = "falkor")]
             Self::Falkor,
             #[cfg(feature = "lancedb")]
             Self::LanceDb,
+            #[cfg(feature = "ladybug")]
+            Self::Ladybug,
+            #[cfg(feature = "helix")]
+            Self::HelixHttp,
+            #[cfg(feature = "helix")]
+            Self::HelixSdk,
             #[cfg(feature = "neo4j")]
             Self::Neo4j,
+            #[cfg(feature = "neo4j")]
+            Self::Neo4jHttp,
         ]
     }
     /// Docker container serving this backend, if any (for resource probes).
@@ -87,11 +158,13 @@ impl BackendKind {
             #[cfg(feature = "postgres")]
             Self::Postgres => Some("adversarial-graph-postgres-1"),
             #[cfg(feature = "surreal")]
-            Self::Surreal => Some("adversarial-graph-surreal-1"),
+            Self::SurrealHttp | Self::SurrealSdk => Some("adversarial-graph-surreal-1"),
             #[cfg(feature = "falkor")]
             Self::Falkor => Some("adversarial-graph-falkor-1"),
+            #[cfg(feature = "helix")]
+            Self::HelixHttp | Self::HelixSdk => Some("adversarial-graph-helix-1"),
             #[cfg(feature = "neo4j")]
-            Self::Neo4j => Some("adversarial-graph-neo4j-1"),
+            Self::Neo4j | Self::Neo4jHttp => Some("adversarial-graph-neo4j-1"),
             _ => None,
         }
     }
@@ -104,6 +177,10 @@ fn env_or(key: &str, default: &str) -> String {
     std::env::var(key).unwrap_or_else(|_| default.to_string())
 }
 
+fn slug(tag: &str) -> String {
+    tag.replace('-', "_").to_ascii_lowercase()
+}
+
 #[cfg(feature = "postgres")]
 async fn connect_postgres(tag: &str) -> grust::Result<grust::PostgresGraphStore> {
     grust::PostgresGraphStore::connect(grust::PostgresGraphConfig {
@@ -112,35 +189,42 @@ async fn connect_postgres(tag: &str) -> grust::Result<grust::PostgresGraphStore>
             "host=127.0.0.1 port=15432 user=postgres password=postgres dbname=graph",
         ),
         schema: "public".to_string(),
-        table_prefix: format!("ag_{}", tag.replace('-', "_").to_ascii_lowercase()),
+        table_prefix: format!("ag_{}", slug(tag)),
         batch_size: 500,
     })
     .await
 }
 
 #[cfg(feature = "surreal")]
-async fn connect_surreal(tag: &str) -> grust::Result<grust::SurrealSdkGraphStore> {
-    // The SDK store speaks the native WebSocket protocol through the
-    // `surrealdb` crate; the HTTP `/sql` store stays available for
-    // differential comparison but is not the benchmark path.
-    grust::SurrealSdkGraphStore::connect(grust::SurrealConfig {
+fn surreal_config(tag: &str, transport: &str) -> grust::SurrealConfig {
+    grust::SurrealConfig {
         url: env_or("AG_SURREAL_URL", "http://127.0.0.1:18000/sql"),
         user: "root".to_string(),
         pass: "root".to_string(),
         namespace: "ag".to_string(),
-        database: format!("ag_{}", tag.replace('-', "_").to_ascii_lowercase()),
+        database: format!("ag_{}_{transport}", slug(tag)),
         batch_size: 500,
-        labels: vec![crate::dataset::NODE_LABEL.to_string()],
+        labels: vec![NODE_LABEL.to_string()],
         relationships: vec![EDGE_LABEL.to_string()],
+    }
+}
+
+/// The HTTP store posts SurrealQL to `/sql`; the SDK store speaks the native
+/// WebSocket protocol through the `surrealdb` crate. Same server, same
+/// adapter logic, different transport.
+#[cfg(feature = "surreal")]
+async fn connect_surreal(kind: BackendKind, tag: &str) -> grust::Result<Arc<dyn AdminStore>> {
+    Ok(match kind {
+        BackendKind::SurrealHttp => Arc::new(grust::SurrealHttpGraphStore::connect(surreal_config(tag, "http"))?),
+        _ => Arc::new(grust::SurrealSdkGraphStore::connect(surreal_config(tag, "sdk")).await?),
     })
-    .await
 }
 
 #[cfg(feature = "falkor")]
 fn connect_falkor(tag: &str) -> grust::FalkorGraphStore {
     grust::FalkorGraphStore::new(grust::FalkorConfig {
         redis_url: env_or("AG_FALKOR_URL", "redis://127.0.0.1:16379"),
-        graph: format!("ag_{}", tag.replace('-', "_").to_ascii_lowercase()),
+        graph: format!("ag_{}", slug(tag)),
         batch_size: 1_000,
         pool_size: 16,
         id_property: "id".to_string(),
@@ -148,14 +232,53 @@ fn connect_falkor(tag: &str) -> grust::FalkorGraphStore {
     })
 }
 
+/// HelixDB through Grust's internal adapter: the HTTP store posts dynamic
+/// queries to `/v1/query`; the SDK store sends the same requests through the
+/// `helix-db` client crate.
+#[cfg(feature = "helix")]
+fn connect_helix(kind: BackendKind) -> grust::Result<Arc<dyn AdminStore>> {
+    let base = env_or("AG_HELIX_URL", "http://127.0.0.1:18082");
+    Ok(match kind {
+        BackendKind::HelixHttp => Arc::new(grust_helix::HelixHttpGraphStore::connect(grust_helix::HelixHttpConfig {
+            query_url: format!("{}/v1/query", base.trim_end_matches('/')),
+            batch_size: 500,
+            labels: vec![NODE_LABEL.to_string()],
+        })?),
+        _ => Arc::new(grust_helix::HelixSdkGraphStore::connect(grust_helix::HelixSdkConfig {
+            base_url: base,
+            batch_size: 500,
+            labels: vec![NODE_LABEL.to_string()],
+        })?),
+    })
+}
+
+/// LadybugDB embedded through Grust's internal adapter (the `lbug` crate),
+/// on-disk under the run's work directory, untyped mode so the harness
+/// labels create their tables on first write.
+#[cfg(feature = "ladybug")]
+fn connect_ladybug(work_dir: &std::path::Path, tag: &str) -> grust::Result<grust_ladybug::LadybugGraphStore> {
+    let dir = work_dir.join(format!("ladybug-{tag}"));
+    let _ = std::fs::remove_dir_all(&dir);
+    grust_ladybug::LadybugGraphStore::new(grust_ladybug::LadybugConfig {
+        path: grust_ladybug::LadybugPath::Directory(dir),
+        table_prefix: "ag".to_string(),
+        dynamic_schema: true,
+        query_timeout_ms: None,
+    })
+}
+
 #[cfg(feature = "neo4j")]
-async fn connect_neo4j() -> grust::Result<crate::neo4j::Neo4jStore> {
-    crate::neo4j::Neo4jStore::connect(
-        &env_or("AG_NEO4J_URI", "bolt://127.0.0.1:17687"),
-        &env_or("AG_NEO4J_USER", "neo4j"),
-        &env_or("AG_NEO4J_PASS", "adversarial"),
-    )
-    .await
+async fn connect_neo4j(kind: BackendKind) -> grust::Result<Arc<dyn AdminStore>> {
+    let user = env_or("AG_NEO4J_USER", "neo4j");
+    let pass = env_or("AG_NEO4J_PASS", "adversarial");
+    Ok(match kind {
+        BackendKind::Neo4jHttp => Arc::new(crate::neo4j_http::Neo4jHttpStore::connect(
+            &env_or("AG_NEO4J_HTTP_URL", "http://127.0.0.1:17474"),
+            &user,
+            &pass,
+        )?),
+        _ => Arc::new(crate::neo4j::Neo4jStore::connect(&env_or("AG_NEO4J_URI", "bolt://127.0.0.1:17687"), &user, &pass).await?),
+    })
 }
 
 #[cfg(feature = "lancedb")]
@@ -167,6 +290,10 @@ async fn connect_lancedb(work_dir: &std::path::Path, tag: &str) -> grust::Result
     })
     .await
 }
+
+/// Object-safe view of a store the harness can bootstrap and clear.
+pub trait AdminStore: GraphAdminStore + Send + Sync {}
+impl<T: GraphAdminStore + Send + Sync> AdminStore for T {}
 
 /// A live handle to a backend plus what the harness needs to reopen it.
 pub struct Backend {
@@ -181,80 +308,79 @@ pub struct Backend {
 }
 
 impl Backend {
+    fn plain(kind: BackendKind, store: Arc<dyn GraphStore>, tag: &str) -> Self {
+        Self {
+            kind,
+            store,
+            memory: None,
+            turso: None,
+            turso_path: None,
+            tag: tag.to_string(),
+            #[cfg(feature = "falkor")]
+            falkor: None,
+        }
+    }
+
+    /// Bootstrap and clear a network or embedded store, then wrap it.
+    async fn prepared(kind: BackendKind, store: Arc<dyn AdminStore>, tag: &str) -> grust::Result<Self> {
+        store.bootstrap().await?;
+        store.clear().await?;
+        let dyn_store: Arc<dyn GraphStore> = store;
+        Ok(Self::plain(kind, dyn_store, tag))
+    }
+
     pub async fn open(kind: BackendKind, work_dir: &std::path::Path, tag: &str) -> grust::Result<Self> {
+        let mkdir = || std::fs::create_dir_all(work_dir).map_err(|e| grust::GrustError::Backend(e.to_string()));
         match kind {
             BackendKind::Memory => {
                 let store = grust::MemoryGraphStore::new();
-                Ok(Self {
-                    kind,
-                    store: Arc::new(store.clone()),
-                    memory: Some(store),
-                    turso: None,
-                    turso_path: None,
-                    tag: tag.to_string(),
-                    #[cfg(feature = "falkor")]
-                    falkor: None,
-                })
+                let mut b = Self::plain(kind, Arc::new(store.clone()), tag);
+                b.memory = Some(store);
+                Ok(b)
             }
             #[cfg(feature = "postgres")]
-            BackendKind::Postgres => {
-                let store = Arc::new(connect_postgres(tag).await?);
-                store.bootstrap().await?;
-                store.clear().await?;
-                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string(), #[cfg(feature = "falkor")] falkor: None })
-            }
+            BackendKind::Postgres => Self::prepared(kind, Arc::new(connect_postgres(tag).await?), tag).await,
             #[cfg(feature = "surreal")]
-            BackendKind::Surreal => {
-                let store = Arc::new(connect_surreal(tag).await?);
-                store.bootstrap().await?;
-                store.clear().await?;
-                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string(), #[cfg(feature = "falkor")] falkor: None })
+            BackendKind::SurrealHttp | BackendKind::SurrealSdk => {
+                Self::prepared(kind, connect_surreal(kind, tag).await?, tag).await
             }
             #[cfg(feature = "falkor")]
             BackendKind::Falkor => {
-                let store = Arc::new(connect_falkor(tag));
-                store.bootstrap().await?;
-                store.clear().await?;
+                let mut b = Self::prepared(kind, Arc::new(connect_falkor(tag)), tag).await?;
                 let reader = crate::falkor_reader::FalkorReader::new(
                     &env_or("AG_FALKOR_URL", "redis://127.0.0.1:16379"),
-                    &format!("ag_{}", tag.replace('-', "_").to_ascii_lowercase()),
+                    &format!("ag_{}", slug(tag)),
                 )?;
-                reader.ensure_index(crate::dataset::NODE_LABEL)?;
-                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string(), falkor: Some(reader) })
+                reader.ensure_index(NODE_LABEL)?;
+                b.falkor = Some(reader);
+                Ok(b)
+            }
+            #[cfg(feature = "helix")]
+            BackendKind::HelixHttp | BackendKind::HelixSdk => Self::prepared(kind, connect_helix(kind)?, tag).await,
+            #[cfg(feature = "ladybug")]
+            BackendKind::Ladybug => {
+                mkdir()?;
+                Self::prepared(kind, Arc::new(connect_ladybug(work_dir, tag)?), tag).await
             }
             #[cfg(feature = "neo4j")]
-            BackendKind::Neo4j => {
-                let store = Arc::new(connect_neo4j().await?);
-                store.bootstrap().await?;
-                store.clear().await?;
-                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string(), #[cfg(feature = "falkor")] falkor: None })
-            }
+            BackendKind::Neo4j | BackendKind::Neo4jHttp => Self::prepared(kind, connect_neo4j(kind).await?, tag).await,
             #[cfg(feature = "lancedb")]
             BackendKind::LanceDb => {
-                std::fs::create_dir_all(work_dir).map_err(|e| grust::GrustError::Backend(e.to_string()))?;
-                let store = Arc::new(connect_lancedb(work_dir, tag).await?);
-                store.bootstrap().await?;
-                store.clear().await?;
-                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string(), #[cfg(feature = "falkor")] falkor: None })
+                mkdir()?;
+                Self::prepared(kind, Arc::new(connect_lancedb(work_dir, tag).await?), tag).await
             }
             BackendKind::TursoWal | BackendKind::TursoMvcc => {
-                std::fs::create_dir_all(work_dir).map_err(|e| grust::GrustError::Backend(e.to_string()))?;
+                mkdir()?;
                 let path = work_dir.join(format!("{}-{}.db", kind.name(), tag));
                 for suffix in ["", "-wal", "-shm", "-log"] {
                     let _ = std::fs::remove_file(format!("{}{}", path.display(), suffix));
                 }
                 let store = Arc::new(Self::connect_turso(kind, &path).await?);
                 store.bootstrap().await?;
-                Ok(Self {
-                    kind,
-                    store: store.clone(),
-                    memory: None,
-                    turso: Some(store),
-                    turso_path: Some(path),
-                    tag: tag.to_string(),
-                    #[cfg(feature = "falkor")]
-                    falkor: None,
-                })
+                let mut b = Self::plain(kind, store.clone(), tag);
+                b.turso = Some(store);
+                b.turso_path = Some(path);
+                Ok(b)
             }
         }
     }
@@ -275,7 +401,8 @@ impl Backend {
 
     /// Open an additional connection to the same durable database (Turso
     /// serializes each handle on one connection, so concurrency needs one
-    /// handle per writer). Memory stores are cheaply cloneable and shared.
+    /// handle per writer). Memory and embedded stores are shared; client
+    /// drivers that pool connections are shared too.
     pub async fn extra_handle(&self) -> grust::Result<Arc<dyn GraphStore>> {
         match self.kind {
             BackendKind::Memory => Ok(self.store.clone()),
@@ -286,13 +413,23 @@ impl Backend {
             #[cfg(feature = "postgres")]
             BackendKind::Postgres => Ok(Arc::new(connect_postgres(&self.tag).await?)),
             #[cfg(feature = "surreal")]
-            BackendKind::Surreal => Ok(Arc::new(connect_surreal(&self.tag).await?)),
+            BackendKind::SurrealHttp | BackendKind::SurrealSdk => {
+                let s: Arc<dyn GraphStore> = connect_surreal(self.kind, &self.tag).await?;
+                Ok(s)
+            }
             #[cfg(feature = "falkor")]
             BackendKind::Falkor => Ok(Arc::new(connect_falkor(&self.tag))),
             #[cfg(feature = "lancedb")]
             BackendKind::LanceDb => Ok(self.store.clone()),
+            #[cfg(feature = "ladybug")]
+            BackendKind::Ladybug => Ok(self.store.clone()), // one embedded database per process
+            #[cfg(feature = "helix")]
+            BackendKind::HelixHttp | BackendKind::HelixSdk => {
+                let s: Arc<dyn GraphStore> = connect_helix(self.kind)?;
+                Ok(s)
+            }
             #[cfg(feature = "neo4j")]
-            BackendKind::Neo4j => Ok(self.store.clone()), // the driver pools Bolt connections
+            BackendKind::Neo4j | BackendKind::Neo4jHttp => Ok(self.store.clone()), // the clients pool connections
         }
     }
 
@@ -301,11 +438,9 @@ impl Backend {
         if let Some(reader) = &self.falkor {
             let reader = reader.clone();
             let graph = graph.clone();
-            return tokio::task::spawn_blocking(move || {
-                reader.load_graph(crate::dataset::NODE_LABEL, EDGE_LABEL, &graph)
-            })
-            .await
-            .map_err(|e| grust::GrustError::Backend(e.to_string()))?;
+            return tokio::task::spawn_blocking(move || reader.load_graph(NODE_LABEL, EDGE_LABEL, &graph))
+                .await
+                .map_err(|e| grust::GrustError::Backend(e.to_string()))?;
         }
         self.store.put_graph(graph).await
     }
@@ -345,12 +480,10 @@ impl Backend {
         if let Some(reader) = &self.falkor {
             let reader = reader.clone();
             let id = v.as_str().to_string();
-            return tokio::task::spawn_blocking(move || {
-                reader.out_neighbors(crate::dataset::NODE_LABEL, EDGE_LABEL, &id)
-            })
-            .await
-            .map_err(|e| grust::GrustError::Backend(e.to_string()))?
-            .map(|ids| ids.into_iter().map(NodeId::new).collect());
+            return tokio::task::spawn_blocking(move || reader.out_neighbors(NODE_LABEL, EDGE_LABEL, &id))
+                .await
+                .map_err(|e| grust::GrustError::Backend(e.to_string()))?
+                .map(|ids| ids.into_iter().map(NodeId::new).collect());
         }
         let nodes = self.store.traverse(Traversal::from_node(v.clone()).out(EDGE_LABEL)).await?;
         Ok(nodes.into_iter().map(|n| n.id).collect())
@@ -362,11 +495,9 @@ impl Backend {
         if let Some(reader) = &self.falkor {
             let reader = reader.clone();
             let id = from.as_str().to_string();
-            return tokio::task::spawn_blocking(move || {
-                reader.out_degree(crate::dataset::NODE_LABEL, EDGE_LABEL, &id)
-            })
-            .await
-            .map_err(|e| grust::GrustError::Backend(e.to_string()))?;
+            return tokio::task::spawn_blocking(move || reader.out_degree(NODE_LABEL, EDGE_LABEL, &id))
+                .await
+                .map_err(|e| grust::GrustError::Backend(e.to_string()))?;
         }
         Ok(self.out_edges(from).await?.len())
     }
@@ -378,7 +509,7 @@ impl Backend {
             return "harness-native-cypher";
         }
         #[cfg(feature = "neo4j")]
-        if self.kind == BackendKind::Neo4j {
+        if matches!(self.kind, BackendKind::Neo4j | BackendKind::Neo4jHttp) {
             return "harness-native-cypher";
         }
         "grust-portable-api"
@@ -406,7 +537,7 @@ impl Backend {
             return self.out_degree(from).await;
         }
         // Network backends: a fresh handle is a fresh connection to the same
-        // durable state; embedded memory/Lance stores re-read in place.
+        // durable state; embedded memory/Lance/Ladybug stores re-read in place.
         let handle = self.extra_handle().await?;
         Ok(handle
             .get_edges(EdgeQuery { from: Some(from.clone()), to: None, label: Some(EDGE_LABEL.into()) })
