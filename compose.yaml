@@ -25,9 +25,16 @@ services:
     shm_size: 512mb
     ports: ["15432:5432"]
 
+  # FalkorDB's image defaults to RESULTSET_SIZE 10000, which silently truncates
+  # every result set at 10,000 rows (no error, no warning). The defaults
+  # profile keeps that so the truncation is measured (it trips the
+  # wrong_answer gate on wiki-Talk's 12,215-neighbour hub); the tuned profile
+  # lifts it with the documented knob. FALKOR_RESULTSET_SIZE=-1 selects tuned.
   falkor:
     <<: *limits
     image: "${FALKOR_IMAGE:-falkordb/falkordb:v4.20.4@sha256:adbddd418916c25618564ff8597a919b08bc76452ebeb74eb985c38d7281df62}"
+    environment:
+      FALKORDB_ARGS: "RESULTSET_SIZE ${FALKOR_RESULTSET_SIZE:-10000}"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 1s

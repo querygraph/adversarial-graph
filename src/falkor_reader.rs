@@ -89,6 +89,34 @@ impl FalkorReader {
         }
     }
 
+    /// Bulk load through labelled, indexed, `UNWIND`-batched Cypher. The
+    /// Grust adapter's edge batch matches endpoints *without* a label
+    /// (`MATCH (a {id: …})`), which FalkorDB cannot serve from its per-label
+    /// index, so its loads scan every node per edge; this path is what a
+    /// FalkorDB user would write, and it is recorded as
+    /// `load_path = "harness-native-cypher"`.
+    pub fn load_graph(&self, node_label: &str, edge_label: &str, graph: &grust::Graph) -> grust::Result<grust::LoadReport> {
+        let label = Self::label(node_label);
+        let mut report = grust::LoadReport::default();
+        for chunk in graph.nodes.chunks(5_000) {
+            let ids: Vec<String> = chunk.iter().map(|n| format!("'{}'", escape(n.id.as_str()))).collect();
+            self.column(&format!("UNWIND [{}] AS id CREATE (:{label} {{id: id}})", ids.join(",")))?;
+            report.nodes += chunk.len();
+        }
+        for chunk in graph.edges.chunks(2_000) {
+            let pairs: Vec<String> = chunk
+                .iter()
+                .map(|e| format!("['{}','{}']", escape(e.from.as_str()), escape(e.to.as_str())))
+                .collect();
+            self.column(&format!(
+                "UNWIND [{}] AS p MATCH (a:{label} {{id: p[0]}}), (b:{label} {{id: p[1]}}) CREATE (a)-[:{edge_label}]->(b)",
+                pairs.join(",")
+            ))?;
+            report.edges += chunk.len();
+        }
+        Ok(report)
+    }
+
     pub fn out_neighbors(&self, node_label: &str, edge_label: &str, id: &str) -> grust::Result<Vec<String>> {
         let label = Self::label(node_label);
         self.column(&format!(

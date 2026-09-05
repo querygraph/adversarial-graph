@@ -445,6 +445,18 @@ types are kept as given), and the id index is created only inside
 slice). The harness creates the index at bootstrap, as it does for Neo4j,
 so the engine and not the missing index is what gets measured.
 
+**FalkorDB 4.20.4 through the harness-native load and read path** (200k-edge
+slices, host load ≈640): roadNet-CA A1/A2/A4 pass with 95 / 192 / 1,509 ms of
+server CPU; wiki-Talk A4 (4×25 hot-node writes) pass at 3.3 s server CPU. And
+one **hard-gate failure that is the benchmark working as intended**: on
+wiki-Talk's 12,215-neighbour hub, A1 returned exactly **10,000** rows. The
+image ships `RESULTSET_SIZE 10000`, which silently truncates every result set
+at 10,000 rows with no error and no warning — a `wrong_answer` at default
+configuration. With the documented knob set to `-1` the full 12,215 come
+back. Both profiles are kept: the defaults row stays a failure in the report,
+and the tuned profile (`FALKOR_RESULTSET_SIZE=-1` in `compose.yaml`) is the
+one comparable with the other stores, exactly as Neo4j's memory tuning is.
+
 **Neo4j 5.26 Community** (roadNet-CA 200k-edge slice, heap 3G / page cache
 3G, host load ≈300): A1 fan-out pass in 2.4 s wall / 0.57 s server CPU; A2
 depth-8 BFS pass in 3.9 s / 2.0 s; A4 hot node 4×25 writes pass with no

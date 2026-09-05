@@ -297,6 +297,16 @@ impl Backend {
     }
 
     pub async fn load(&self, graph: &Graph) -> grust::Result<grust::LoadReport> {
+        #[cfg(feature = "falkor")]
+        if let Some(reader) = &self.falkor {
+            let reader = reader.clone();
+            let graph = graph.clone();
+            return tokio::task::spawn_blocking(move || {
+                reader.load_graph(crate::dataset::NODE_LABEL, EDGE_LABEL, &graph)
+            })
+            .await
+            .map_err(|e| grust::GrustError::Backend(e.to_string()))?;
+        }
         self.store.put_graph(graph).await
     }
 
