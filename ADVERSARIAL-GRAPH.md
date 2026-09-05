@@ -406,6 +406,16 @@ commit id on both WAL and MVCC.
 | roadNet-CA (1.97M / 5.53M) | A2 deep paths | depth-50 BFS from vertex 0 reaches 20,242; 200-hop Cypher pattern refused by `max_path_length=4` | 205 ms |
 | roadNet-CA | A3 policy | 7/7 refused | 4 µs |
 
+**Resource accounting.** Every scenario and every load records client user
+and system CPU and peak RSS (`getrusage`), the host 1-minute load average at
+start and end, and — for containerized backends — the server container's
+cumulative CPU (`cpu.stat usage_usec`) and current memory from its cgroup.
+A wall-clock number is therefore always accompanied by the CPU actually
+spent on it and by the contention it ran under; the M1 runs above were taken
+on a host whose load average reached 30 (a concurrent benchmark container
+and this harness's own Surreal load), so their wall times are upper bounds
+and the CPU ratios are the comparable figures.
+
 Known M1 limits, to be closed in M2: A2 starts from the lowest id (on
 wiki-Talk that vertex sits in a one-node component, so the deep-path run is
 trivial there); A4 is closed-loop (open-loop scheduling with coordinated-

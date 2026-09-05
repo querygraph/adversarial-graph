@@ -23,6 +23,7 @@ pub fn all() -> &'static [&'static str] {
 
 pub async fn run(id: &str, ctx: &Ctx<'_>) -> ScenarioResult {
     let started = std::time::Instant::now();
+    let probe = crate::probe::Probe::start(ctx.backend.kind.container());
     let mut result = match id {
         "A1" => a1_fanout::run(ctx).await,
         "A2" => a2_deep_paths::run(ctx).await,
@@ -36,6 +37,7 @@ pub async fn run(id: &str, ctx: &Ctx<'_>) -> ScenarioResult {
         }
     };
     result.wall_ms = started.elapsed().as_millis();
+    probe.finish(&mut result);
     result.finish();
     result
 }

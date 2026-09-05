@@ -8,6 +8,7 @@
 mod backends;
 mod dataset;
 mod oracle;
+mod probe;
 mod report;
 mod scenarios;
 
@@ -146,14 +147,37 @@ async fn run(root: &Path, args: &Args) {
                 Err(e) => { eprintln!("   open failed: {e}"); continue; }
             };
             let t = std::time::Instant::now();
+            let load_probe = probe::Probe::start(kind.container());
+            let mut load_result = report::ScenarioResult::new("LOAD", kind.name(), dataset_name);
             match backend.load(&graph).await {
-                Ok(rep) => eprintln!("   loaded {} nodes / {} edges in {:?}", rep.nodes, rep.edges, t.elapsed()),
-                Err(e) => { eprintln!("   load failed: {e}"); continue; }
+                Ok(rep) => {
+                    eprintln!("   loaded {} nodes / {} edges in {:?}", rep.nodes, rep.edges, t.elapsed());
+                    load_result.observe("nodes", rep.nodes);
+                    load_result.observe("edges", rep.edges);
+                    load_result.observe("edges_per_s", rep.edges as f64 / t.elapsed().as_secs_f64().max(1e-9));
+                }
+                Err(e) => { eprintln!("   load failed: {e}"); load_result.gates.oom_or_crash += 1; load_result.notes.push(e.to_string()); }
             }
+            load_result.wall_ms = t.elapsed().as_millis();
+            load_probe.finish(&mut load_result);
+            load_result.finish();
+            let load_failed = load_result.gates.total() > 0;
+            eprintln!("   LOAD {:<12} {:?}  cpu={:.2}  load1m={}", load_result.backend, load_result.outcome,
+                load_result.observations.get("client_cpu_ratio").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                load_result.observations.get("host_loadavg_1m_end").cloned().unwrap_or_default());
+            report.push(load_result);
+            if load_failed { continue; }
             for scenario in &args.scenarios {
                 let ctx = Ctx { dataset: dataset_name, graph: &graph, oracle: &oracle, backend: &backend, smoke: args.smoke };
                 let result = scenarios::run(scenario, &ctx).await;
-                eprintln!("   {:<3} {:<12} {:?}  gates={}  {}ms  {}", result.scenario, result.backend, result.outcome, result.gates.total(), result.wall_ms, result.notes.join(" | "));
+                eprintln!(
+                    "   {:<3} {:<12} {:?}  gates={}  wall={}ms cpu={:.2} load1m={}{}  {}",
+                    result.scenario, result.backend, result.outcome, result.gates.total(), result.wall_ms,
+                    result.observations.get("client_cpu_ratio").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                    result.observations.get("host_loadavg_1m_end").cloned().unwrap_or_default(),
+                    result.observations.get("server_cpu_us").and_then(|v| v.as_u64()).map(|c| format!(" server_cpu={}ms", c / 1000)).unwrap_or_default(),
+                    result.notes.join(" | ")
+                );
                 report.push(result);
             }
         }

@@ -73,6 +73,18 @@ impl BackendKind {
             Self::LanceDb,
         ]
     }
+    /// Docker container serving this backend, if any (for resource probes).
+    pub fn container(self) -> Option<&'static str> {
+        match self {
+            #[cfg(feature = "postgres")]
+            Self::Postgres => Some("adversarial-graph-postgres-1"),
+            #[cfg(feature = "surreal")]
+            Self::Surreal => Some("adversarial-graph-surreal-1"),
+            #[cfg(feature = "falkor")]
+            Self::Falkor => Some("adversarial-graph-falkor-1"),
+            _ => None,
+        }
+    }
     pub fn is_turso(self) -> bool {
         matches!(self, Self::TursoWal | Self::TursoMvcc)
     }
