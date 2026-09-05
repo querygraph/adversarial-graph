@@ -3179,7 +3179,7 @@ dependencies = [
 [[package]]
 name = "grust-core"
 version = "0.13.0"
-source = "git+https://github.com/querygraph/grust?tag=v0.13.0#427adb783490dd44a4f94faf29dcf82fe16e8e98"
+source = "git+https://github.com/querygraph/grust?rev=fdc685ee0da1c5df1a234e286607c8d951de517b#fdc685ee0da1c5df1a234e286607c8d951de517b"
 dependencies = [
  "async-trait",
  "quick-xml",
@@ -3194,6 +3194,18 @@ name = "grust-cypher"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "088f842e2c3baf54c62c23dd51884303b13a9090ddd6ef4a9cc5d1cc74c67d0a"
+dependencies = [
+ "async-trait",
+ "grust-core",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "grust-cypher"
+version = "0.13.2"
+source = "git+https://github.com/querygraph/grust?rev=fdc685ee0da1c5df1a234e286607c8d951de517b#fdc685ee0da1c5df1a234e286607c8d951de517b"
 dependencies = [
  "async-trait",
  "grust-core",
@@ -3221,7 +3233,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "61062ad3b3e9b83fe234bc446a0d0c960004e5ec5a16ee6e0337e1ed9a6a4e04"
 dependencies = [
  "grust-core",
- "grust-cypher",
+ "grust-cypher 0.13.0",
  "grust-falkor",
  "grust-lancedb",
  "grust-memory",
@@ -3237,7 +3249,7 @@ dependencies = [
 [[package]]
 name = "grust-helix"
 version = "0.13.0"
-source = "git+https://github.com/querygraph/grust?tag=v0.13.0#427adb783490dd44a4f94faf29dcf82fe16e8e98"
+source = "git+https://github.com/querygraph/grust?rev=fdc685ee0da1c5df1a234e286607c8d951de517b#fdc685ee0da1c5df1a234e286607c8d951de517b"
 dependencies = [
  "async-trait",
  "grust-core",
@@ -3249,7 +3261,7 @@ dependencies = [
 [[package]]
 name = "grust-ladybug"
 version = "0.13.0"
-source = "git+https://github.com/querygraph/grust?tag=v0.13.0#427adb783490dd44a4f94faf29dcf82fe16e8e98"
+source = "git+https://github.com/querygraph/grust?rev=fdc685ee0da1c5df1a234e286607c8d951de517b#fdc685ee0da1c5df1a234e286607c8d951de517b"
 dependencies = [
  "async-trait",
  "grust-core",
@@ -3274,8 +3286,7 @@ dependencies = [
 [[package]]
 name = "grust-memory"
 version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00a0ae671d84b6d0373e472ddd94342a09d061d725d70998d2dbe07d580ee936"
+source = "git+https://github.com/querygraph/grust?rev=fdc685ee0da1c5df1a234e286607c8d951de517b#fdc685ee0da1c5df1a234e286607c8d951de517b"
 dependencies = [
  "async-trait",
  "grust-core",
@@ -3312,8 +3323,8 @@ checksum = "a56b0dc21ca5665a6eb836f1436089276a2adee59b2ae2e5e231f5767d11e43b"
 dependencies = [
  "async-trait",
  "grust-core",
- "grust-cypher",
- "grust-sql-core",
+ "grust-cypher 0.13.0",
+ "grust-sql-core 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json",
  "tokio",
  "tokio-postgres",
@@ -3342,7 +3353,7 @@ dependencies = [
  "arrow",
  "async-trait",
  "grust-core",
- "grust-cypher",
+ "grust-cypher 0.13.0",
  "prost",
  "prost-types",
  "serde",
@@ -3358,6 +3369,15 @@ name = "grust-sql-core"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1cb0fef57f4af6039ec5a33fc1b04fd56befabb8532eb4b3ecfa77073f9fc653"
+dependencies = [
+ "grust-core",
+ "serde_json",
+]
+
+[[package]]
+name = "grust-sql-core"
+version = "0.13.0"
+source = "git+https://github.com/querygraph/grust?rev=fdc685ee0da1c5df1a234e286607c8d951de517b#fdc685ee0da1c5df1a234e286607c8d951de517b"
 dependencies = [
  "grust-core",
  "serde_json",
@@ -3380,14 +3400,13 @@ dependencies = [
 [[package]]
 name = "grust-turso"
 version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3d007404a86060939a5367b6eaa38122c956a60ee70c045cb2e90a711f49118"
+source = "git+https://github.com/querygraph/grust?rev=fdc685ee0da1c5df1a234e286607c8d951de517b#fdc685ee0da1c5df1a234e286607c8d951de517b"
 dependencies = [
  "async-trait",
  "chrono",
  "grust-core",
- "grust-cypher",
- "grust-sql-core",
+ "grust-cypher 0.13.2",
+ "grust-sql-core 0.13.0 (git+https://github.com/querygraph/grust?rev=fdc685ee0da1c5df1a234e286607c8d951de517b)",
  "serde_json",
  "tokio",
  "turso",
@@ -3578,30 +3597,55 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
-name = "helix-db"
-version = "2.0.0"
+name = "helix-ast"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7a199b5e9519748ce2f99d51ec8258c31268d66b18005ac8e3d35bf2daee845"
+checksum = "e88673f1f93419fc23ef45968e079ba333dc818651d5dd2388b82a8bba84b10e"
 dependencies = [
  "chrono",
+ "serde",
+ "sonic-rs",
+]
+
+[[package]]
+name = "helix-db"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41ae6e6dce5e00f5208ab3573f800b34ba36260cad1d2d9d68e925aef771f234"
+dependencies = [
+ "chrono",
+ "helix-ast",
  "helix-dsl-macros",
- "inventory",
+ "helix-graph-algorithms",
  "reqwest 0.13.4",
  "serde",
+ "serde_json",
  "sonic-rs",
  "thiserror 2.0.20",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
 name = "helix-dsl-macros"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4708418e04e017cf1f4169591923697f270382f7cc86e53a2d44838218164354"
+checksum = "584488c46431f04a796b49cf70ee367f496018c9f1ec309b9ceb1a9ac854c74d"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "helix-graph-algorithms"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "458c6e6b54b4c83b6f51ba701ba809421b1c96ceac7c650728ee889156a79268"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -4104,15 +4148,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "189d0897e4cbe8c75efedf3502c18c887b05046e59d28404d4d8e46cbc4d1e86"
 dependencies = [
  "memoffset",
-]
-
-[[package]]
-name = "inventory"
-version = "0.3.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4f0c30c76f2f4ccee3fe55a2435f691ca00c0e4bd87abe4f4a851b1d4dac39b"
-dependencies = [
- "rustversion",
 ]
 
 [[package]]

@@ -13,10 +13,11 @@ path = "src/main.rs"
 [dependencies]
 grust = { package = "grust-graph", version = "0.13.0", features = ["memory", "turso", "cypher"] }
 # Internal Grust backends that are deliberately not on crates.io
-# (`publish = false`): pinned to the same release tag as the published 0.13
-# crates so the harness still never depends on a local Grust checkout.
-grust-helix = { git = "https://github.com/querygraph/grust", tag = "v0.13.0", optional = true }
-grust-ladybug = { git = "https://github.com/querygraph/grust", tag = "v0.13.0", optional = true }
+# (`publish = false`): pinned to one published Grust revision (the
+# `fable/strain-adapter-reads` branch head, on top of v0.13.1) so the harness
+# still never depends on a local Grust checkout.
+grust-helix = { git = "https://github.com/querygraph/grust", rev = "fdc685ee0da1c5df1a234e286607c8d951de517b", optional = true }
+grust-ladybug = { git = "https://github.com/querygraph/grust", rev = "fdc685ee0da1c5df1a234e286607c8d951de517b", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -46,10 +47,14 @@ full-backends = ["postgres", "postgres-pgq", "pggraph", "surreal", "falkor", "la
 
 # The git-pinned internal backends carry `grust-core` as a path dependency
 # inside the Grust workspace; this makes the registry `grust-core 0.13.0` the
-# published `grust-graph` uses resolve to the identical tagged source so both
-# sides share one `GraphStore` trait.
+# published `grust-graph` uses resolve to the identical pinned source so both
+# sides share one `GraphStore` trait. `grust-memory` and `grust-turso` are
+# pinned to the same revision for the store changes measured in
+# ADVERSARIAL-GRAPH.md §7.2, ahead of their crates.io release.
 [patch.crates-io]
-grust-core = { git = "https://github.com/querygraph/grust", tag = "v0.13.0" }
+grust-core = { git = "https://github.com/querygraph/grust", rev = "fdc685ee0da1c5df1a234e286607c8d951de517b" }
+grust-memory = { git = "https://github.com/querygraph/grust", rev = "fdc685ee0da1c5df1a234e286607c8d951de517b" }
+grust-turso = { git = "https://github.com/querygraph/grust", rev = "fdc685ee0da1c5df1a234e286607c8d951de517b" }
 
 [profile.release]
 debug = 0
