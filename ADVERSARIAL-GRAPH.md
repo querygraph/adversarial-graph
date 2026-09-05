@@ -416,6 +416,19 @@ on a host whose load average reached 30 (a concurrent benchmark container
 and this harness's own Surreal load), so their wall times are upper bounds
 and the CPU ratios are the comparable figures.
 
+**Backend findings from the network smoke (2026-09-04/05).** Postgres (Grust
+`PostgresGraphStore`, native `tokio-postgres`): wiki-Talk 200k-edge slice
+loaded in 7.4 s; A1/A2/A4 pass with 0 gates. SurrealDB 3.2.4 through the
+Grust SDK store (native WebSocket, not HTTP `/sql`): the server pins one core
+and ingests on the order of 10²–10³ edges/s and *slows as the table grows*.
+The adapter, not only the engine, is implicated: `grust-surreal` makes each
+edge write idempotent as `DELETE <E> WHERE in = … AND out = …; RELATE …`
+inside 500-statement transactions, and without an index on `(in, out)` that
+`DELETE` scans the edge table, so a bulk load is O(E²). The fix belongs in the
+adapter (an `in,out` index at bootstrap, or deterministic edge record ids so
+`RELATE` alone is idempotent); until then Surreal loads are recorded with
+`edges_per_s` and are not comparable to the other stores' load figures.
+
 Known M1 limits, to be closed in M2: A2 starts from the lowest id (on
 wiki-Talk that vertex sits in a one-node component, so the deep-path run is
 trivial there); A4 is closed-loop (open-loop scheduling with coordinated-

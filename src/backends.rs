@@ -109,17 +109,21 @@ async fn connect_postgres(tag: &str) -> grust::Result<grust::PostgresGraphStore>
 }
 
 #[cfg(feature = "surreal")]
-fn connect_surreal(tag: &str) -> grust::Result<grust::SurrealHttpGraphStore> {
-    grust::SurrealHttpGraphStore::connect(grust::SurrealConfig {
+async fn connect_surreal(tag: &str) -> grust::Result<grust::SurrealSdkGraphStore> {
+    // The SDK store speaks the native WebSocket protocol through the
+    // `surrealdb` crate; the HTTP `/sql` store stays available for
+    // differential comparison but is not the benchmark path.
+    grust::SurrealSdkGraphStore::connect(grust::SurrealConfig {
         url: env_or("AG_SURREAL_URL", "http://127.0.0.1:18000/sql"),
         user: "root".to_string(),
         pass: "root".to_string(),
         namespace: "ag".to_string(),
         database: format!("ag_{}", tag.replace('-', "_").to_ascii_lowercase()),
-        batch_size: 100,
+        batch_size: 500,
         labels: vec![crate::dataset::NODE_LABEL.to_string()],
         relationships: vec![EDGE_LABEL.to_string()],
     })
+    .await
 }
 
 #[cfg(feature = "falkor")]
@@ -177,7 +181,7 @@ impl Backend {
             }
             #[cfg(feature = "surreal")]
             BackendKind::Surreal => {
-                let store = Arc::new(connect_surreal(tag)?);
+                let store = Arc::new(connect_surreal(tag).await?);
                 store.bootstrap().await?;
                 store.clear().await?;
                 Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string() })
@@ -244,7 +248,7 @@ impl Backend {
             #[cfg(feature = "postgres")]
             BackendKind::Postgres => Ok(Arc::new(connect_postgres(&self.tag).await?)),
             #[cfg(feature = "surreal")]
-            BackendKind::Surreal => Ok(Arc::new(connect_surreal(&self.tag)?)),
+            BackendKind::Surreal => Ok(Arc::new(connect_surreal(&self.tag).await?)),
             #[cfg(feature = "falkor")]
             BackendKind::Falkor => Ok(Arc::new(connect_falkor(&self.tag))),
             #[cfg(feature = "lancedb")]
