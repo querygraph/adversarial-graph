@@ -166,7 +166,19 @@ async fn run(root: &Path, args: &Args) {
             eprintln!("-- backend {}", kind.name());
             let backend = match Backend::open(kind, &work_dir, dataset_name).await {
                 Ok(b) => b,
-                Err(e) => { eprintln!("   open failed: {e}"); continue; }
+                Err(e) => {
+                    // A backend that cannot be opened is a failed LOAD row, never
+                    // a missing one: the report keeps the reason and the gate.
+                    eprintln!("   open failed: {e}");
+                    let mut result = report::ScenarioResult::new("LOAD", kind.name(), dataset_name);
+                    result.observe("transport", kind.transport());
+                    result.gates.oom_or_crash += 1;
+                    result.notes.push(format!("open failed: {e}"));
+                    result.finish();
+                    persist(&mut report, &result);
+                    report.push(result);
+                    continue;
+                }
             };
             let t = std::time::Instant::now();
             let load_probe = probe::Probe::start(kind.container());
