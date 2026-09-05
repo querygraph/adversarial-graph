@@ -11,14 +11,23 @@ etc. are recorded in `profile`).
 """
 from __future__ import annotations
 
+import argparse
 import glob
+import html
 import json
 import os
 import sys
 from collections import OrderedDict
 
+parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+parser.add_argument("--since", default="", help="use only run bundles whose stamp is >= this value")
+parser.add_argument("--html-rows", metavar="PUBLICATION", default="",
+                    help="print the site's per-dataset <table> rows for this dated publication instead of writing RESULTS.md")
+args = parser.parse_args()
+
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-reports = sorted(glob.glob(os.path.join(root, "reports", "*", "report.json")))
+reports = sorted(p for p in glob.glob(os.path.join(root, "reports", "*", "report.json"))
+                 if os.path.basename(os.path.dirname(p)) >= args.since)
 if not reports:
     sys.exit("no reports/*/report.json found")
 
@@ -79,11 +88,13 @@ out = ["# GRAPH-ADVERSARIAL-v1 — results", "",
        "`aarch64/*` rows are the contended laptop, `x86_64/4` the dedicated EC2 host. `Slice` is",
        "the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix 10k).", ""]
 current = None
+site_rows: "OrderedDict[str, list]" = OrderedDict()
 for key in sorted(rows, key=sort_key):
     d, b, s, slice_, _profile = key
     v = rows[key]
     if d != current:
         current = d
+        site_rows[d] = []
         out += ["", f"## {d}", "",
                 "| Backend | Scenario | Slice | Outcome | Gates | Wall ms | Client CPU | Server CPU ms | p50 µs | p99 µs | Load 1m | Host | Path | Notes |",
                 "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
@@ -99,9 +110,22 @@ for key in sorted(rows, key=sort_key):
         f"{fmt(v['cpu'], '{:.2f}')} | {fmt(v['server_cpu_ms'])} | {fmt(v['p50_us'])} | {fmt(v['p99_us'])} | "
         f"{fmt(v['load1m'], '{:.0f}')} | {v['host']} | {v['path']} | {v['notes']} |"
     )
+    run_link = f'<a href="/evidence/strain/{args.html_rows}/{v["run"]}/report.json">{v["run"]}</a>'
+    site_rows[d].append("<tr>" + "".join(f"<td>{c}</td>" for c in [
+        b, s, slice_, v["outcome"], v["gates"], fmt(v["wall_ms"]), fmt(v["cpu"], "{:.2f}"), fmt(v["server_cpu_ms"]),
+        fmt(v["p50_us"]), fmt(v["p99_us"]), fmt(v["load1m"], "{:.0f}"), run_link, html.escape(v["notes"]),
+    ]) + "</tr>")
     gates_total += v["gates"]
 superseded_fail = sum(1 for hs in history.values() for h in hs if h[2] > 0)
 out += ["", f"Latest-cell hard-gate total: **{gates_total}** across {len(rows)} cells from {len(reports)} runs; "
         f"{superseded_fail} earlier failing cell(s) are kept in the Notes column of their superseding row."]
+if args.html_rows:
+    # The site's results tables, one <tbody> per dataset, same cells as RESULTS.md.
+    for dataset, trs in site_rows.items():
+        print(f"<!-- {dataset}: {len(trs)} rows -->")
+        print("\n".join(trs))
+    print(f"<!-- {len(rows)} cells from {len(reports)} runs, hard-gate total {gates_total}, "
+          f"{superseded_fail} superseded failing cell(s) kept in Notes -->", file=sys.stderr)
+    sys.exit(0)
 open(os.path.join(root, "RESULTS.md"), "w").write("\n".join(out) + "\n")
 print(f"wrote RESULTS.md: {len(rows)} cells, gates={gates_total}")

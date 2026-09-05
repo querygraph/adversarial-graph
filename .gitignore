@@ -5,3 +5,6 @@ reports/*/
 
 # PyPI upload token, dropped locally; never tracked
 .pypi
+
+# Development-build bundles (harness patched to a local Grust checkout); never published
+reports-dev/
