@@ -104,6 +104,30 @@ Notes for this host:
 - FalkorDB rows now carry `profile` (`resultset_size=-1` tuned,
   `resultset_size=10000` image default); both were rerun here.
 
+## Grust store speed work (2026-09-05, evening)
+
+- Branch `fable/strain-adapter-reads` in `~/src/grust` (memory snapshot
+  reads, Turso single-transaction load; see ADVERSARIAL-GRAPH.md §7.2). It
+  is committed locally and **not pushed**: this host has no GitHub
+  credentials. `~/.ssh/id_ed25519.pub` was generated for the user to
+  authorize with write access to `querygraph/{grust,adversarial-graph,
+  adversarial-site}`; until then nothing can be pushed and the private site
+  repo cannot be cloned.
+- The harness `Cargo.toml`/`Cargo.lock` carry an uncommitted **dev-only**
+  `[patch.crates-io]` to the local checkout for measurement; never commit
+  it. The pinned original is `Cargo.toml.pinned` in the session scratch dir.
+- Once the key works: `final-pipeline.sh` in the session scratch dir pushes
+  the branch, pins helix/ladybug and the core/memory/turso patches to its
+  revision, builds all backends, runs the ladder for every backend, then
+  ladybug on both datasets (about 10 h). Then regenerate RESULTS.md, replace
+  the development table in §7.2 with the pinned rows, and bundle:
+  `scripts/bundle-site-evidence.py OUT --host "lakecat, 4 vCPU EC2, load ≈1" --since 20260905T082424Z`
+  (`--since` keeps the laptop bundles out of the EC2 publication). The site
+  verifier (`adversarial-site/scripts/verify-strain-evidence.mjs`) pins one
+  manifest digest and harness revision per publication: add an entry, do not
+  edit the laptop one.
+- Reports now carry `harness_revision` (build.rs stamps `git rev-parse`).
+
 ## What was in flight on the laptop when this was written
 
 - Backends added in this commit, not yet measured anywhere: `ladybug`,

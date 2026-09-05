@@ -608,3 +608,73 @@ roadNet-CA A4 fell from 4.5 s to 0.8 s, so a JVM store's CPU time is itself
 inflated under contention (scheduling and cache pressure, not more work).
 That is the argument from §1.4 for reporting CPU next to the load average,
 not just next to wall time.
+
+### 7.2 Grust store changes and their measured effect (2026-09-05, development build)
+
+Section 7.1's map from scenario to Grust path (FABLE-TO-FABLE.md §4) says
+where the embedded stores spend their time: `traverse` and `get_edges` for
+A1/A2, `put_edge` for A4, `put_graph` for LOAD. Three changes were made in
+the Grust adapters on branch `fable/strain-adapter-reads` (commit `8eb8f5b`
+on `querygraph/grust`, tests, clippy and fmt green), and measured on this
+host against the 200k-edge slices with the same harness build otherwise:
+
+1. **Memory store: reads through the typed snapshot.** A load into an
+   empty store builds the `TypedGraphIndex` that the indexed Cypher
+   entrypoint already used; until the next write, `traverse` and
+   endpoint-anchored `get_edges` walk its `u32` slot adjacency instead of
+   the string-keyed B-tree edge maps. Any write invalidates the snapshot
+   and reads fall back to the maps, so a workload that interleaves point
+   writes and reads never rebuilds an index inside a read; the retired
+   snapshot is freed on a detached thread so the write that invalidates it
+   does not pay for the drop (the first attempt paid 53 ms on one A4
+   write). Results and order are unchanged, with `Direction::Both`
+   listing outgoing before incoming neighbours.
+2. **Turso: one transaction per load, checkpoint after it.** `put_graph`
+   ran one auto-committed statement per 500-row batch, about 700 durable
+   commits for a 200k-edge slice; it now runs every batch inside one
+   transaction. In WAL mode the load is followed by `PRAGMA
+   wal_checkpoint(TRUNCATE)`: without it every read and write after the
+   load paid to look through the log (A4 writes at 0.7–1 ms instead of
+   0.1 ms), and a `PASSIVE` checkpoint, which leaves the log file in
+   place, measured the same as none. MVCC mode gets no checkpoint (the
+   engine gates it behind an experimental flag) and the load itself did not
+   change there.
+3. **`TypedGraphIndex`** measures its serialized size on first use rather
+   than at construction (a full JSON encode of the graph that plain
+   traversals never needed) and exposes `relationship_types()`.
+
+**Measured, development build** (`[patch.crates-io]` pointing at the local
+branch; superseded by the pinned run once the branch is published, which
+is the only form the harness's working rules admit):
+
+| Backend | Cell | Before | After |
+|---|---|---|---|
+| memory | LOAD wiki-Talk / roadNet-CA | 606 / 306 ms | 813 / 398 ms (index build inside the load) |
+| memory | A1 p50 wiki-Talk hub (12,215 rows) | 23.9 ms | 15.8 ms |
+| memory | A1 p50 roadNet-CA | 35 µs | 16 µs |
+| memory | A2 p50 roadNet-CA depth-8 / wiki-Talk | 682 / 10 µs | 158 / 7 µs |
+| memory | A4 p50 · p99 wiki-Talk | 6 · 81 µs | 5 · 318 µs |
+| turso-wal | LOAD wiki-Talk / roadNet-CA | 13.06 / 8.16 s | 6.38 / 5.16 s |
+| turso-wal | A1 p50 wiki-Talk / roadNet-CA | 72.3 ms / 268 µs | 59.6 ms / 312 µs |
+| turso-wal | A2 p50 wiki-Talk / roadNet-CA | 333 µs / 11.4 ms | 310 µs / 10.0 ms |
+| turso-wal | A4 p50 wiki-Talk / roadNet-CA | 124 / 19 µs | 106 / 100 µs |
+| turso-mvcc | LOAD wiki-Talk / roadNet-CA | 24.0 / 18.8 s | 24.9 / 18.3 s |
+| turso-mvcc | A1 p50 wiki-Talk / roadNet-CA | 73.0 ms / 339 µs | 71.3 ms / 606 µs |
+| turso-mvcc | A4 p50 wiki-Talk / roadNet-CA | 23.4 / 21.8 ms | 23.5 / 24.6 ms |
+
+Every cell passed with 0 gates before and after; no outcome changed. Two
+cells moved the other way and are stable across three runs, so they are
+recorded as costs of the change, not noise: Turso WAL single-edge writes on
+roadNet-CA's low-degree hub went from 19 µs to 100 µs after the
+single-transaction load and truncating checkpoint (the same writes on
+wiki-Talk's hub improved), and Turso MVCC's roadNet-CA 1-hop went from
+0.34 ms to about 0.6 ms. Both are sub-millisecond cells on a 100-sample
+scenario; the load halving and the hub-read gains are the changes' effect,
+and the memory store's load now carries the index build it previously did
+not have (about 200–250 ms at 200k edges).
+
+What the memory numbers still contain: `traverse` returns `Vec<Node>`, so
+the 12,215-neighbour hub read clones 12,215 nodes it then discards, which is
+most of the remaining 15.8 ms; an id-only traversal would need a
+`GraphStore` trait addition, which the working rules leave to a Grust
+release rather than a harness-side special case.
