@@ -24,6 +24,8 @@ pub enum BackendKind {
     Falkor,
     #[cfg(feature = "lancedb")]
     LanceDb,
+    #[cfg(feature = "neo4j")]
+    Neo4j,
 }
 
 impl BackendKind {
@@ -40,6 +42,8 @@ impl BackendKind {
             "falkor" => Some(Self::Falkor),
             #[cfg(feature = "lancedb")]
             "lancedb" => Some(Self::LanceDb),
+            #[cfg(feature = "neo4j")]
+            "neo4j" => Some(Self::Neo4j),
             _ => None,
         }
     }
@@ -56,6 +60,8 @@ impl BackendKind {
             Self::Falkor => "falkor",
             #[cfg(feature = "lancedb")]
             Self::LanceDb => "lancedb",
+            #[cfg(feature = "neo4j")]
+            Self::Neo4j => "neo4j",
         }
     }
     pub fn all() -> Vec<BackendKind> {
@@ -71,6 +77,8 @@ impl BackendKind {
             Self::Falkor,
             #[cfg(feature = "lancedb")]
             Self::LanceDb,
+            #[cfg(feature = "neo4j")]
+            Self::Neo4j,
         ]
     }
     /// Docker container serving this backend, if any (for resource probes).
@@ -82,6 +90,8 @@ impl BackendKind {
             Self::Surreal => Some("adversarial-graph-surreal-1"),
             #[cfg(feature = "falkor")]
             Self::Falkor => Some("adversarial-graph-falkor-1"),
+            #[cfg(feature = "neo4j")]
+            Self::Neo4j => Some("adversarial-graph-neo4j-1"),
             _ => None,
         }
     }
@@ -136,6 +146,16 @@ fn connect_falkor(tag: &str) -> grust::FalkorGraphStore {
         id_property: "id".to_string(),
         labels_property: "labels".to_string(),
     })
+}
+
+#[cfg(feature = "neo4j")]
+async fn connect_neo4j() -> grust::Result<crate::neo4j::Neo4jStore> {
+    crate::neo4j::Neo4jStore::connect(
+        &env_or("AG_NEO4J_URI", "bolt://127.0.0.1:17687"),
+        &env_or("AG_NEO4J_USER", "neo4j"),
+        &env_or("AG_NEO4J_PASS", "adversarial"),
+    )
+    .await
 }
 
 #[cfg(feature = "lancedb")]
@@ -201,6 +221,13 @@ impl Backend {
                 )?;
                 Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string(), falkor: Some(reader) })
             }
+            #[cfg(feature = "neo4j")]
+            BackendKind::Neo4j => {
+                let store = Arc::new(connect_neo4j().await?);
+                store.bootstrap().await?;
+                store.clear().await?;
+                Ok(Self { kind, store, memory: None, turso: None, turso_path: None, tag: tag.to_string(), #[cfg(feature = "falkor")] falkor: None })
+            }
             #[cfg(feature = "lancedb")]
             BackendKind::LanceDb => {
                 std::fs::create_dir_all(work_dir).map_err(|e| grust::GrustError::Backend(e.to_string()))?;
@@ -263,6 +290,8 @@ impl Backend {
             BackendKind::Falkor => Ok(Arc::new(connect_falkor(&self.tag))),
             #[cfg(feature = "lancedb")]
             BackendKind::LanceDb => Ok(self.store.clone()),
+            #[cfg(feature = "neo4j")]
+            BackendKind::Neo4j => Ok(self.store.clone()), // the driver pools Bolt connections
         }
     }
 
@@ -335,6 +364,10 @@ impl Backend {
     pub fn read_path(&self) -> &'static str {
         #[cfg(feature = "falkor")]
         if self.falkor.is_some() {
+            return "harness-native-cypher";
+        }
+        #[cfg(feature = "neo4j")]
+        if self.kind == BackendKind::Neo4j {
             return "harness-native-cypher";
         }
         "grust-portable-api"

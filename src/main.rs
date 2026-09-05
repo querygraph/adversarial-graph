@@ -9,6 +9,8 @@ mod backends;
 mod dataset;
 #[cfg(feature = "falkor")]
 mod falkor_reader;
+#[cfg(feature = "neo4j")]
+mod neo4j;
 mod oracle;
 mod probe;
 mod report;

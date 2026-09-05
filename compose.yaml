@@ -53,16 +53,26 @@ services:
   # External comparison targets (M3). Memory tuning is applied from the
   # vendor's own recommendation for the container budget and recorded in the
   # run bundle; see ADVERSARIAL-GRAPH.md §3.6.
+  # Neo4j Community over Bolt. Memory follows the vendor's own split
+  # (server.memory.heap.* + server.memory.pagecache.size) sized for the 8 GiB
+  # container budget; the transaction memory cap is the documented guard
+  # against unbounded MATCH results. Values are recorded in each run bundle.
   neo4j:
     <<: *limits
     image: "${NEO4J_IMAGE:-neo4j:5.26-community}"
     environment:
       NEO4J_AUTH: neo4j/adversarial
-      NEO4J_server_memory_heap_initial__size: "${NEO4J_HEAP:-2G}"
-      NEO4J_server_memory_heap_max__size: "${NEO4J_HEAP:-2G}"
-      NEO4J_server_memory_pagecache_size: "${NEO4J_PAGECACHE:-2G}"
+      NEO4J_server_memory_heap_initial__size: "${NEO4J_HEAP:-3G}"
+      NEO4J_server_memory_heap_max__size: "${NEO4J_HEAP:-3G}"
+      NEO4J_server_memory_pagecache_size: "${NEO4J_PAGECACHE:-3G}"
       NEO4J_db_memory_transaction_total_max: "${NEO4J_TXN_MAX:-1G}"
-    ports: ["17687:7687"]
+      NEO4J_dbms_security_procedures_unrestricted: ""
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null 2>&1 || exit 1"]
+      interval: 3s
+      timeout: 5s
+      retries: 60
+    ports: ["17687:7687", "17474:7474"]
     profiles: ["external"]
 
   memgraph:

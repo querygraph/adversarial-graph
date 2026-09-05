@@ -268,7 +268,7 @@ they are reported as stack-integrity evidence, not as a comparison.
 | Grust `LanceDbGraphStore` | embedded | load/read only |
 | Grust `SailGraphStore` | Sail Spark Connect, pinned rev | Cypher pushdown |
 | Grust `HelixHttpGraphStore`, `LadybugGraphStore` | unpublished crates | via `git` dependency on the Grust tag, feature-gated |
-| Neo4j Community (Bolt) | external adapter | vendor memory recommendation applied and recorded |
+| Neo4j 5.26 Community (Bolt, `neo4rs`) | `src/neo4j.rs`, a harness-side `GraphStore` | heap 3G / page cache 3G / `db.memory.transaction.total.max` 1G in an 8 GiB container (`compose.yaml`); `UNWIND`-batched loads, `(:V {id})` index; `read_path = harness-native-cypher` |
 | Memgraph, Kuzu/LadybugDB native, Apache AGE | external adapters (phase 2) | |
 
 ### 4.2 Report contract
