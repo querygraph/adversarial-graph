@@ -12,8 +12,9 @@ verifier checks; nothing under OUT_DIR is edited afterwards.
 `--host` is the one-line description of the machine the runs were taken
 on, recorded verbatim in the manifest. `--since RUN` includes only bundles
 whose stamp is at or after RUN (e.g. `20260905T082424Z`), for a publication
-that covers one host's runs out of a shared reports directory. Each run
-entry also carries the host and harness revision its own report recorded.
+that covers one host's runs out of a shared reports directory. The manifest
+shape is the one the site verifier pins (`verify-strain-evidence.mjs`);
+each report.json carries its own `harness_revision` for per-run provenance.
 """
 import argparse, hashlib, json, os, shutil, subprocess, sys
 parser = argparse.ArgumentParser()
@@ -41,12 +42,9 @@ for run in sorted(os.listdir(os.path.join(root, "reports"))):
             p = os.path.join(out, run, name)
             payloads.append({"path": f"{run}/{name}", "bytes": os.path.getsize(p), "sha256": sha(p)})
     report = json.load(open(os.path.join(src, "report.json")))
-    host = report.get("host", {})
     runs.append({"run": run, "smoke": bool(report.get("summary", {}).get("smoke")),
                  "results": len(report.get("results", [])),
-                 "hard_gate_total": sum(sum(r["gates"].values()) for r in report.get("results", [])),
-                 "harness_revision": report.get("harness_revision", "unrecorded"),
-                 "host": f"{host.get('os', '?')}/{host.get('arch', '?')}/{host.get('cpus', '?')}cpu"})
+                 "hard_gate_total": sum(sum(r["gates"].values()) for r in report.get("results", []))})
 manifest = {
     "schema": "adversarial-graph-strain-evidence-v1",
     "track": "strain",
