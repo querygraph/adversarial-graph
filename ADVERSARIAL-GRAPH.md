@@ -613,8 +613,8 @@ not just next to wall time.
 
 Section 7.1's map from scenario to Grust path (FABLE-TO-FABLE.md §4) says
 where the embedded stores spend their time: `traverse` and `get_edges` for
-A1/A2, `put_edge` for A4, `put_graph` for LOAD. Three changes were made in
-the Grust adapters on branch `fable/strain-adapter-reads` (commit `8eb8f5b`
+A1/A2, `put_edge` for A4, `put_graph` for LOAD. Four changes were made in
+the Grust adapters on branch `fable/strain-adapter-reads` (commit `fdc685e`
 on `querygraph/grust`, tests, clippy and fmt green), and measured on this
 host against the 200k-edge slices with the same harness build otherwise:
 
@@ -642,6 +642,13 @@ host against the 200k-edge slices with the same harness build otherwise:
 3. **`TypedGraphIndex`** measures its serialized size on first use rather
    than at construction (a full JSON encode of the graph that plain
    traversals never needed) and exposes `relationship_types()`.
+4. **`GraphStore::traverse_ids`.** The harness's k-hop walk only ever used
+   the ids of the nodes `traverse` returned, so the 12,215-neighbour hub
+   read cloned 12,215 nodes it then discarded. The trait gains
+   `traverse_ids`, defaulted through `traverse` so every adapter answers it
+   identically, and the memory store serves it from the snapshot cloning
+   ids only. The harness calls `traverse_ids` for every backend; the
+   portable read path is unchanged for all of them.
 
 **Measured, development build** (`[patch.crates-io]` pointing at the local
 branch; superseded by the pinned run once the branch is published, which
@@ -650,10 +657,10 @@ is the only form the harness's working rules admit):
 | Backend | Cell | Before | After |
 |---|---|---|---|
 | memory | LOAD wiki-Talk / roadNet-CA | 606 / 306 ms | 813 / 398 ms (index build inside the load) |
-| memory | A1 p50 wiki-Talk hub (12,215 rows) | 23.9 ms | 15.8 ms |
-| memory | A1 p50 roadNet-CA | 35 µs | 16 µs |
-| memory | A2 p50 roadNet-CA depth-8 / wiki-Talk | 682 / 10 µs | 158 / 7 µs |
-| memory | A4 p50 · p99 wiki-Talk | 6 · 81 µs | 5 · 318 µs |
+| memory | A1 p50 wiki-Talk hub (12,215 rows) | 23.9 ms | 2.7 ms |
+| memory | A1 p50 roadNet-CA | 35 µs | 12 µs |
+| memory | A2 p50 roadNet-CA depth-8 / wiki-Talk | 682 / 10 µs | 102 / 5 µs |
+| memory | A4 p50 · p99 wiki-Talk | 6 · 81 µs | 5 · 373 µs |
 | turso-wal | LOAD wiki-Talk / roadNet-CA | 13.06 / 8.16 s | 6.38 / 5.16 s |
 | turso-wal | A1 p50 wiki-Talk / roadNet-CA | 72.3 ms / 268 µs | 59.6 ms / 312 µs |
 | turso-wal | A2 p50 wiki-Talk / roadNet-CA | 333 µs / 11.4 ms | 310 µs / 10.0 ms |
@@ -673,8 +680,8 @@ scenario; the load halving and the hub-read gains are the changes' effect,
 and the memory store's load now carries the index build it previously did
 not have (about 200–250 ms at 200k edges).
 
-What the memory numbers still contain: `traverse` returns `Vec<Node>`, so
-the 12,215-neighbour hub read clones 12,215 nodes it then discards, which is
-most of the remaining 15.8 ms; an id-only traversal would need a
-`GraphStore` trait addition, which the working rules leave to a Grust
-release rather than a harness-side special case.
+The memory A4 p99 rose from 81 µs to a few hundred: the one write that
+invalidates the snapshot spawns the thread that releases it. Before
+`traverse_ids` (change 4) the hub read measured 15.8 ms, so of the original
+23.9 ms about 8 ms was the map walk and about 13 ms the node clones; what
+remains is 12,215 id clones and the harness's own visited set.

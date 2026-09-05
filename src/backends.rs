@@ -546,8 +546,7 @@ impl Backend {
                 .map_err(|e| grust::GrustError::Backend(e.to_string()))?
                 .map(|ids| ids.into_iter().map(NodeId::new).collect());
         }
-        let nodes = self.store.traverse(Traversal::from_node(v.clone()).out(EDGE_LABEL)).await?;
-        Ok(nodes.into_iter().map(|n| n.id).collect())
+        self.store.traverse_ids(Traversal::from_node(v.clone()).out(EDGE_LABEL)).await
     }
 
     /// Out-degree of one vertex through the same read path as `neighbors`.
