@@ -2,3 +2,6 @@ datasets/*
 !datasets/MANIFEST.json
 target/
 reports/*/
+
+# PyPI upload token, dropped locally; never tracked
+.pypi
