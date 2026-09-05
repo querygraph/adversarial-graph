@@ -22,6 +22,8 @@ reports = sorted(glob.glob(os.path.join(root, "reports", "*", "report.json")))
 if not reports:
     sys.exit("no reports/*/report.json found")
 
+# Runs before the HTTP/SDK split recorded the SDK store as plain "surreal".
+alias = {"surreal": "surreal-sdk"}
 rows: "OrderedDict[tuple, dict]" = OrderedDict()
 history: dict = {}  # key -> list of (run, outcome, gates, notes) for superseded cells
 gates_total = 0
@@ -55,8 +57,6 @@ for path in reports:
 
 order = ["memory", "turso-wal", "turso-mvcc", "ladybug", "lancedb", "postgres", "surreal-http", "surreal-sdk",
          "falkor", "helix-http", "helix-sdk", "neo4j", "neo4j-http"]
-# Runs before the HTTP/SDK split recorded the SDK store as plain "surreal".
-alias = {"surreal": "surreal-sdk"}
 def sort_key(k):
     d, b, s, smoke = k
     return (d, order.index(b) if b in order else 99, s, smoke)

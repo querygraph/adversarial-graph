@@ -41,30 +41,30 @@ shared host — compare CPU columns and the recorded load average. `smoke` rows 
 | turso-mvcc | A4 | smoke | pass | 0 | 12 |  |  | 343 | 1763 |  |  |  |
 | turso-mvcc | A7 | full | pass | 0 | 38 |  |  |  |  |  |  |  |
 | turso-mvcc | A7 | smoke | pass | 0 | 6 |  |  |  |  |  |  | earlier fail (gates=100) in 20260904T202851Z: hub out-degree 110 != expected 10 |
-| postgres | A1 | smoke | pass | 0 | 2090 | 0.00 | 154 | 47903 | 47903 | 637 | grust-portable-api |  |
-| postgres | A2 | smoke | pass | 0 | 3098 | 0.01 | 179 | 963071 | 963071 | 644 | grust-portable-api |  |
-| postgres | A3 | smoke | unsupported | 0 | 2011 | 0.00 | 110 |  |  | 644 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| postgres | A4 | smoke | pass | 0 | 2923 | 0.01 | 222 | 25551 | 52575 | 644 | grust-portable-api |  |
-| postgres | A7 | smoke | unsupported | 0 | 2018 | 0.00 | 95 |  |  | 651 | grust-portable-api | backend does not implement GraphCommitStore |
-| postgres | LOAD | smoke | pass | 0 | 16924 | 0.02 | 8892 |  |  | 632 | grust-portable-api |  |
-| surreal | A1 | smoke | pass | 0 | 334 | 0.15 | 0 | 189311 | 189311 | 16 |  |  |
-| surreal | A2 | smoke | pass | 0 | 14413 | 0.24 | 0 | 14245887 | 14245887 | 17 |  |  |
-| surreal | A3 | smoke | unsupported | 0 | 160 | 0.02 | 0 |  |  | 19 |  | bounded read policy is exercised through the reference executor on the memory backend |
-| surreal | A4 | smoke | pass | 0 | 8861 | 0.01 | 0 | 322815 | 352767 | 19 |  |  |
-| surreal | A7 | smoke | unsupported | 0 | 139 | 0.01 | 0 |  |  | 19 |  | backend does not implement GraphCommitStore |
-| surreal | LOAD | smoke | pass | 0 | 1448717 | 0.00 | 0 |  |  | 16 |  |  |
-| falkor | A1 | smoke | pass | 0 | 2059 | 0.00 | 95 | 33567 | 33567 | 644 | harness-native-cypher |  |
-| falkor | A2 | smoke | pass | 0 | 2501 | 0.01 | 192 | 494847 | 494847 | 642 | harness-native-cypher |  |
-| falkor | A3 | smoke | unsupported | 0 | 2010 | 0.00 | 45 |  |  | 641 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
-| falkor | A4 | smoke | pass | 0 | 4168 | 0.01 | 1509 | 40639 | 87231 | 640 | harness-native-cypher |  |
-| falkor | A7 | smoke | unsupported | 0 | 2007 | 0.00 | 47 |  |  | 640 | harness-native-cypher | backend does not implement GraphCommitStore |
-| falkor | LOAD | smoke | pass | 0 | 9524 | 0.02 | 6282 |  |  | 644 | harness-native-cypher |  |
 | lancedb | A1 | smoke | pass | 0 | 117 | 1.54 |  | 117695 | 117695 | 642 | grust-portable-api |  |
 | lancedb | A2 | smoke | pass | 0 | 22271 | 0.77 |  | 22282239 | 22282239 | 638 | grust-portable-api |  |
 | lancedb | A3 | smoke | unsupported | 0 | 0 | 0.97 |  |  |  | 638 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
 | lancedb | A4 | smoke | pass | 0 | 7009 | 1.82 |  | 248447 | 420095 | 642 | grust-portable-api |  |
 | lancedb | A7 | smoke | unsupported | 0 | 0 | 1.00 |  |  |  | 642 | grust-portable-api | backend does not implement GraphCommitStore |
 | lancedb | LOAD | smoke | pass | 0 | 28031 | 0.72 |  |  |  | 642 | grust-portable-api |  |
+| postgres | A1 | smoke | pass | 0 | 2090 | 0.00 | 154 | 47903 | 47903 | 637 | grust-portable-api |  |
+| postgres | A2 | smoke | pass | 0 | 3098 | 0.01 | 179 | 963071 | 963071 | 644 | grust-portable-api |  |
+| postgres | A3 | smoke | unsupported | 0 | 2011 | 0.00 | 110 |  |  | 644 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| postgres | A4 | smoke | pass | 0 | 2923 | 0.01 | 222 | 25551 | 52575 | 644 | grust-portable-api |  |
+| postgres | A7 | smoke | unsupported | 0 | 2018 | 0.00 | 95 |  |  | 651 | grust-portable-api | backend does not implement GraphCommitStore |
+| postgres | LOAD | smoke | pass | 0 | 16924 | 0.02 | 8892 |  |  | 632 | grust-portable-api |  |
+| surreal-sdk | A1 | smoke | pass | 0 | 2331 | 0.02 | 137 | 276223 | 276223 | 729 | grust-portable-api |  |
+| surreal-sdk | A2 | smoke | pass | 0 | 35781 | 0.09 | 14610 | 33783807 | 33783807 | 714 | grust-portable-api |  |
+| surreal-sdk | A3 | smoke | unsupported | 0 | 1999 | 0.00 | 2 |  |  | 707 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| surreal-sdk | A4 | smoke | pass | 0 | 16907 | 0.01 | 42559 | 477695 | 702975 | 707 | grust-portable-api |  |
+| surreal-sdk | A7 | smoke | unsupported | 0 | 2035 | 0.00 | 161 |  |  | 708 | grust-portable-api | backend does not implement GraphCommitStore |
+| surreal-sdk | LOAD | smoke | pass | 0 | 1552113 | 0.00 | 1577326 |  |  | 737 | grust-portable-api |  |
+| falkor | A1 | smoke | pass | 0 | 2059 | 0.00 | 95 | 33567 | 33567 | 644 | harness-native-cypher |  |
+| falkor | A2 | smoke | pass | 0 | 2501 | 0.01 | 192 | 494847 | 494847 | 642 | harness-native-cypher |  |
+| falkor | A3 | smoke | unsupported | 0 | 2010 | 0.00 | 45 |  |  | 641 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
+| falkor | A4 | smoke | pass | 0 | 4168 | 0.01 | 1509 | 40639 | 87231 | 640 | harness-native-cypher |  |
+| falkor | A7 | smoke | unsupported | 0 | 2007 | 0.00 | 47 |  |  | 640 | harness-native-cypher | backend does not implement GraphCommitStore |
+| falkor | LOAD | smoke | pass | 0 | 9524 | 0.02 | 6282 |  |  | 644 | harness-native-cypher |  |
 | neo4j | A1 | smoke | pass | 0 | 2383 | 0.00 | 566 | 351999 | 351999 | 299 | harness-native-cypher |  |
 | neo4j | A2 | smoke | pass | 0 | 3917 | 0.01 | 1961 | 1755135 | 1755135 | 303 | harness-native-cypher |  |
 | neo4j | A3 | smoke | unsupported | 0 | 2019 | 0.00 | 34 |  |  | 305 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
@@ -125,6 +125,12 @@ shared host — compare CPU columns and the recorded load average. `smoke` rows 
 | turso-mvcc | A4 | smoke | pass | 0 | 120 |  |  | 317 | 1671 |  |  |  |
 | turso-mvcc | A7 | full | pass | 0 | 376 |  |  |  |  |  |  |  |
 | turso-mvcc | A7 | smoke | pass | 0 | 67 |  |  |  |  |  |  | earlier fail (gates=100) in 20260904T202851Z: hub out-degree 12317 != expected 12217 |
+| lancedb | A1 | smoke | pass | 0 | 1357 | 1.39 |  | 1356799 | 1356799 | 666 | grust-portable-api |  |
+| lancedb | A2 | smoke | pass | 0 | 440 | 0.70 |  | 440831 | 440831 | 666 | grust-portable-api |  |
+| lancedb | A3 | smoke | unsupported | 0 | 0 | 0.89 |  |  |  | 666 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| lancedb | A4 | smoke | pass | 0 | 8812 | 1.78 |  | 332799 | 542207 | 663 | grust-portable-api |  |
+| lancedb | A7 | smoke | unsupported | 0 | 0 | 0.88 |  |  |  | 663 | grust-portable-api | backend does not implement GraphCommitStore |
+| lancedb | LOAD | smoke | pass | 0 | 37500 | 0.69 |  |  |  | 667 | grust-portable-api |  |
 | postgres | A1 | smoke | pass | 0 | 2065 | 0.01 | 127 | 41631 | 41631 | 663 | grust-portable-api |  |
 | postgres | A2 | smoke | pass | 0 | 2016 | 0.00 | 398 | 5307 | 5307 | 667 | grust-portable-api |  |
 | postgres | A3 | smoke | unsupported | 0 | 2020 | 0.00 | 110 |  |  | 673 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
@@ -137,11 +143,11 @@ shared host — compare CPU columns and the recorded load average. `smoke` rows 
 | falkor | A4 | smoke | pass | 0 | 5464 | 0.01 | 2896 | 75775 | 185087 | 597 | harness-native-cypher |  |
 | falkor | A7 | smoke | unsupported | 0 | 2039 | 0.00 | 51 |  |  | 649 | harness-native-cypher | backend does not implement GraphCommitStore |
 | falkor | LOAD | smoke | pass | 0 | 12932 | 0.02 | 8380 |  |  | 596 | harness-native-cypher |  |
-| lancedb | A1 | smoke | pass | 0 | 1357 | 1.39 |  | 1356799 | 1356799 | 666 | grust-portable-api |  |
-| lancedb | A2 | smoke | pass | 0 | 440 | 0.70 |  | 440831 | 440831 | 666 | grust-portable-api |  |
-| lancedb | A3 | smoke | unsupported | 0 | 0 | 0.89 |  |  |  | 666 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| lancedb | A4 | smoke | pass | 0 | 8812 | 1.78 |  | 332799 | 542207 | 663 | grust-portable-api |  |
-| lancedb | A7 | smoke | unsupported | 0 | 0 | 0.88 |  |  |  | 663 | grust-portable-api | backend does not implement GraphCommitStore |
-| lancedb | LOAD | smoke | pass | 0 | 37500 | 0.69 |  |  |  | 667 | grust-portable-api |  |
+| neo4j | A1 | smoke | pass | 0 | 985 | 0.02 | 1090 | 934399 | 934399 | 707 | harness-native-cypher |  |
+| neo4j | A2 | smoke | pass | 0 | 337 | 0.01 | 232 | 220927 | 220927 | 707 | harness-native-cypher |  |
+| neo4j | A3 | smoke | unsupported | 0 | 59 | 0.02 | 0 |  |  | 707 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
+| neo4j | A4 | smoke | pass | 0 | 4228 | 0.02 | 3085 | 109759 | 211455 | 708 | harness-native-cypher |  |
+| neo4j | A7 | smoke | unsupported | 0 | 42 | 0.03 | 5 |  |  | 708 | harness-native-cypher | backend does not implement GraphCommitStore |
+| neo4j | LOAD | smoke | pass | 0 | 14997 | 0.01 | 16028 |  |  | 707 | harness-native-cypher |  |
 
-Latest-cell hard-gate total: **0** across 123 cells from 10 runs; 5 earlier failing cell(s) are kept in the Notes column of their superseding row.
+Latest-cell hard-gate total: **0** across 129 cells from 12 runs; 5 earlier failing cell(s) are kept in the Notes column of their superseding row.
