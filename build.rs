@@ -7,6 +7,7 @@
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     record_git_revision();
+    record_grust_pin();
     let ladybug = std::env::var_os("CARGO_FEATURE_LADYBUG").is_some();
     let linux = std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux");
     if ladybug && linux {
@@ -36,4 +37,22 @@ fn record_git_revision() {
         None => "unknown".to_string(),
     };
     println!("cargo:rustc-env=AG_GIT_REV={revision}");
+}
+
+/// Stamp the binary with the Grust it was built against, read from
+/// Cargo.lock: the `grust-graph` facade version and the source every
+/// `grust-core` copy resolves to (a registry version or a pinned git
+/// revision), so a report names the exact adapter code it measured.
+fn record_grust_pin() {
+    println!("cargo:rerun-if-changed=Cargo.lock");
+    let lock = std::fs::read_to_string("Cargo.lock").unwrap_or_default();
+    let field = |package: &str, key: &str| {
+        lock.split("[[package]]")
+            .find(|block| block.contains(&format!("name = \"{package}\"")))
+            .and_then(|block| block.lines().find_map(|line| line.trim().strip_prefix(&format!("{key} = "))))
+            .map(|value| value.trim_matches('"').to_string())
+            .unwrap_or_else(|| "unknown".to_string())
+    };
+    println!("cargo:rustc-env=AG_GRUST_GRAPH_VERSION={}", field("grust-graph", "version"));
+    println!("cargo:rustc-env=AG_GRUST_CORE_SOURCE={}", field("grust-core", "source"));
 }

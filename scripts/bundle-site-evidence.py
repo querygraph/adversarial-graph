@@ -31,6 +31,7 @@ rev = subprocess.check_output(["git", "-C", root, "rev-parse", "HEAD"], text=Tru
 dirty = subprocess.check_output(["git", "-C", root, "status", "--porcelain"], text=True).strip() != ""
 sha = lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest()
 payloads, runs = [], []
+grust_versions = set()
 for run in sorted(os.listdir(os.path.join(root, "reports"))):
     src = os.path.join(root, "reports", run)
     if not os.path.isfile(os.path.join(src, "report.json")) or run < args.since:
@@ -42,6 +43,7 @@ for run in sorted(os.listdir(os.path.join(root, "reports"))):
             p = os.path.join(out, run, name)
             payloads.append({"path": f"{run}/{name}", "bytes": os.path.getsize(p), "sha256": sha(p)})
     report = json.load(open(os.path.join(src, "report.json")))
+    grust_versions.add(report.get("grust_version", "0.13.0"))
     runs.append({"run": run, "smoke": bool(report.get("summary", {}).get("smoke")),
                  "results": len(report.get("results", [])),
                  "hard_gate_total": sum(sum(r["gates"].values()) for r in report.get("results", []))})
@@ -50,7 +52,7 @@ manifest = {
     "track": "strain",
     "harness": "adversarial-graph",
     "harness_revision": rev + ("-dirty" if dirty else ""),
-    "grust_graph_version": "0.13.0",
+    "grust_graph_version": grust_versions.pop() if len(grust_versions) == 1 else sys.exit(f"runs mix grust-graph versions: {sorted(grust_versions)}"),
     "dataset_manifest_sha256": sha(os.path.join(root, "datasets", "MANIFEST.json")),
     "host": args.host,
     "runs": runs,

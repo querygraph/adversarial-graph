@@ -139,7 +139,11 @@ pub struct Report {
     /// Git revision of the harness that produced this report (`-dirty` when
     /// the tree had uncommitted changes), stamped at build time.
     pub harness_revision: &'static str,
+    /// `grust-graph` facade version from Cargo.lock.
     pub grust_version: &'static str,
+    /// Where `grust-core` (and with it every adapter sharing its `GraphStore`)
+    /// resolved from: a registry version or a pinned git revision.
+    pub grust_source: &'static str,
     pub host: BTreeMap<String, String>,
     pub datasets: Vec<serde_json::Value>,
     pub results: Vec<ScenarioResult>,
@@ -162,7 +166,8 @@ impl Report {
             generated_at: chrono::Utc::now().to_rfc3339(),
             harness_version: env!("CARGO_PKG_VERSION"),
             harness_revision: env!("AG_GIT_REV"),
-            grust_version: "0.13.0",
+            grust_version: env!("AG_GRUST_GRAPH_VERSION"),
+            grust_source: env!("AG_GRUST_CORE_SOURCE"),
             host,
             datasets: Vec::new(),
             results: Vec::new(),
