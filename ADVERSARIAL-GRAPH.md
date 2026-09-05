@@ -609,7 +609,7 @@ inflated under contention (scheduling and cache pressure, not more work).
 That is the argument from §1.4 for reporting CPU next to the load average,
 not just next to wall time.
 
-### 7.2 Grust store changes and their measured effect (2026-09-05, development build)
+### 7.2 Grust store changes and their measured effect (2026-09-05, pinned run)
 
 Section 7.1's map from scenario to Grust path (FABLE-TO-FABLE.md §4) says
 where the embedded stores spend their time: `traverse` and `get_edges` for
@@ -650,35 +650,40 @@ host against the 200k-edge slices with the same harness build otherwise:
    ids only. The harness calls `traverse_ids` for every backend; the
    portable read path is unchanged for all of them.
 
-**Measured, development build** (`[patch.crates-io]` pointing at the local
-branch; superseded by the pinned run once the branch is published, which
-is the only form the harness's working rules admit):
+**Measured** with the harness pinned to that revision (`Cargo.toml` git
+`rev` for the internal adapters and a `[patch.crates-io]` of `grust-core`,
+`grust-memory` and `grust-turso` to the same revision; harness `131308f`,
+bundles `20260905T2134…` onwards, each report stamped with both
+revisions). "Before" is the morning's clean-host run at v0.13.0 (§7.1);
+the ten other backends were rerun under the same pin and every one of their
+cells reproduced within a few percent, with no outcome changed and the
+same hard-gate total.
 
 | Backend | Cell | Before | After |
 |---|---|---|---|
-| memory | LOAD wiki-Talk / roadNet-CA | 606 / 306 ms | 813 / 398 ms (index build inside the load) |
+| memory | LOAD wiki-Talk / roadNet-CA | 606 / 306 ms | 833 / 396 ms (index build inside the load) |
 | memory | A1 p50 wiki-Talk hub (12,215 rows) | 23.9 ms | 2.7 ms |
-| memory | A1 p50 roadNet-CA | 35 µs | 12 µs |
-| memory | A2 p50 roadNet-CA depth-8 / wiki-Talk | 682 / 10 µs | 102 / 5 µs |
-| memory | A4 p50 · p99 wiki-Talk | 6 · 81 µs | 5 · 373 µs |
-| turso-wal | LOAD wiki-Talk / roadNet-CA | 13.06 / 8.16 s | 6.38 / 5.16 s |
-| turso-wal | A1 p50 wiki-Talk / roadNet-CA | 72.3 ms / 268 µs | 59.6 ms / 312 µs |
-| turso-wal | A2 p50 wiki-Talk / roadNet-CA | 333 µs / 11.4 ms | 310 µs / 10.0 ms |
-| turso-wal | A4 p50 wiki-Talk / roadNet-CA | 124 / 19 µs | 106 / 100 µs |
-| turso-mvcc | LOAD wiki-Talk / roadNet-CA | 24.0 / 18.8 s | 24.9 / 18.3 s |
-| turso-mvcc | A1 p50 wiki-Talk / roadNet-CA | 73.0 ms / 339 µs | 71.3 ms / 606 µs |
-| turso-mvcc | A4 p50 wiki-Talk / roadNet-CA | 23.4 / 21.8 ms | 23.5 / 24.6 ms |
+| memory | A1 p50 roadNet-CA | 35 µs | 10 µs |
+| memory | A2 p50 roadNet-CA depth-8 / wiki-Talk | 682 / 10 µs | 114 / 6 µs |
+| memory | A4 p50 · p99 wiki-Talk | 6 · 81 µs | 4 · 741 µs |
+| turso-wal | LOAD wiki-Talk / roadNet-CA | 13.06 / 8.16 s | 6.38 / 5.22 s |
+| turso-wal | A1 p50 wiki-Talk / roadNet-CA | 72.3 ms / 268 µs | 58.5 ms / 376 µs |
+| turso-wal | A2 p50 wiki-Talk / roadNet-CA | 333 µs / 11.4 ms | 310 µs / 10.9 ms |
+| turso-wal | A4 p50 wiki-Talk / roadNet-CA | 124 / 19 µs | 120 / 103 µs |
+| turso-mvcc | LOAD wiki-Talk / roadNet-CA | 24.0 / 18.8 s | 24.8 / 18.3 s |
+| turso-mvcc | A1 p50 wiki-Talk / roadNet-CA | 73.0 ms / 339 µs | 71.4 ms / 1.0 ms |
+| turso-mvcc | A4 p50 wiki-Talk / roadNet-CA | 23.4 / 21.8 ms | 24.1 / 23.6 ms |
 
 Every cell passed with 0 gates before and after; no outcome changed. Two
 cells moved the other way and are stable across three runs, so they are
 recorded as costs of the change, not noise: Turso WAL single-edge writes on
-roadNet-CA's low-degree hub went from 19 µs to 100 µs after the
+roadNet-CA's low-degree hub went from 19 µs to about 100 µs after the
 single-transaction load and truncating checkpoint (the same writes on
-wiki-Talk's hub improved), and Turso MVCC's roadNet-CA 1-hop went from
-0.34 ms to about 0.6 ms. Both are sub-millisecond cells on a 100-sample
-scenario; the load halving and the hub-read gains are the changes' effect,
-and the memory store's load now carries the index build it previously did
-not have (about 200–250 ms at 200k edges).
+wiki-Talk's hub are unchanged), and Turso MVCC's roadNet-CA 1-hop went from
+0.34 ms to 0.6–1.0 ms across runs. Both are sub-millisecond cells on a
+single-sample or 100-sample scenario; the load halving and the hub-read
+gains are the changes' effect, and the memory store's load now carries the
+index build it previously did not have (about 230 ms at 200k edges).
 
 The memory A4 p99 rose from 81 µs to a few hundred: the one write that
 invalidates the snapshot spawns the thread that releases it. Before
