@@ -25,7 +25,14 @@ cd ~/src/adversarial-graph
 cargo build --release --features postgres,surreal,falkor,lancedb,neo4j,helix,ladybug
 ```
 
-Took 37 min on the loaded laptop; expect ~1 h on 4 vCPU. Two facts to know:
+Took 37 min on the loaded laptop, 25 min here (2026-09-05). Three facts to know:
+
+- The bootstrap's rustup step never ran: Debian 13 ships a `rustup` proxy in
+  `/usr/bin` with a stable toolchain, so `command -v cargo` succeeded and the
+  script's final `~/.cargo/bin/cargo` check failed. `cargo` 1.98 from
+  `/usr/bin` builds the tree; `source ~/.cargo/env` is not needed.
+- `docker` group membership only applies to a fresh login. Until then wrap
+  docker and the ladder in `sg docker -c '…'`.
 
 - `grust-helix` and `grust-ladybug` are `publish = false` in Grust, so they
   are `git` dependencies on the `v0.13.0` tag, with `[patch.crates-io]`
@@ -33,9 +40,11 @@ Took 37 min on the loaded laptop; expect ~1 h on 4 vCPU. Two facts to know:
   one `GraphStore` (see `Cargo.toml`). Never point them at a local checkout.
 - `lbug` (Ladybug engine) downloads a prebuilt static library into
   `~/.cache/lbug-prebuilt` when one exists for the target; otherwise it builds
-  the C++ engine from source (long). The link emits duplicate-symbol warnings
-  (`simsimd`, `zstd` bundled in liblbug vs the Lance crates); the laptop
-  binary linked and ran, but watch for it.
+  the C++ engine from source (long). x86_64-linux has a prebuilt. `liblbug.a`
+  bundles zstd and simsimd objects that the Lance crates also link, and lld
+  on Linux rejects the duplicates that ld64 tolerated on the laptop, so
+  `build.rs` passes `--allow-multiple-definition` for the `ag` binary when
+  the `ladybug` feature is on.
 
 ## Run: one system at a time
 
@@ -55,6 +64,10 @@ Notes for this host:
   and `BENCHMARK_MEMORY_LIMIT_BYTES` (default 6 GiB). Export
   `BENCHMARK_CPU_LIMIT=4` here; the harness and the server share the four
   cores, and that is recorded in the run (`host_loadavg_1m_*`).
+- The `helix` image was pinned to an arm64 manifest digest from the laptop;
+  on x86 the container died with `exec /bin/tini: exec format error` and
+  `run-ladder.sh` waited forever in `wait_ready`. `compose.yaml` now pins the
+  multi-arch index digest (same build, both platforms).
 - Neo4j needs the `external` compose profile (the script passes it) and
   `NEO4J_HEAP`/`NEO4J_PAGECACHE` default 3G each inside the 6 GiB cap.
 - FalkorDB: `FALKOR_RESULTSET_SIZE=-1` selects the tuned profile; the default
@@ -68,6 +81,28 @@ Notes for this host:
   uses `$DOCKER_SOCK`, else `~/.docker/run/docker.sock` (macOS), else
   `/var/run/docker.sock`. Check the first LOAD row's `server_cpu_us` is
   non-null; the socket needs the `docker` group (re-login after bootstrap).
+
+## State after the first EC2 pass (2026-09-05, evening)
+
+- Run bundles are git-ignored (`reports/*/`); this host's live in
+  `~/src/adversarial-graph/reports/20260905T08…` onwards, the laptop's in the
+  rsync'd bundles before them. `RESULTS.md` is the committed record.
+- Every backend has clean-host rows in `RESULTS.md` (`x86_64/4`); the
+  findings are written up in ADVERSARIAL-GRAPH.md §7 ("Clean-host results").
+- Ladybug: wiki-Talk 200k took 5.1 h to load (≈11 edges/s, 6.3 GB peak RSS
+  through the engine's default buffer pool, which `grust-ladybug` does not
+  let the caller size). Run it detached (`setsid nohup …`): the Claude Code
+  harness's memory watchdog killed the first attempt. The roadNet-CA slice was
+  started last, `scripts/run-ladder.sh --datasets roadNet-CA ladybug`.
+- Helix: the 200k load fails with HTTP 408 in both transports (two node scans
+  per edge, no usable index, 30 s gateway timeout); the 10k slice loads at
+  ≈33 edges/s and `helix-http` passes A1/A2/A4 there, while `helix-sdk`
+  cannot read at all (`unknown variant \`Read\``). Next experiment: does a
+  `NWhere` filter use the runtime `NodeEquality` index the harness now
+  creates at bootstrap? Start `helix`, create the index, insert 10k nodes,
+  time one `NWhere id = …` query with and without it.
+- FalkorDB rows now carry `profile` (`resultset_size=-1` tuned,
+  `resultset_size=10000` image default); both were rerun here.
 
 ## What was in flight on the laptop when this was written
 

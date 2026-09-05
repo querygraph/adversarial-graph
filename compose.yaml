@@ -48,13 +48,15 @@ services:
     command: ["start", "--log", "warn", "--user", "root", "--pass", "root", "memory"]
     ports: ["18000:8000"]
 
-  # HelixDB (Rust). Same digest-pinned enterprise-dev build the sibling LSQB
-  # harness runs; serves dynamic queries on /v1/query and the `helix-db` SDK
-  # on the same port. Both the harness's helix-http and helix-sdk backends
+  # HelixDB (Rust). The digest is the multi-arch image index of the same
+  # enterprise-dev build the sibling LSQB harness runs (its arm64 member is
+  # sha256:931be787…, the laptop's original pin; amd64 is sha256:f9cf2988…),
+  # so the pin resolves on both Apple Silicon and x86 hosts. Serves dynamic
+  # queries on /v1/query and the `helix-db` SDK on the same port. Both the harness's helix-http and helix-sdk backends
   # point here.
   helix:
     <<: *limits
-    image: "${HELIX_IMAGE:-ghcr.io/helixdb/enterprise-dev@sha256:931be787814a378f0407e12ecdf41e7413597c6434a452eec2f4ad8a5ce8d7c4}"
+    image: "${HELIX_IMAGE:-ghcr.io/helixdb/enterprise-dev@sha256:c6f9847b60597687ef4674ba9ed7ca5ae230d84dc380a593f6310f7eb51a4588}"
     ports: ["18082:8080"]
 
   pggraph:

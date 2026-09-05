@@ -38,6 +38,9 @@ pub async fn run(id: &str, ctx: &Ctx<'_>) -> ScenarioResult {
     };
     result.wall_ms = started.elapsed().as_millis();
     result.observe("read_path", ctx.backend.read_path());
+    if let Some(profile) = ctx.backend.kind.profile() {
+        result.observe("profile", profile);
+    }
     probe.finish(&mut result);
     result.finish();
     result

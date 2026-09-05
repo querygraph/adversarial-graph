@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+- First clean-host results (dedicated 4-vCPU EC2 host, load average ≈1)
+  for all thirteen backends; ADVERSARIAL-GRAPH.md §7 gains the clean-host
+  eight-way table, the HTTP-versus-SDK transport pairs, and four new
+  findings: SurrealDB's `get_nodes` OR-chain exceeds the parser's expression
+  recursion limit on wiki-Talk's hub (both transports), Ladybug loads at
+  ≈11 edges/s through per-row statements, HelixDB's adapter writes each edge
+  as two `NWhere id = …` node scans so a 500-edge batch outruns the gateway's
+  30 s request timeout (408) on the 200k slice, and the Helix SDK read path
+  rejects the server's response envelope (`unknown variant \`Read\``).
+- Record the server profile a row was taken under (`profile` observation,
+  FalkorDB `resultset_size=…`) and the edge slice, and key `RESULTS.md` on
+  both, so the truncating and tuned FalkorDB runs and the 10k and 200k Helix
+  runs no longer overwrite each other.
+- Create a Helix runtime equality index on `(V, id)` at bootstrap, as the
+  harness does for FalkorDB and Neo4j. The server accepts it, but the 200k
+  load still times out, so whether `NWhere` uses runtime indexes is open.
+- Link on Linux with the `ladybug` feature: `build.rs` passes
+  `--allow-multiple-definition` for the binary only, because the prebuilt
+  `liblbug.a` bundles zstd (and simsimd) objects that the Lance crates also
+  link through `zstd-sys`; macOS ld64 silently took the first copy, GNU ld
+  and lld refuse. Pin the `helix` service to the image's multi-arch index
+  digest instead of its arm64 manifest, so the same build resolves on x86.
+  `scripts/render-results.py` defines its backend order before use and adds
+  a `Host` (arch/vCPUs) column so contended-laptop and dedicated-host rows
+  are distinguishable.
 - Add LadybugDB (embedded, Grust's `grust-ladybug` adapter over `lbug`
   0.20.2) and HelixDB (Grust's `grust-helix` adapter, HTTP and `helix-db`
   SDK) as backends; both adapters are `publish = false` in Grust and are

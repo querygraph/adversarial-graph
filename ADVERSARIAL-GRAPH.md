@@ -480,3 +480,131 @@ omission correction is M2); Turso full-size loads are slow through per-batch
 upserts (≈20k edges/s) and are run separately from the smoke ladder; only
 the memory backend can run A3 because the reference executor needs a
 materialized `Graph`.
+
+### 7.1 Clean-host results (M1, 2026-09-05, dedicated EC2 host)
+
+Host: `lakecat`, Debian 13, 4 vCPU, 15 GiB, no swap; one system under test
+resident at a time (`scripts/run-ladder.sh`), every container capped at
+4 CPUs and 6 GiB; 1-minute load average 1–2 throughout, against 300–700 for
+the laptop rows in §7. Same binary features, `grust` 0.13.0. Rows are
+200k-edge slices except where marked 10k; the full table is `RESULTS.md`
+(`x86_64/4` rows). Every containerized row carries the server's cumulative
+CPU from the Docker Engine API, so "server CPU" below is the engine's own
+cost, not the harness's.
+
+**Eight-way at 200k edges, wiki-Talk (hub out-degree 12,215 in the slice)
+and roadNet-CA.** A1 is the hub's 1-hop layer, A2 the bounded deep
+traversal, A4 4 writers × 25 edges on the hub (p50 per write).
+
+| Backend | Load edges/s (wiki / road) | A1 p50 · server CPU | A2 p50 wiki / road | A4 p50 · p99 · server CPU | Gates |
+|---|---|---|---|---|---|
+| memory | 330k / 653k | 24 ms · — | 0.0 / 0.7 ms | 0.0 · 0.1 ms · — | 0 |
+| turso-wal | 15.3k / 24.5k | 72 ms · — | 0.3 / 11 ms | 0.1 · 11 ms · — | 0 |
+| turso-mvcc | 8.3k / 10.6k | 73 ms · — | 0.4 / 15 ms | 23 · 64 ms · — | 0 |
+| postgres | 17.4k / 20.6k | 115 ms · 89 ms | 1.7 / 62 ms | 5.0 · 7.4 ms · 126 ms | 0 |
+| falkor (`RESULTSET_SIZE -1`) | 26.7k / 30.4k | 54 ms · 57 ms | 2.8 / 98 ms | 87 · 125 ms · 3.19 s | 0 |
+| falkor (image default 10,000) | 26.8k / 30.6k | **10,000 rows, wrong_answer** | 3.1 / 94 ms | 87 · 125 ms · 3.19 s | 1 |
+| neo4j (Bolt) | 16.4k / 26.6k | 385 ms · 1.02 s | 72 / 246 ms | 17 · 126 ms · 2.37 s | 0 |
+| neo4j-http (Query API v2) | 19.9k / 35.1k | 426 ms · 1.25 s | 86 / 523 ms | 28 · 173 ms · 3.88 s | 0 |
+| lancedb | 12.9k / 16.4k | 2.44 s · — | 253 ms / 9.1 s | 251 · 290 ms · — | 0 |
+| ladybug | **11** / (running) | 19.5 s · — | 14 ms / — | 38 · 974 ms · — | 0 |
+| surreal-sdk (10k) | 20 / 23 | **parse error** (both) | 236 ms / 11.2 s | 92 · 123 ms · 9.42 s | 1 |
+| surreal-http (10k) | 21 / 23 | **parse error** (both) | 407 ms / 20.5 s | 148 · 176 ms · 14.8 s | 1 |
+| helix-http (10k; 200k **408**) | 33 / 26 | 54 ms · 43 ms | 30 ms / 1.94 s | 303 · 455 ms · 5.46 s | 1 (LOAD) |
+| helix-sdk (10k; 200k **408**) | 33 / 27 | **SDK read rejected** | — | — | 4 |
+
+The contended laptop rows were upper bounds; these replace them as the M1
+baseline, and the ordering they suggested holds. The embedded stores answer
+the hub in tens of milliseconds and the deep path in microseconds to
+milliseconds; the servers pay one to two orders of magnitude for the round
+trips, and the CPU column shows where that cost lands: Neo4j spends 1 s of
+server CPU on a 12k-row 1-hop and 2.4 s on 100 single-edge Bolt `CREATE`s
+(24 ms each), FalkorDB 3.2 s on the same 100 writes (32 ms each, with
+`RESULTSET_SIZE` irrelevant to writes), Postgres 0.13 s (1.3 ms each). The
+FalkorDB truncation from §7 reproduces exactly on the clean host — 10,000
+rows returned for a 12,215-row layer, no error, no warning — and its rows
+now carry `profile` so both configurations stay visible side by side.
+
+**New findings, all in adapters or defaults rather than in the engines'
+traversal code.**
+
+*SurrealDB, both transports, wiki-Talk A1: `Exceeded expression recursion
+depth limit`.* `grust-surreal`'s `get_nodes` fetches a batch of ids as one
+`WHERE id = type::record(t, id) OR id = type::record(t', id) OR …` chain, two
+terms per id (it tries both the untyped `record` table and the label table),
+and SurrealDB 3.2.4's parser rejects the chain at the hub's neighbour count
+(the error is at character 4,812 of the statement). roadNet-CA's small
+neighbourhoods pass. The fix belongs in `surreal_get_nodes_query`: `WHERE id
+IN [...]`, or selecting the record ids directly. The 10k-edge load figure
+did not improve on the idle host — 20–23 edges/s, server pinned on one core
+for eight minutes — which confirms the O(E²) `DELETE … WHERE in= AND out=`
+diagnosis from §7 rather than contention.
+
+*LadybugDB: 11 edges/s.* `grust-ladybug`'s `put_graph` opens one
+transaction and then executes one prepared statement per node and per edge,
+so the 200k-edge wiki-Talk slice took 5.1 hours to load, with the harness
+process at 6.3 GB peak RSS (the engine's default buffer pool, which the
+adapter does not let the caller size). Once loaded, A2 and A4 pass with 0
+gates and A2 answers in 14 ms, but the hub's 1-hop takes 19.5 s. The engine
+has a `COPY FROM` bulk path the adapter does not use; the load figure is
+charged to the adapter, the 1-hop time to the engine-through-adapter read
+path and is worth a native-Cypher comparison in M2.
+
+*HelixDB: 408 on the 200k slice, both transports.* `grust-helix` writes a
+batch of edges as, per edge, `N … NWhere id = <to>` and `N … NWhere id =
+<from> · AddE`. Node batches of 500 commit in 0.3 s each (`hyperscale` logs
+`vertices_added=500`), but each edge is two property filters over every
+node, and the first 500-edge batch on a 145k-node slice never returns
+before the gateway's `request_timeout=30s`, so the client gets `408 Request
+Timeout` and the server never commits an edge. The harness now creates a
+runtime `NodeEquality` index on `(V, id)` at bootstrap, as it does for
+FalkorDB and Neo4j; the server accepts it and the outcome does not change,
+so whether `NWhere` consults runtime indexes is an open question for the
+Helix side. On a 10k-edge slice the load completes at 33 edges/s with the
+server saturating all four cores, and `helix-http` then passes A1, A2, and
+A4 with 0 gates and the lowest server CPU of any network store on the
+1-hop (43 ms). `helix-sdk` loads identically but every read fails before
+reaching the server: `invalid Helix SDK read: unknown variant `Read`,
+expected `read` or `write`` — the adapter's SDK path and the `helix-db`
+2.0.0 client disagree on the request-type enum's casing.
+
+**HTTP versus SDK, same engine, same container, same slice.** Both
+transports of each pair ran back to back with nothing else resident.
+
+| Engine | Metric | HTTP | SDK / Bolt | Ratio |
+|---|---|---|---|---|
+| SurrealDB 3.2.4 (10k) | load edges/s (wiki / road) | 21 / 23 | 20 / 23 | 1.0 |
+| | A2 p50 wiki / road | 407 ms / 20.5 s | 236 ms / 11.2 s | 1.7–1.8× slower over HTTP |
+| | A4 p50 · p99 | 148 · 176 ms | 92 · 123 ms | 1.6× |
+| | A4 server CPU (100 writes) | 14.8 s | 9.4 s | 1.6× |
+| Neo4j 5.26 (200k) | load edges/s (wiki / road) | 19.9k / 35.1k | 16.4k / 26.6k | HTTP 1.2–1.3× faster |
+| | A1 p50 · server CPU | 426 ms · 1.25 s | 385 ms · 1.02 s | 1.1–1.2× |
+| | A2 p50 wiki / road | 86 / 523 ms | 72 / 246 ms | 1.2–2.1× |
+| | A4 p50 · p99 · server CPU | 28 · 173 ms · 3.88 s | 17 · 126 ms · 2.37 s | 1.4–1.6× |
+| HelixDB (10k) | load edges/s | 33 / 26 | 33 / 27 | 1.0 (same adapter statements) |
+| | reads | pass | rejected by adapter | — |
+
+Two things separate here. For SurrealDB the transport is a constant factor
+on every read and write (the WebSocket SDK is 1.6–1.8× cheaper in both wall
+time and server CPU), and it does not touch the adapter's load or the A1
+parse failure, which are the same statements on both paths. For Neo4j the
+answer depends on the operation: Bolt wins every read and the hot-node
+writes by 1.2–2×, but the HTTP Query API v2 loads 20–30% faster because the
+adapter's batched `UNWIND` Cypher is one HTTP body per batch while the Bolt
+driver pays per-message framing. Helix's two transports share every
+statement, so they load identically and differ only in the SDK's broken
+read envelope.
+
+**What the clean host changed.** No pass became a fail, and no fail became
+a pass: the laptop's `wrong_answer` on FalkorDB and the Surreal load
+pathology are exactly reproduced, and the five backends measured for the
+first time (Ladybug, both Helix, Surreal HTTP, Neo4j HTTP) added four
+adapter findings and no engine correctness failure. Wall times dropped as
+expected — Postgres's roadNet-CA load from 16.9 s to 9.7 s, FalkorDB's
+wiki-Talk A4 from 4.2 s to 3.0 s. Server CPU behaved differently per engine:
+FalkorDB's A4 reproduced within 5% (3.3 s → 3.2 s on wiki-Talk, 1.5 s →
+1.6 s on roadNet-CA, laptop arm64 image versus x86 here), while Neo4j's
+roadNet-CA A4 fell from 4.5 s to 0.8 s, so a JVM store's CPU time is itself
+inflated under contention (scheduling and cache pressure, not more work).
+That is the argument from §1.4 for reporting CPU next to the load average,
+not just next to wall time.

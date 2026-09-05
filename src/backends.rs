@@ -153,6 +153,18 @@ impl BackendKind {
         ]
     }
     /// Docker container serving this backend, if any (for resource probes).
+    /// The server-side configuration a run was taken under, when the harness
+    /// varies it: FalkorDB's `RESULTSET_SIZE` (the image default of 10,000
+    /// silently truncates results; `-1` is the tuned profile). Recorded on
+    /// every row so runs under different profiles never overwrite each other
+    /// in `RESULTS.md`.
+    pub fn profile(self) -> Option<String> {
+        match self {
+            #[cfg(feature = "falkor")]
+            Self::Falkor => Some(format!("resultset_size={}", env_or("FALKOR_RESULTSET_SIZE", "10000"))),
+            _ => None,
+        }
+    }
     pub fn container(self) -> Option<&'static str> {
         match self {
             #[cfg(feature = "postgres")]
@@ -237,7 +249,7 @@ fn connect_falkor(tag: &str) -> grust::FalkorGraphStore {
 /// `helix-db` client crate.
 #[cfg(feature = "helix")]
 fn connect_helix(kind: BackendKind) -> grust::Result<Arc<dyn AdminStore>> {
-    let base = env_or("AG_HELIX_URL", "http://127.0.0.1:18082");
+    let base = helix_base_url();
     Ok(match kind {
         BackendKind::HelixHttp => Arc::new(grust_helix::HelixHttpGraphStore::connect(grust_helix::HelixHttpConfig {
             query_url: format!("{}/v1/query", base.trim_end_matches('/')),
@@ -250,6 +262,51 @@ fn connect_helix(kind: BackendKind) -> grust::Result<Arc<dyn AdminStore>> {
             labels: vec![NODE_LABEL.to_string()],
         })?),
     })
+}
+
+#[cfg(feature = "helix")]
+fn helix_base_url() -> String {
+    env_or("AG_HELIX_URL", "http://127.0.0.1:18082")
+}
+
+/// Helix answers `NWhere id = …` by scanning every node unless a runtime
+/// equality index exists on the property, and `grust-helix` writes each edge
+/// as two such filters, so without the index a 500-edge batch on a 145k-node
+/// slice outruns the gateway's 30 s request timeout and the load fails with
+/// 408. Create the index at bootstrap, as the harness does for FalkorDB and
+/// Neo4j, so the engine and not the missing index is what gets measured.
+#[cfg(feature = "helix")]
+async fn helix_create_id_index() -> grust::Result<()> {
+    use grust::GrustError::Backend;
+    let request = serde_json::json!({
+        "request_type": "write",
+        "query": {
+            "queries": [{"Query": {
+                "name": "id_index",
+                "steps": [{"CreateIndex": {
+                    "spec": {"NodeEquality": {"label": NODE_LABEL, "property": "id", "unique": false}},
+                    "if_not_exists": true
+                }}],
+                "condition": null
+            }}],
+            "returns": []
+        },
+        "parameters": {},
+        "parameter_types": {}
+    });
+    let url = format!("{}/v1/query", helix_base_url().trim_end_matches('/'));
+    let response = reqwest::Client::new()
+        .post(&url)
+        .json(&request)
+        .send()
+        .await
+        .map_err(|e| Backend(format!("Helix index request failed: {e}")))?;
+    let status = response.status();
+    if status.is_success() {
+        return Ok(());
+    }
+    let body = response.text().await.unwrap_or_default();
+    Err(Backend(format!("Helix index creation failed with status {status}: {body}")))
 }
 
 /// LadybugDB embedded through Grust's internal adapter (the `lbug` crate),
@@ -356,7 +413,11 @@ impl Backend {
                 Ok(b)
             }
             #[cfg(feature = "helix")]
-            BackendKind::HelixHttp | BackendKind::HelixSdk => Self::prepared(kind, connect_helix(kind)?, tag).await,
+            BackendKind::HelixHttp | BackendKind::HelixSdk => {
+                let b = Self::prepared(kind, connect_helix(kind)?, tag).await?;
+                helix_create_id_index().await?;
+                Ok(b)
+            }
             #[cfg(feature = "ladybug")]
             BackendKind::Ladybug => {
                 mkdir()?;

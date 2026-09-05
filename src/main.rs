@@ -176,6 +176,9 @@ async fn run(root: &Path, args: &Args) {
                     eprintln!("   loaded {} nodes / {} edges in {:?}", rep.nodes, rep.edges, t.elapsed());
                     load_result.observe("load_path", backend.read_path());
                     load_result.observe("transport", kind.transport());
+                    if let Some(profile) = kind.profile() {
+                        load_result.observe("profile", profile);
+                    }
                     load_result.observe("nodes", rep.nodes);
                     load_result.observe("edges", rep.edges);
                     load_result.observe("edges_per_s", rep.edges as f64 / t.elapsed().as_secs_f64().max(1e-9));
