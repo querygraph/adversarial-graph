@@ -171,9 +171,17 @@ main except the SF0.3 measurement and the full SF0.1 matrix:
   (mirror of `validate-matrix-publication.py`, with tests). Before this,
   every bundle produced by the current harness was rejected by the site for
   its unexpected manifest and observation fields.
-- **Not done**: SF0.3 (not measured on this host), the full SF0.1 matrix
-  (laptop, or here with resume mode once the laptop's prior directory is
-  available). The ladybug-rust PR is open:
+- **Follow-ups from the laptop's first SF0.1 cohort, both done** (grust
+  `5c34fc2`, `9d06b2c`; site `5ca467a`/lifecycle commit): the proven
+  `count-factorized` plan now comes before the store's scalar SQL count
+  (q1 65.9 ms and q4 176 ms over the index instead of 260 s and 14.7 s
+  through Turso's SQL; all 22 cases register as resident entries for Turso
+  and PostgreSQL), and Turso workers copy the coordinator's prebuilt store
+  file (`per-observation-worker-copy`: 4.7 s setup per observation instead
+  of 71 s, the nine-query cell in 2 min 9 s). What remains is the laptop's
+  rerun of the Turso and PostgreSQL cells with `RESUME_FROM` against
+  `benchmarks/lsqb/out/matrix-sf0.1-w2r10-68d1b09-f1`, or a fresh full run.
+- **Not done**: SF0.3 (not measured on this host). The ladybug-rust PR is open:
   https://github.com/LadybugDB/ladybug-rust/pull/33 (fork
   `querygraph/ladybug-rust`, branch `prebuilt-cache-and-symbol-localization`;
   `gh` is installed and logged in as alexy on this host).
