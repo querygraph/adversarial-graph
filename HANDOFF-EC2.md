@@ -104,6 +104,29 @@ Notes for this host:
 - FalkorDB rows now carry `profile` (`resultset_size=-1` tuned,
   `resultset_size=10000` image default); both were rerun here.
 
+## State on 2026-09-06 morning: publication done, what is next
+
+- **Published**: `adversarial-site` publication `2026-09-06` (17 runs, 174
+  cells, hard-gate total 9, manifest digest and harness revision pinned in
+  `scripts/verify-strain-evidence.mjs`), from harness `6b4b08c` with every
+  Grust crate pinned to `querygraph/grust` `3840d152` (Memory snapshot reads
+  and `traverse_ids`, Turso single-transaction load and resident snapshot,
+  Ladybug Arrow bulk load, per-label tables, query-per-table traversal,
+  buffer-pool cap and concurrent-writes option). Superseded pinned bundles
+  are in `reports-dev/pinned-131308f`, `pinned-1baddcd`, `pinned-73f2e14`.
+- **Next in the harness track**: the LSQB execution class for durable
+  stores with a resident index (`docs/notes/task-turso-resident-index.md`):
+  `TursoGraphStore::indexed_snapshot` exists on grust main; the harness
+  class, plan registry, Python validator, site verifier `allowedClasses`,
+  differential validation and `run-grust.sh` resume mode remain. Builds of
+  `benchmarks/lsqb` are heavy; do them when no ladder is running.
+- **Ladybug crate PR**: branch `prebuilt-cache-and-symbol-localization`
+  in `~/src/ladybug-rust` (commit `2114886`), verified here; needs a fork
+  of `LadybugDB/ladybug-rust` to push to (no GitHub token on this host).
+- **Helix SDK**: cannot open against the `enterprise-dev` image under the
+  pinned adapter (v3 client); measuring it needs the source-built server
+  the LSQB harness qualifies it against.
+
 ## Grust store speed work (2026-09-05, evening)
 
 - Branch `fable/strain-adapter-reads` in `~/src/grust`, pushed at
