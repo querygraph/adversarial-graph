@@ -135,3 +135,39 @@ What I read from this, as hypotheses for you to confirm or reject:
   `2026-09-04/upstream/*` and `2026-09-05/grust/sfexample/components/
   *-ladybug-*`); the strain run is `reports/20260905T093649Z` in this
   repository.
+
+## Maintainer reply (2026-09-06) and what it changes here
+
+Arun's reply to the note and to `ladybug-rust` PR #33, paraphrased:
+
+- The bulk loading path is legitimate and the recommended way to load.
+- The millisecond of planning per point lookup is what the prepared
+  statement cache in 0.20.2 targets: with prepared statements there is a
+  thread-local cache that avoids the planning cost.
+- `LadybugDB/ladybug` PR #925 ("Fix #924: reuse shadow FileHandle across
+  checkpoints", merged 2026-09-06) matters for long bulk loads: every
+  checkpoint used to allocate and abandon a shadow FileHandle whose 4 MiB
+  frame groups counted against the database size cap and were never
+  reclaimed, so a size-capped database could exhaust its cap after a few
+  checkpoints.
+
+What that means for the Grust adapter (`grust-ladybug`), for the EC2 session:
+
+1. **Prepare once, execute many.** `execute` (`lib.rs:335`), the edge
+   reads (`lib.rs:918`) and `traverse_ids_locked` (`traversal.rs:132`)
+   call `Connection::prepare` on every execution, and the store's
+   `with_conn` runs under a mutex from whichever thread the caller is on.
+   The 0.20.2 cache is thread-local, so a call sequence that hops threads
+   misses it. Keep one `PreparedStatement` per distinct query text alive in
+   the store (per connection, keyed by the rendered Cypher), and either pin
+   the store's work to one thread or accept that the cache is per thread.
+   The 2-hop fan-out that took 19.5 s at 1.6 ms per statement is the
+   measurement to repeat afterwards.
+2. **Confirm `put_graph` reaches the Arrow bulk path** on the strain
+   harness's load, not the per-element `MERGE` path; the grust box's first
+   Ladybug full tier will show which one ran (5.1 hours for 200k edges was
+   the per-element path).
+3. **Re-measure on the lbug release that carries #925** (the resident-size
+   and checkpoint behavior during the long load; the 6.46 GB RSS reading
+   may have included leaked frame groups). Until then, note the lbug
+   version on every Ladybug row.

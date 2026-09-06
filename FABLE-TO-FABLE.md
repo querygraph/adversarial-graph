@@ -350,3 +350,15 @@ built there. Its role, in order:
   on every handoff.
 - Neutral framing; superseded failures stay visible; unsupported is never a
   pass; every number carries its host, slice, class and steal.
+
+## 10. Laptop to EC2: Ladybug maintainer reply, adapter follow-ups (2026-09-06 22:45 UTC)
+
+Arun replied to the note and PR #33: bulk loading is the recommended path;
+point-lookup planning is what 0.20.2's thread-local prepared-statement cache
+avoids; `ladybug` PR #925 (merged 2026-09-06) fixes a shadow FileHandle
+leak across checkpoints that hurts long bulk loads under a size cap. The
+adapter items that follow are in `docs/notes/ladybug-findings.md`, last
+section: keep prepared statements alive per query text in `grust-ladybug`
+and keep the store's calls on one thread; confirm `put_graph` uses the Arrow
+bulk path in the strain harness; re-measure on the release with #925 and
+record the lbug version per row. These sit after §9.3 item 6 in your queue.
