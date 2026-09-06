@@ -131,7 +131,37 @@ cargo build --release --features ladybug
 ```
 
 Run bundles: `20260905T093649Z` (wiki-Talk, harness `d351e0b`, Grust
-v0.13.0 adapter) and the pinned rerun of both datasets (harness `1baddcd`,
-adapter `fdc685ee`) in the 2026-09-06 strain publication at
-adversari.al/graph/strain, each `report.json` recording the harness and
-adapter revisions, client CPU and peak RSS, and the host load average.
+v0.13.0 adapter), the pinned rerun at harness `1baddcd` / adapter
+`fdc685ee` (kept beside the publication), and the 2026-09-06 strain
+publication at adversari.al/graph/strain with the rewritten adapter, each
+`report.json` recording the harness and adapter revisions, client CPU and
+peak RSS, and the host load average.
+
+## Addendum, 2026-09-06: what the adapter rewrite changed, and what it did not
+
+Following your pointers (the columnar LDBC generator's load pattern, the
+multi-writer knob, issue #885), the Grust adapter was rewritten on
+2026-09-06 (`querygraph/grust` `3840d152`): every entity type is one
+registered Arrow table and one `COPY … FROM (MATCH …)`; tables are
+resolved once per label instead of once per row (the old path also ran a
+`CREATE … TABLE` attempt and a metadata `MERGE` for every node and edge,
+which was the other half of the hours); a traversal step is one
+`MATCH (a)-[r]->(b) WHERE a.id = $id` per relationship table; and the
+buffer pool is capped at 4 GiB. Same host, same slices, same harness
+scenarios, every gate still zero:
+
+| Cell | Adapter at v0.13.0 | Adapter at 3840d152 |
+|---|---|---|
+| wiki-Talk load, 145,172 nodes / 200,000 edges | 5 h 03 min (11 edges/s) | 23.3 s (8,600 edges/s) |
+| roadNet-CA load, 72,767 nodes / 200,000 edges | not reached | 14.0 s (14,300 edges/s) |
+| wiki-Talk hub 1-hop, 12,215 rows | 18.9 s | 39.5 ms |
+| roadNet-CA depth-8 BFS | not reached | 461 ms |
+| A4: 100 hub writes, one `MERGE … SET` each, p50 · p99 | 37.5 ms · 974 ms | 37.2 ms · 978 ms |
+| peak RSS | 6.3 GB | 0.73 GB |
+
+So the load and the reads were the adapter's to fix, and are fixed. What
+remains yours: the single-statement write at about 37 ms of CPU, unchanged
+by anything on the adapter side, and the 1.4 ms `prepare` cost per point
+lookup (the rewrite avoids most of them but cannot avoid all). The
+`enable_multi_writes` profile with four concurrent writers is being
+measured as a separate row in the same publication.

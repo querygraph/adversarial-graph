@@ -507,7 +507,7 @@ traversal, A4 4 writers × 25 edges on the hub (p50 per write).
 | neo4j (Bolt) | 16.4k / 26.6k | 385 ms · 1.02 s | 72 / 246 ms | 17 · 126 ms · 2.37 s | 0 |
 | neo4j-http (Query API v2) | 19.9k / 35.1k | 426 ms · 1.25 s | 86 / 523 ms | 28 · 173 ms · 3.88 s | 0 |
 | lancedb | 12.9k / 16.4k | 2.44 s · — | 253 ms / 9.1 s | 251 · 290 ms · — | 0 |
-| ladybug | **11** / (running) | 19.5 s · — | 14 ms / — | 38 · 974 ms · — | 0 |
+| ladybug (adapter at v0.13.0; rewritten in §7.2) | **11** / not reached | 19.5 s · — | 14 ms / — | 38 · 974 ms · — | 0 |
 | surreal-sdk (10k) | 20 / 23 | **parse error** (both) | 236 ms / 11.2 s | 92 · 123 ms · 9.42 s | 1 |
 | surreal-http (10k) | 21 / 23 | **parse error** (both) | 407 ms / 20.5 s | 148 · 176 ms · 14.8 s | 1 |
 | helix-http (10k; 200k **408**) | 33 / 26 | 54 ms · 43 ms | 30 ms / 1.94 s | 303 · 455 ms · 5.46 s | 1 (LOAD) |
@@ -613,10 +613,11 @@ not just next to wall time.
 
 Section 7.1's map from scenario to Grust path (FABLE-TO-FABLE.md §4) says
 where the embedded stores spend their time: `traverse` and `get_edges` for
-A1/A2, `put_edge` for A4, `put_graph` for LOAD. Four changes were made in
-the Grust adapters on branch `fable/strain-adapter-reads` (commit `fdc685e`
-on `querygraph/grust`, tests, clippy and fmt green), and measured on this
-host against the 200k-edge slices with the same harness build otherwise:
+A1/A2, `put_edge` for A4, `put_graph` for LOAD. Seven changes were made in
+the Grust adapters (branch `fable/strain-adapter-reads`, merged to
+`querygraph/grust` main, final revision `3840d152`; tests, clippy and fmt
+green), and measured on this host against the 200k-edge slices with the
+same harness build otherwise:
 
 1. **Memory store: reads through the typed snapshot.** A load into an
    empty store builds the `TypedGraphIndex` that the indexed Cypher
@@ -649,11 +650,30 @@ host against the 200k-edge slices with the same harness build otherwise:
    identically, and the memory store serves it from the snapshot cloning
    ids only. The harness calls `traverse_ids` for every backend; the
    portable read path is unchanged for all of them.
+5. **Ladybug: bulk load through registered Arrow tables.** `put_graph`
+   wrote one `MERGE` per node and per edge, and before each of them ran a
+   `CREATE … TABLE` attempt plus a metadata `MERGE` to resolve the row's
+   table; four to five statements per edge at tens of milliseconds each is
+   the five-hour load of §7.1. Tables are now resolved once per distinct
+   label, and rows are grouped per table, registered as Arrow record
+   batches (`create_arrow_table`, `create_arrow_rel_table`) and copied with
+   one `COPY … FROM (MATCH …)` each, the pattern LadybugDB's own columnar
+   LDBC generator uses. Ids and `(from, to)` pairs that already exist keep
+   the per-row `MERGE`, so the upsert semantics are unchanged.
+6. **Ladybug: one query per relationship table per traversal step**,
+   `MATCH (a)-[r]->(b) WHERE a.id = $id RETURN b.id, b.props`, instead of
+   one prepared point lookup per neighbour; `traverse_ids` asks for ids.
+7. **Ladybug: buffer pool cap and multi-writer option.** The engine sizes
+   its buffer pool from host RAM; the adapter now exposes the cap
+   (`buffer_pool_bytes`, the harness sets 4 GiB and records it as the row's
+   profile) and the engine's multi-writer mode (`concurrent_writes`, off by
+   default as in the engine), under which writers use their own
+   connections instead of queueing on the adapter's lock.
 
 **Measured** with the harness pinned to that revision (`Cargo.toml` git
 `rev` for the internal adapters and a `[patch.crates-io]` of `grust-core`,
-`grust-memory` and `grust-turso` to the same revision; harness `131308f`,
-bundles `20260905T2134…` onwards, each report stamped with both
+`grust-memory`, `grust-turso` and `grust-ladybug` to the same revision; harness `6b4b08c`,
+bundles `20260906T0626…` onwards, each report stamped with both
 revisions). "Before" is the morning's clean-host run at v0.13.0 (§7.1);
 the ten other backends were rerun under the same pin and every one of their
 cells reproduced within a few percent, with no outcome changed and the
@@ -673,6 +693,11 @@ same hard-gate total.
 | turso-mvcc | LOAD wiki-Talk / roadNet-CA | 24.0 / 18.8 s | 24.8 / 18.3 s |
 | turso-mvcc | A1 p50 wiki-Talk / roadNet-CA | 73.0 ms / 339 µs | 71.4 ms / 1.0 ms |
 | turso-mvcc | A4 p50 wiki-Talk / roadNet-CA | 23.4 / 21.8 ms | 24.1 / 23.6 ms |
+| ladybug | LOAD wiki-Talk / roadNet-CA | 5 h 03 min (11 edges/s) / not reached | 23.3 s (8.6k) / 14.0 s (14.3k edges/s) |
+| ladybug | A1 p50 wiki-Talk hub / roadNet-CA | 18.9 s / not reached | 39.5 ms / 24.1 ms |
+| ladybug | A2 p50 wiki-Talk / roadNet-CA | 13 ms / not reached | 9.2 ms / 461 ms |
+| ladybug | A4 p50 · p99 wiki-Talk (100 hub writes) | 37.5 · 974 ms | 37.2 · 978 ms |
+| ladybug | peak RSS | 6.3 GB | 0.73 GB |
 
 Every cell passed with 0 gates before and after; no outcome changed. Two
 cells moved the other way and are stable across three runs, so they are
@@ -685,8 +710,15 @@ single-sample or 100-sample scenario; the load halving and the hub-read
 gains are the changes' effect, and the memory store's load now carries the
 index build it previously did not have (about 230 ms at 200k edges).
 
+The Ladybug rows are the rewrite's measurement at revision `3840d152`
+(harness `6b4b08c`); the memory and Turso rows are from the same ladder,
+which reproduced their earlier values. The single-statement hub write is
+the one Ladybug cell no adapter change moves: about 37 ms of engine CPU per
+`MERGE … SET`, identical before and after, which is what the maintainer
+note (`LADYBUG-NOTES.md`) hands to the engine's side.
+
 One backend's outcome did change under the pin, for a reason outside the
-four changes: `fdc685ee` sits on Grust `main`, which since v0.13.0 migrated
+adapter changes: `fdc685ee` sits on Grust `main`, which since v0.13.0 migrated
 `grust-helix`'s SDK path to the `helix-db` 3.0.0 client's typed queries
 (commit `7b12784`). Against the digest-pinned `enterprise-dev` image the
 harness runs, that path now fails at its first request, the label drop in
