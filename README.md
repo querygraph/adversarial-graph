@@ -18,6 +18,7 @@ cargo build --release
 ./target/release/ag datasets
 ./target/release/ag run --smoke --dataset wiki-Talk,roadNet-CA,web-Google
 ./target/release/ag run --dataset wiki-Talk --backend memory,turso-wal,turso-mvcc
+./target/release/ag run --dataset ldbc-snb-sf0.1,icij-offshore-leaks --limit-edges 200000   # typed graphs (ADVERSARIAL-GRAPH.md §2.4)
 ```
 
 Reports land in `reports/<timestamp>/report.json`. Nine hard gates must all be

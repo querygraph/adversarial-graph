@@ -66,7 +66,10 @@ impl Neo4jHttpStore {
             )));
         }
         if !status.is_success() {
-            return Err(backend(format!("HTTP {status}: {}", text.chars().take(200).collect::<String>())));
+            return Err(backend(format!(
+                "HTTP {status}: {}",
+                text.chars().take(200).collect::<String>()
+            )));
         }
         Ok(parsed
             .pointer("/data/values")
@@ -92,7 +95,11 @@ impl Neo4jHttpStore {
 #[async_trait]
 impl GraphStore for Neo4jHttpStore {
     async fn put_node(&self, node: &Node) -> grust::Result<PutOutcome> {
-        self.query(format!("MERGE (n:{NODE_LABEL} {{id: $id}})"), json!({ "id": node.id.as_str() })).await?;
+        self.query(
+            format!("MERGE (n:{NODE_LABEL} {{id: $id}})"),
+            json!({ "id": node.id.as_str() }),
+        )
+        .await?;
         Ok(PutOutcome::Upserted)
     }
 
@@ -111,7 +118,11 @@ impl GraphStore for Neo4jHttpStore {
         let mut report = LoadReport::default();
         for chunk in graph.nodes.chunks(BATCH) {
             let ids: Vec<&str> = chunk.iter().map(|n| n.id.as_str()).collect();
-            self.query(format!("UNWIND $ids AS id MERGE (n:{NODE_LABEL} {{id: id}})"), json!({ "ids": ids })).await?;
+            self.query(
+                format!("UNWIND $ids AS id MERGE (n:{NODE_LABEL} {{id: id}})"),
+                json!({ "ids": ids }),
+            )
+            .await?;
             report.nodes += chunk.len();
         }
         for chunk in graph.edges.chunks(BATCH) {
@@ -133,14 +144,22 @@ impl GraphStore for Neo4jHttpStore {
 
     async fn get_node(&self, id: &NodeId) -> grust::Result<Option<Node>> {
         let found = self
-            .column(format!("MATCH (n:{NODE_LABEL} {{id: $id}}) RETURN n.id"), json!({ "id": id.as_str() }))
+            .column(
+                format!("MATCH (n:{NODE_LABEL} {{id: $id}}) RETURN n.id"),
+                json!({ "id": id.as_str() }),
+            )
             .await?;
-        Ok(found.into_iter().next().map(|id| Node::new(NODE_LABEL, id, Props::new())))
+        Ok(found
+            .into_iter()
+            .next()
+            .map(|id| Node::new(NODE_LABEL, id, Props::new())))
     }
 
     async fn get_edges(&self, q: EdgeQuery) -> grust::Result<Vec<Edge>> {
         let Some(from) = q.from else {
-            return Err(GrustError::Unsupported("neo4j-http adapter: unanchored edge query".into()));
+            return Err(GrustError::Unsupported(
+                "neo4j-http adapter: unanchored edge query".into(),
+            ));
         };
         let tos = self
             .column(
@@ -148,15 +167,22 @@ impl GraphStore for Neo4jHttpStore {
                 json!({ "id": from.as_str() }),
             )
             .await?;
-        Ok(tos.into_iter().map(|to| Edge::new(EDGE_LABEL, from.as_str(), to, Props::new())).collect())
+        Ok(tos
+            .into_iter()
+            .map(|to| Edge::new(EDGE_LABEL, from.as_str(), to, Props::new()))
+            .collect())
     }
 
     async fn traverse(&self, traversal: Traversal) -> grust::Result<Vec<Node>> {
         let grust::Start::Node(start) = traversal.start else {
-            return Err(GrustError::Unsupported("neo4j-http adapter: only node-anchored traversals".into()));
+            return Err(GrustError::Unsupported(
+                "neo4j-http adapter: only node-anchored traversals".into(),
+            ));
         };
         if traversal.steps.len() != 1 {
-            return Err(GrustError::Unsupported("neo4j-http adapter: one hop per traversal".into()));
+            return Err(GrustError::Unsupported(
+                "neo4j-http adapter: one hop per traversal".into(),
+            ));
         }
         let ids = self
             .column(
@@ -164,14 +190,21 @@ impl GraphStore for Neo4jHttpStore {
                 json!({ "id": start.as_str() }),
             )
             .await?;
-        Ok(ids.into_iter().map(|id| Node::new(NODE_LABEL, id, Props::new())).collect())
+        Ok(ids
+            .into_iter()
+            .map(|id| Node::new(NODE_LABEL, id, Props::new()))
+            .collect())
     }
 }
 
 #[async_trait]
 impl GraphAdminStore for Neo4jHttpStore {
     async fn bootstrap(&self) -> grust::Result<()> {
-        self.query(format!("CREATE INDEX v_id IF NOT EXISTS FOR (n:{NODE_LABEL}) ON (n.id)"), json!({})).await?;
+        self.query(
+            format!("CREATE INDEX v_id IF NOT EXISTS FOR (n:{NODE_LABEL}) ON (n.id)"),
+            json!({}),
+        )
+        .await?;
         Ok(())
     }
 
@@ -179,7 +212,9 @@ impl GraphAdminStore for Neo4jHttpStore {
         loop {
             let deleted = self
                 .column(
-                    format!("MATCH (n:{NODE_LABEL}) WITH n LIMIT 50000 DETACH DELETE n RETURN count(*)"),
+                    format!(
+                        "MATCH (n:{NODE_LABEL}) WITH n LIMIT 50000 DETACH DELETE n RETURN count(*)"
+                    ),
                     json!({}),
                 )
                 .await?;

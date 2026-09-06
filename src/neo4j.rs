@@ -78,7 +78,10 @@ impl GraphStore for Neo4jStore {
         for chunk in graph.nodes.chunks(BATCH) {
             let ids: Vec<String> = chunk.iter().map(|n| n.id.as_str().to_string()).collect();
             self.run(
-                query(&format!("UNWIND $ids AS id MERGE (n:{NODE_LABEL} {{id: id}})")).param("ids", ids),
+                query(&format!(
+                    "UNWIND $ids AS id MERGE (n:{NODE_LABEL} {{id: id}})"
+                ))
+                .param("ids", ids),
             )
             .await?;
             report.nodes += chunk.len();
@@ -104,16 +107,24 @@ impl GraphStore for Neo4jStore {
     async fn get_node(&self, id: &NodeId) -> grust::Result<Option<Node>> {
         let found = self
             .column(
-                query(&format!("MATCH (n:{NODE_LABEL} {{id: $id}}) RETURN n.id AS id")).param("id", id.as_str()),
+                query(&format!(
+                    "MATCH (n:{NODE_LABEL} {{id: $id}}) RETURN n.id AS id"
+                ))
+                .param("id", id.as_str()),
                 "id",
             )
             .await?;
-        Ok(found.into_iter().next().map(|id| Node::new(NODE_LABEL, id, Props::new())))
+        Ok(found
+            .into_iter()
+            .next()
+            .map(|id| Node::new(NODE_LABEL, id, Props::new())))
     }
 
     async fn get_edges(&self, q: EdgeQuery) -> grust::Result<Vec<Edge>> {
         let Some(from) = q.from else {
-            return Err(GrustError::Unsupported("neo4j adapter: unanchored edge query".into()));
+            return Err(GrustError::Unsupported(
+                "neo4j adapter: unanchored edge query".into(),
+            ));
         };
         let tos = self
             .column(
@@ -132,10 +143,14 @@ impl GraphStore for Neo4jStore {
 
     async fn traverse(&self, traversal: Traversal) -> grust::Result<Vec<Node>> {
         let grust::Start::Node(start) = traversal.start else {
-            return Err(GrustError::Unsupported("neo4j adapter: only node-anchored traversals".into()));
+            return Err(GrustError::Unsupported(
+                "neo4j adapter: only node-anchored traversals".into(),
+            ));
         };
         if traversal.steps.len() != 1 {
-            return Err(GrustError::Unsupported("neo4j adapter: one hop per traversal".into()));
+            return Err(GrustError::Unsupported(
+                "neo4j adapter: one hop per traversal".into(),
+            ));
         }
         let ids = self
             .column(
@@ -146,7 +161,10 @@ impl GraphStore for Neo4jStore {
                 "id",
             )
             .await?;
-        Ok(ids.into_iter().map(|id| Node::new(NODE_LABEL, id, Props::new())).collect())
+        Ok(ids
+            .into_iter()
+            .map(|id| Node::new(NODE_LABEL, id, Props::new()))
+            .collect())
     }
 }
 

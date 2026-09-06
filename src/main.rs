@@ -27,7 +27,16 @@ use report::Report;
 use scenarios::Ctx;
 
 fn usage() -> ! {
-    eprintln!("{}", include_str!("main.rs").lines().skip(1).take(6).map(|l| l.trim_start_matches("//!")).collect::<Vec<_>>().join("\n"));
+    eprintln!(
+        "{}",
+        include_str!("main.rs")
+            .lines()
+            .skip(1)
+            .take(6)
+            .map(|l| l.trim_start_matches("//!"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
     std::process::exit(2)
 }
 
@@ -87,8 +96,13 @@ struct Manifest {
 
 fn manifest(root: &Path) -> Manifest {
     let path = root.join("datasets/MANIFEST.json");
-    let text = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| { eprintln!("cannot read {}: {e}; run scripts/fetch-datasets.sh", path.display()); std::process::exit(1) });
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| {
+        eprintln!(
+            "cannot read {}: {e}; run scripts/fetch-datasets.sh",
+            path.display()
+        );
+        std::process::exit(1)
+    });
     serde_json::from_str(&text).expect("manifest json")
 }
 
@@ -99,14 +113,19 @@ async fn main() {
     match args.command.as_str() {
         "datasets" => {
             for d in manifest(&root).datasets {
-                println!("{:<26} {} {:>12} B  {}", d.name, d.tier, d.bytes, d.pathology);
+                println!(
+                    "{:<26} {} {:>12} B  {}",
+                    d.name, d.tier, d.bytes, d.pathology
+                );
             }
         }
         "backends" => {
             for b in BackendKind::all() {
                 println!("{:<14} {}", b.name(), b.transport());
             }
-            println!("(network/embedded backends need --features postgres,surreal,falkor,lancedb,helix,ladybug,neo4j and compose.yaml)");
+            println!(
+                "(network/embedded backends need --features postgres,surreal,falkor,lancedb,helix,ladybug,neo4j and compose.yaml)"
+            );
         }
         "run" => run(&root, &args).await,
         _ => usage(),
@@ -115,7 +134,11 @@ async fn main() {
 
 async fn run(root: &Path, args: &Args) {
     let manifest = manifest(root);
-    let by_name: BTreeMap<String, ManifestEntry> = manifest.datasets.iter().map(|d| (d.name.clone(), d.clone())).collect();
+    let by_name: BTreeMap<String, ManifestEntry> = manifest
+        .datasets
+        .iter()
+        .map(|d| (d.name.clone(), d.clone()))
+        .collect();
     let stamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
     let out_dir = args.out.join(&stamp);
     std::fs::create_dir_all(&out_dir).expect("report dir");
@@ -127,7 +150,10 @@ async fn run(root: &Path, args: &Args) {
     // Persist after every result so a crash never loses completed scenarios.
     let persist = |report: &mut Report, result: &report::ScenarioResult| {
         use std::io::Write;
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&jsonl_path)
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&jsonl_path)
             && let Ok(line) = serde_json::to_string(result)
         {
             let _ = writeln!(f, "{line}");
@@ -145,18 +171,43 @@ async fn run(root: &Path, args: &Args) {
             continue;
         };
         let path = root.join("datasets").join(&entry.file);
-        let limit = args.limit_edges.or(if args.smoke { Some(200_000) } else { None });
+        let limit = args
+            .limit_edges
+            .or(if args.smoke { Some(200_000) } else { None });
         eprintln!("== loading {dataset_name} ({})", path.display());
         let t = std::time::Instant::now();
-        let (graph, stats) = match dataset::load_snap_edge_list(&path, limit) {
+        let (graph, stats, schema) = match dataset::load_dataset(&path, limit) {
             Ok(v) => v,
-            Err(e) => { eprintln!("load failed: {e}"); continue; }
+            Err(e) => {
+                eprintln!("load failed: {e}");
+                continue;
+            }
         };
-        eprintln!("   {} nodes, {} edges in {:?}", stats.nodes, stats.edges, t.elapsed());
-        report.datasets.push(serde_json::json!({ "manifest": entry, "load": stats }));
-        let oracle = match Oracle::new(&graph) {
+        eprintln!(
+            "   {} nodes, {} edges in {:?}{}",
+            stats.nodes,
+            stats.edges,
+            t.elapsed(),
+            if schema.is_untyped() {
+                String::new()
+            } else {
+                format!(
+                    " ({} node labels, {} relationship types)",
+                    schema.node_labels.len(),
+                    schema.relationship_labels.len()
+                )
+            }
+        );
+        report
+            .datasets
+            .push(serde_json::json!({ "manifest": entry, "load": stats, "schema": schema }));
+        let typed = !schema.is_untyped();
+        let oracle = match Oracle::with_schema(&graph, schema) {
             Ok(o) => o,
-            Err(e) => { eprintln!("oracle failed: {e}"); continue; }
+            Err(e) => {
+                eprintln!("oracle failed: {e}");
+                continue;
+            }
         };
         for backend_name in &args.backends {
             let Some(kind) = BackendKind::parse(backend_name) else {
@@ -185,7 +236,12 @@ async fn run(root: &Path, args: &Args) {
             let mut load_result = report::ScenarioResult::new("LOAD", kind.name(), dataset_name);
             match backend.load(&graph).await {
                 Ok(rep) => {
-                    eprintln!("   loaded {} nodes / {} edges in {:?}", rep.nodes, rep.edges, t.elapsed());
+                    eprintln!(
+                        "   loaded {} nodes / {} edges in {:?}",
+                        rep.nodes,
+                        rep.edges,
+                        t.elapsed()
+                    );
                     load_result.observe("load_path", backend.read_path());
                     load_result.observe("transport", kind.transport());
                     if let Some(profile) = kind.profile() {
@@ -193,29 +249,83 @@ async fn run(root: &Path, args: &Args) {
                     }
                     load_result.observe("nodes", rep.nodes);
                     load_result.observe("edges", rep.edges);
-                    load_result.observe("edges_per_s", rep.edges as f64 / t.elapsed().as_secs_f64().max(1e-9));
+                    load_result.observe(
+                        "edges_per_s",
+                        rep.edges as f64 / t.elapsed().as_secs_f64().max(1e-9),
+                    );
                 }
-                Err(e) => { eprintln!("   load failed: {e}"); load_result.gates.oom_or_crash += 1; load_result.notes.push(e.to_string()); }
+                Err(e) => {
+                    eprintln!("   load failed: {e}");
+                    load_result.gates.oom_or_crash += 1;
+                    load_result.notes.push(e.to_string());
+                }
             }
             load_result.wall_ms = t.elapsed().as_millis();
             load_probe.finish(&mut load_result);
             load_result.finish();
             let load_failed = load_result.gates.total() > 0;
-            eprintln!("   LOAD {:<12} {:?}  cpu={:.2}  load1m={}", load_result.backend, load_result.outcome,
-                load_result.observations.get("client_cpu_ratio").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                load_result.observations.get("host_loadavg_1m_end").cloned().unwrap_or_default());
+            eprintln!(
+                "   LOAD {:<12} {:?}  cpu={:.2}  load1m={}",
+                load_result.backend,
+                load_result.outcome,
+                load_result
+                    .observations
+                    .get("client_cpu_ratio")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0),
+                load_result
+                    .observations
+                    .get("host_loadavg_1m_end")
+                    .cloned()
+                    .unwrap_or_default()
+            );
             persist(&mut report, &load_result);
             report.push(load_result);
-            if load_failed { continue; }
+            if load_failed {
+                continue;
+            }
             for scenario in &args.scenarios {
-                let ctx = Ctx { dataset: dataset_name, graph: &graph, oracle: &oracle, backend: &backend, smoke: args.smoke };
-                let result = scenarios::run(scenario, &ctx).await;
+                let ctx = Ctx {
+                    dataset: dataset_name,
+                    graph: &graph,
+                    oracle: &oracle,
+                    backend: &backend,
+                    smoke: args.smoke,
+                };
+                let result = if typed && !scenarios::accepts_typed(scenario) {
+                    // The M1 families are defined over the single-label,
+                    // single-type SNAP view and the adapters index that
+                    // shape; a typed dataset is not a pass for them.
+                    let mut r = report::ScenarioResult::new(scenario, kind.name(), dataset_name);
+                    r.unsupported("scenario is defined over the untyped SNAP shape; typed datasets run the M2 families");
+                    r.finish();
+                    r
+                } else {
+                    scenarios::run(scenario, &ctx).await
+                };
                 eprintln!(
                     "   {:<3} {:<12} {:?}  gates={}  wall={}ms cpu={:.2} load1m={}{}  {}",
-                    result.scenario, result.backend, result.outcome, result.gates.total(), result.wall_ms,
-                    result.observations.get("client_cpu_ratio").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                    result.observations.get("host_loadavg_1m_end").cloned().unwrap_or_default(),
-                    result.observations.get("server_cpu_us").and_then(|v| v.as_u64()).map(|c| format!(" server_cpu={}ms", c / 1000)).unwrap_or_default(),
+                    result.scenario,
+                    result.backend,
+                    result.outcome,
+                    result.gates.total(),
+                    result.wall_ms,
+                    result
+                        .observations
+                        .get("client_cpu_ratio")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.0),
+                    result
+                        .observations
+                        .get("host_loadavg_1m_end")
+                        .cloned()
+                        .unwrap_or_default(),
+                    result
+                        .observations
+                        .get("server_cpu_us")
+                        .and_then(|v| v.as_u64())
+                        .map(|c| format!(" server_cpu={}ms", c / 1000))
+                        .unwrap_or_default(),
                     result.notes.join(" | ")
                 );
                 persist(&mut report, &result);
@@ -225,9 +335,15 @@ async fn run(root: &Path, args: &Args) {
     }
     report.finalize();
     let path = report_path.clone();
-    std::fs::write(&path, serde_json::to_string_pretty(&report).expect("json")).expect("write report");
+    std::fs::write(&path, serde_json::to_string_pretty(&report).expect("json"))
+        .expect("write report");
     let _ = std::fs::remove_dir_all(&work_dir);
-    eprintln!("== report: {}  hard_gate_total={}  outcomes={}", path.display(), report.gates.total(), report.summary["outcomes"]);
+    eprintln!(
+        "== report: {}  hard_gate_total={}  outcomes={}",
+        path.display(),
+        report.gates.total(),
+        report.summary["outcomes"]
+    );
     if report.gates.total() > 0 {
         std::process::exit(1);
     }

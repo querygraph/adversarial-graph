@@ -7,9 +7,9 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use grust::{Edge, EdgeQuery, Graph, GraphAdminStore, GraphStore, NodeId, Traversal};
 #[allow(unused_imports)]
 use grust::GraphAdminStore as _;
+use grust::{Edge, EdgeQuery, Graph, GraphAdminStore, GraphStore, NodeId, Traversal};
 use grust::{TursoConfig, TursoGraphStore, TursoJournalMode};
 
 use crate::dataset::{EDGE_LABEL, NODE_LABEL};
@@ -161,7 +161,10 @@ impl BackendKind {
     pub fn profile(self) -> Option<String> {
         match self {
             #[cfg(feature = "falkor")]
-            Self::Falkor => Some(format!("resultset_size={}", env_or("FALKOR_RESULTSET_SIZE", "10000"))),
+            Self::Falkor => Some(format!(
+                "resultset_size={}",
+                env_or("FALKOR_RESULTSET_SIZE", "10000")
+            )),
             #[cfg(feature = "ladybug")]
             Self::Ladybug => Some(format!(
                 "buffer_pool_bytes={},concurrent_writes={}",
@@ -233,7 +236,9 @@ fn surreal_config(tag: &str, transport: &str) -> grust::SurrealConfig {
 #[cfg(feature = "surreal")]
 async fn connect_surreal(kind: BackendKind, tag: &str) -> grust::Result<Arc<dyn AdminStore>> {
     Ok(match kind {
-        BackendKind::SurrealHttp => Arc::new(grust::SurrealHttpGraphStore::connect(surreal_config(tag, "http"))?),
+        BackendKind::SurrealHttp => Arc::new(grust::SurrealHttpGraphStore::connect(
+            surreal_config(tag, "http"),
+        )?),
         _ => Arc::new(grust::SurrealSdkGraphStore::connect(surreal_config(tag, "sdk")).await?),
     })
 }
@@ -257,16 +262,20 @@ fn connect_falkor(tag: &str) -> grust::FalkorGraphStore {
 fn connect_helix(kind: BackendKind) -> grust::Result<Arc<dyn AdminStore>> {
     let base = helix_base_url();
     Ok(match kind {
-        BackendKind::HelixHttp => Arc::new(grust_helix::HelixHttpGraphStore::connect(grust_helix::HelixHttpConfig {
-            query_url: format!("{}/v1/query", base.trim_end_matches('/')),
-            batch_size: 500,
-            labels: vec![NODE_LABEL.to_string()],
-        })?),
-        _ => Arc::new(grust_helix::HelixSdkGraphStore::connect(grust_helix::HelixSdkConfig {
-            base_url: base,
-            batch_size: 500,
-            labels: vec![NODE_LABEL.to_string()],
-        })?),
+        BackendKind::HelixHttp => Arc::new(grust_helix::HelixHttpGraphStore::connect(
+            grust_helix::HelixHttpConfig {
+                query_url: format!("{}/v1/query", base.trim_end_matches('/')),
+                batch_size: 500,
+                labels: vec![NODE_LABEL.to_string()],
+            },
+        )?),
+        _ => Arc::new(grust_helix::HelixSdkGraphStore::connect(
+            grust_helix::HelixSdkConfig {
+                base_url: base,
+                batch_size: 500,
+                labels: vec![NODE_LABEL.to_string()],
+            },
+        )?),
     })
 }
 
@@ -312,14 +321,19 @@ async fn helix_create_id_index() -> grust::Result<()> {
         return Ok(());
     }
     let body = response.text().await.unwrap_or_default();
-    Err(Backend(format!("Helix index creation failed with status {status}: {body}")))
+    Err(Backend(format!(
+        "Helix index creation failed with status {status}: {body}"
+    )))
 }
 
 /// LadybugDB embedded through Grust's internal adapter (the `lbug` crate),
 /// on-disk under the run's work directory, untyped mode so the harness
 /// labels create their tables on first write.
 #[cfg(feature = "ladybug")]
-fn connect_ladybug(work_dir: &std::path::Path, tag: &str) -> grust::Result<grust_ladybug::LadybugGraphStore> {
+fn connect_ladybug(
+    work_dir: &std::path::Path,
+    tag: &str,
+) -> grust::Result<grust_ladybug::LadybugGraphStore> {
     let dir = work_dir.join(format!("ladybug-{tag}"));
     let _ = std::fs::remove_dir_all(&dir);
     grust_ladybug::LadybugGraphStore::new(grust_ladybug::LadybugConfig {
@@ -359,14 +373,27 @@ async fn connect_neo4j(kind: BackendKind) -> grust::Result<Arc<dyn AdminStore>> 
             &user,
             &pass,
         )?),
-        _ => Arc::new(crate::neo4j::Neo4jStore::connect(&env_or("AG_NEO4J_URI", "bolt://127.0.0.1:17687"), &user, &pass).await?),
+        _ => Arc::new(
+            crate::neo4j::Neo4jStore::connect(
+                &env_or("AG_NEO4J_URI", "bolt://127.0.0.1:17687"),
+                &user,
+                &pass,
+            )
+            .await?,
+        ),
     })
 }
 
 #[cfg(feature = "lancedb")]
-async fn connect_lancedb(work_dir: &std::path::Path, tag: &str) -> grust::Result<grust::LanceDbGraphStore> {
+async fn connect_lancedb(
+    work_dir: &std::path::Path,
+    tag: &str,
+) -> grust::Result<grust::LanceDbGraphStore> {
     grust::LanceDbGraphStore::connect(grust::LanceDbConfig {
-        uri: work_dir.join(format!("lancedb-{tag}")).display().to_string(),
+        uri: work_dir
+            .join(format!("lancedb-{tag}"))
+            .display()
+            .to_string(),
         table_prefix: "ag".to_string(),
         batch_size: 500,
     })
@@ -404,15 +431,25 @@ impl Backend {
     }
 
     /// Bootstrap and clear a network or embedded store, then wrap it.
-    async fn prepared(kind: BackendKind, store: Arc<dyn AdminStore>, tag: &str) -> grust::Result<Self> {
+    async fn prepared(
+        kind: BackendKind,
+        store: Arc<dyn AdminStore>,
+        tag: &str,
+    ) -> grust::Result<Self> {
         store.bootstrap().await?;
         store.clear().await?;
         let dyn_store: Arc<dyn GraphStore> = store;
         Ok(Self::plain(kind, dyn_store, tag))
     }
 
-    pub async fn open(kind: BackendKind, work_dir: &std::path::Path, tag: &str) -> grust::Result<Self> {
-        let mkdir = || std::fs::create_dir_all(work_dir).map_err(|e| grust::GrustError::Backend(e.to_string()));
+    pub async fn open(
+        kind: BackendKind,
+        work_dir: &std::path::Path,
+        tag: &str,
+    ) -> grust::Result<Self> {
+        let mkdir = || {
+            std::fs::create_dir_all(work_dir).map_err(|e| grust::GrustError::Backend(e.to_string()))
+        };
         match kind {
             BackendKind::Memory => {
                 let store = grust::MemoryGraphStore::new();
@@ -421,7 +458,9 @@ impl Backend {
                 Ok(b)
             }
             #[cfg(feature = "postgres")]
-            BackendKind::Postgres => Self::prepared(kind, Arc::new(connect_postgres(tag).await?), tag).await,
+            BackendKind::Postgres => {
+                Self::prepared(kind, Arc::new(connect_postgres(tag).await?), tag).await
+            }
             #[cfg(feature = "surreal")]
             BackendKind::SurrealHttp | BackendKind::SurrealSdk => {
                 Self::prepared(kind, connect_surreal(kind, tag).await?, tag).await
@@ -449,7 +488,9 @@ impl Backend {
                 Self::prepared(kind, Arc::new(connect_ladybug(work_dir, tag)?), tag).await
             }
             #[cfg(feature = "neo4j")]
-            BackendKind::Neo4j | BackendKind::Neo4jHttp => Self::prepared(kind, connect_neo4j(kind).await?, tag).await,
+            BackendKind::Neo4j | BackendKind::Neo4jHttp => {
+                Self::prepared(kind, connect_neo4j(kind).await?, tag).await
+            }
             #[cfg(feature = "lancedb")]
             BackendKind::LanceDb => {
                 mkdir()?;
@@ -471,7 +512,10 @@ impl Backend {
         }
     }
 
-    pub async fn connect_turso(kind: BackendKind, path: &std::path::Path) -> grust::Result<TursoGraphStore> {
+    pub async fn connect_turso(
+        kind: BackendKind,
+        path: &std::path::Path,
+    ) -> grust::Result<TursoGraphStore> {
         TursoGraphStore::connect(TursoConfig {
             path: path.display().to_string(),
             table_prefix: "ag".to_string(),
@@ -524,9 +568,11 @@ impl Backend {
         if let Some(reader) = &self.falkor {
             let reader = reader.clone();
             let graph = graph.clone();
-            return tokio::task::spawn_blocking(move || reader.load_graph(NODE_LABEL, EDGE_LABEL, &graph))
-                .await
-                .map_err(|e| grust::GrustError::Backend(e.to_string()))?;
+            return tokio::task::spawn_blocking(move || {
+                reader.load_graph(NODE_LABEL, EDGE_LABEL, &graph)
+            })
+            .await
+            .map_err(|e| grust::GrustError::Backend(e.to_string()))?;
         }
         self.store.put_graph(graph).await
     }
@@ -566,12 +612,16 @@ impl Backend {
         if let Some(reader) = &self.falkor {
             let reader = reader.clone();
             let id = v.as_str().to_string();
-            return tokio::task::spawn_blocking(move || reader.out_neighbors(NODE_LABEL, EDGE_LABEL, &id))
-                .await
-                .map_err(|e| grust::GrustError::Backend(e.to_string()))?
-                .map(|ids| ids.into_iter().map(NodeId::new).collect());
+            return tokio::task::spawn_blocking(move || {
+                reader.out_neighbors(NODE_LABEL, EDGE_LABEL, &id)
+            })
+            .await
+            .map_err(|e| grust::GrustError::Backend(e.to_string()))?
+            .map(|ids| ids.into_iter().map(NodeId::new).collect());
         }
-        self.store.traverse_ids(Traversal::from_node(v.clone()).out(EDGE_LABEL)).await
+        self.store
+            .traverse_ids(Traversal::from_node(v.clone()).out(EDGE_LABEL))
+            .await
     }
 
     /// Out-degree of one vertex through the same read path as `neighbors`.
@@ -580,9 +630,11 @@ impl Backend {
         if let Some(reader) = &self.falkor {
             let reader = reader.clone();
             let id = from.as_str().to_string();
-            return tokio::task::spawn_blocking(move || reader.out_degree(NODE_LABEL, EDGE_LABEL, &id))
-                .await
-                .map_err(|e| grust::GrustError::Backend(e.to_string()))?;
+            return tokio::task::spawn_blocking(move || {
+                reader.out_degree(NODE_LABEL, EDGE_LABEL, &id)
+            })
+            .await
+            .map_err(|e| grust::GrustError::Backend(e.to_string()))?;
         }
         Ok(self.out_edges(from).await?.len())
     }
@@ -602,7 +654,11 @@ impl Backend {
 
     pub async fn out_edges(&self, from: &NodeId) -> grust::Result<Vec<Edge>> {
         self.store
-            .get_edges(EdgeQuery { from: Some(from.clone()), to: None, label: Some(EDGE_LABEL.into()) })
+            .get_edges(EdgeQuery {
+                from: Some(from.clone()),
+                to: None,
+                label: Some(EDGE_LABEL.into()),
+            })
             .await
     }
 
@@ -613,7 +669,11 @@ impl Backend {
             let path = self.turso_path.as_ref().expect("turso path");
             let store = Self::connect_turso(self.kind, path).await?;
             return Ok(store
-                .get_edges(EdgeQuery { from: Some(from.clone()), to: None, label: Some(EDGE_LABEL.into()) })
+                .get_edges(EdgeQuery {
+                    from: Some(from.clone()),
+                    to: None,
+                    label: Some(EDGE_LABEL.into()),
+                })
                 .await?
                 .len());
         }
@@ -625,7 +685,11 @@ impl Backend {
         // durable state; embedded memory/Lance/Ladybug stores re-read in place.
         let handle = self.extra_handle().await?;
         Ok(handle
-            .get_edges(EdgeQuery { from: Some(from.clone()), to: None, label: Some(EDGE_LABEL.into()) })
+            .get_edges(EdgeQuery {
+                from: Some(from.clone()),
+                to: None,
+                label: Some(EDGE_LABEL.into()),
+            })
             .await?
             .len())
     }

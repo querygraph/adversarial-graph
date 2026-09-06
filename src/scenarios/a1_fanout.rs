@@ -4,8 +4,8 @@
 
 use std::time::Instant;
 
-use crate::report::{ScenarioResult, histogram, record, Latency};
 use super::Ctx;
+use crate::report::{Latency, ScenarioResult, histogram, record};
 
 pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     let mut r = ScenarioResult::new("A1", ctx.backend.kind.name(), ctx.dataset);
@@ -33,10 +33,10 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             }
             Err(e) => {
                 if crate::backends::Backend::is_unsupported(&e) {
-                r.unsupported(&format!("backend cannot traverse: {e}"));
-                return r;
-            }
-            r.gates.oom_or_crash += 1;
+                    r.unsupported(&format!("backend cannot traverse: {e}"));
+                    return r;
+                }
+                r.gates.oom_or_crash += 1;
                 r.notes.push(format!("khop failed: {e}"));
                 return r;
             }
@@ -45,7 +45,8 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     r.observe("observed_layers", &last);
     if last != expected_layers {
         r.gates.wrong_answer += 1;
-        r.notes.push(format!("layers {last:?} != oracle {expected_layers:?}"));
+        r.notes
+            .push(format!("layers {last:?} != oracle {expected_layers:?}"));
     }
     r.latency = Some(Latency::from_histogram(&h));
     r

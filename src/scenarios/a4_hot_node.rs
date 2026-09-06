@@ -13,9 +13,9 @@ use std::time::Instant;
 use grust::{Edge, GrustError, Props};
 use tokio::sync::Barrier;
 
-use crate::dataset::EDGE_LABEL;
-use crate::report::{ScenarioResult, histogram, record, Latency};
 use super::Ctx;
+use crate::dataset::EDGE_LABEL;
+use crate::report::{Latency, ScenarioResult, histogram, record};
 
 fn is_conflict(err: &GrustError) -> bool {
     let m = err.to_string().to_ascii_lowercase();
@@ -65,7 +65,8 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             barrier.wait().await;
             for i in 0..per_writer {
                 let target = format!("hot-{w}-{i}");
-                let node = grust::Node::new(crate::dataset::NODE_LABEL, target.clone(), Props::new());
+                let node =
+                    grust::Node::new(crate::dataset::NODE_LABEL, target.clone(), Props::new());
                 let edge = Edge::new(EDGE_LABEL, hub.as_str(), target, Props::new());
                 let t = Instant::now();
                 let outcome = match store.put_node(&node).await {
@@ -116,10 +117,16 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             let expected = initial_degree + accepted;
             if final_degree < expected {
                 r.gates.lost_write += (expected - final_degree) as u64;
-                r.notes.push(format!("{} accepted writes are missing after reopen", expected - final_degree));
+                r.notes.push(format!(
+                    "{} accepted writes are missing after reopen",
+                    expected - final_degree
+                ));
             } else if final_degree > expected {
                 r.gates.duplicate_durable_mutation += (final_degree - expected) as u64;
-                r.notes.push(format!("{} more edges than accepted writes", final_degree - expected));
+                r.notes.push(format!(
+                    "{} more edges than accepted writes",
+                    final_degree - expected
+                ));
             }
         }
         Err(e) => {

@@ -32,7 +32,10 @@ impl FalkorReader {
     pub fn new(redis_url: &str, graph: &str) -> grust::Result<Self> {
         let client = redis::Client::open(redis_url)
             .map_err(|e| grust::GrustError::Backend(format!("falkor client: {e}")))?;
-        Ok(Self { client, graph: graph.to_string() })
+        Ok(Self {
+            client,
+            graph: graph.to_string(),
+        })
     }
 
     /// First column of every result row, as strings.
@@ -50,7 +53,9 @@ impl FalkorReader {
         // Result shape: [header, rows, statistics]; each row is an array of
         // cells, each cell (compact) is [type, value].
         let Value::Array(parts) = value else {
-            return Err(grust::GrustError::Backend("falkor: unexpected result shape".into()));
+            return Err(grust::GrustError::Backend(
+                "falkor: unexpected result shape".into(),
+            ));
         };
         let Some(Value::Array(rows)) = parts.get(1) else {
             return Ok(Vec::new());
@@ -95,18 +100,35 @@ impl FalkorReader {
     /// index, so its loads scan every node per edge; this path is what a
     /// FalkorDB user would write, and it is recorded as
     /// `load_path = "harness-native-cypher"`.
-    pub fn load_graph(&self, node_label: &str, edge_label: &str, graph: &grust::Graph) -> grust::Result<grust::LoadReport> {
+    pub fn load_graph(
+        &self,
+        node_label: &str,
+        edge_label: &str,
+        graph: &grust::Graph,
+    ) -> grust::Result<grust::LoadReport> {
         let label = Self::label(node_label);
         let mut report = grust::LoadReport::default();
         for chunk in graph.nodes.chunks(5_000) {
-            let ids: Vec<String> = chunk.iter().map(|n| format!("'{}'", escape(n.id.as_str()))).collect();
-            self.column(&format!("UNWIND [{}] AS id CREATE (:{label} {{id: id}})", ids.join(",")))?;
+            let ids: Vec<String> = chunk
+                .iter()
+                .map(|n| format!("'{}'", escape(n.id.as_str())))
+                .collect();
+            self.column(&format!(
+                "UNWIND [{}] AS id CREATE (:{label} {{id: id}})",
+                ids.join(",")
+            ))?;
             report.nodes += chunk.len();
         }
         for chunk in graph.edges.chunks(2_000) {
             let pairs: Vec<String> = chunk
                 .iter()
-                .map(|e| format!("['{}','{}']", escape(e.from.as_str()), escape(e.to.as_str())))
+                .map(|e| {
+                    format!(
+                        "['{}','{}']",
+                        escape(e.from.as_str()),
+                        escape(e.to.as_str())
+                    )
+                })
                 .collect();
             self.column(&format!(
                 "UNWIND [{}] AS p MATCH (a:{label} {{id: p[0]}}), (b:{label} {{id: p[1]}}) CREATE (a)-[:{edge_label}]->(b)",
@@ -117,7 +139,12 @@ impl FalkorReader {
         Ok(report)
     }
 
-    pub fn out_neighbors(&self, node_label: &str, edge_label: &str, id: &str) -> grust::Result<Vec<String>> {
+    pub fn out_neighbors(
+        &self,
+        node_label: &str,
+        edge_label: &str,
+        id: &str,
+    ) -> grust::Result<Vec<String>> {
         let label = Self::label(node_label);
         self.column(&format!(
             "MATCH (a:{label} {{id: '{}'}})-[:{edge_label}]->(b) RETURN b.id",
@@ -131,6 +158,9 @@ impl FalkorReader {
             "MATCH (a:{label} {{id: '{}'}})-[r:{edge_label}]->() RETURN count(r)",
             escape(id)
         ))?;
-        Ok(counts.first().and_then(|c| c.parse::<usize>().ok()).unwrap_or(0))
+        Ok(counts
+            .first()
+            .and_then(|c| c.parse::<usize>().ok())
+            .unwrap_or(0))
     }
 }

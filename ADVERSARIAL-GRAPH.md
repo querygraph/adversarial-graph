@@ -182,6 +182,46 @@ verifies size and SHA-256 into `datasets/MANIFEST.json`; `--large` adds tier
 L. Datasets that require registration (Yelp, Semantic Scholar) or whose terms
 now require a permission form (MovieLens) are deliberately excluded.
 
+### 2.4 Loaders (added 2026-09-06)
+
+Three loaders in `src/dataset/` produce the same `grust::Graph`, so a backend
+and the in-process oracle always see one multiset of nodes and edges:
+
+- **SNAP edge lists** (`snap-edge-list`): one node label `V`, one
+  relationship type `E`, exact duplicate edges dropped and counted,
+  self-loops kept and counted, `--limit-edges` truncates and keeps only the
+  nodes a loaded edge references.
+- **LDBC SNB Interactive v1, CsvBasic with the long date formatter**
+  (`ldbc-snb-csvbasic`; `ldbc-snb-sf0.1`, `ldbc-snb-sf1`): the archive is
+  extracted beside itself on first use (`tar --zstd`). Node ids are
+  namespaced by label (`Person:933`) because SNB ids repeat across entity
+  types; the raw id stays as the `id` property. `organisation` and `place`
+  split into Company/University and Continent/Country/City by their `type`
+  column, as the LSQB projected-FK layout does; relationship types are the
+  file's verb in upper snake case (`KNOWS`, `HAS_CREATOR`, `REPLY_OF`);
+  millisecond-epoch columns (`creationDate`, `birthday`, `joinDate`) become
+  RFC 3339 `DateTime` values, integers `Int`, and the multi-valued attribute
+  files become string arrays (`speaks`, `email`). SF0.1: 327,588 nodes in 11
+  labels, 1,477,965 edges in 15 types, 4.7 s to load, no dangling edges.
+- **ICIJ Offshore Leaks** (`icij-offshore-leaks`): the CSV zip read in
+  place. Labels are the file's kind (Entity, Officer, Intermediary,
+  Address, Other); `node_id` is unique across files and is both the node
+  id and the `id` property; `rel_type` becomes the relationship type
+  (`OFFICER_OF`, `REGISTERED_ADDRESS`, `SAME_AS`, …) with `link`, `status`,
+  the dates and `sourceID` as properties; every other column is a string,
+  empty cells absent. Full graph: 2,016,523 nodes in 5 labels, 2,901,722
+  edges in 14 types, 17 s to parse; the in-process copy plus the Memory
+  backend's copy exceed the 15 GiB EC2 host, so the full graph runs on the
+  laptop and this host runs slices (200,000 edges: 209,019 nodes, 1.9 s).
+
+Every load records its format, the duplicate, dangling and self-loop
+counts, the truncation point, and the label and relationship-type counts
+(`load` and `schema` in `report.json`). The oracle carries that schema and
+can restrict its hub, k-hop and BFS answers to one relationship type
+(`EdgeFilter::Label`), which is what the typed families use; the M1
+families (A1–A7) are defined over the single-label SNAP shape and report a
+typed dataset as `unsupported`, never as a pass.
+
 ### 2.3 Generators, for the parts real data cannot give
 
 Two synthetic families are used *alongside*, never instead of, real graphs:

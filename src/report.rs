@@ -116,12 +116,18 @@ impl ScenarioResult {
         }
     }
     pub fn observe(&mut self, key: &str, value: impl Serialize) {
-        self.observations
-            .insert(key.to_string(), serde_json::to_value(value).unwrap_or(serde_json::Value::Null));
+        self.observations.insert(
+            key.to_string(),
+            serde_json::to_value(value).unwrap_or(serde_json::Value::Null),
+        );
     }
     pub fn finish(&mut self) {
         if self.outcome == Outcome::NotTested {
-            self.outcome = if self.gates.total() == 0 { Outcome::Pass } else { Outcome::Fail };
+            self.outcome = if self.gates.total() == 0 {
+                Outcome::Pass
+            } else {
+                Outcome::Fail
+            };
         }
     }
     pub fn unsupported(&mut self, why: &str) {
@@ -158,7 +164,10 @@ impl Report {
         host.insert("arch".into(), std::env::consts::ARCH.into());
         host.insert(
             "cpus".into(),
-            std::thread::available_parallelism().map(|n| n.get()).unwrap_or(0).to_string(),
+            std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(0)
+                .to_string(),
         );
         Self {
             schema: "adversarial-graph/report/v1",
@@ -182,9 +191,13 @@ impl Report {
     pub fn finalize(&mut self) {
         let mut by_outcome: BTreeMap<String, u64> = BTreeMap::new();
         for r in &self.results {
-            *by_outcome.entry(format!("{:?}", r.outcome).to_lowercase()).or_default() += 1;
+            *by_outcome
+                .entry(format!("{:?}", r.outcome).to_lowercase())
+                .or_default() += 1;
         }
-        self.summary.insert("outcomes".into(), serde_json::to_value(by_outcome).unwrap());
-        self.summary.insert("hard_gate_total".into(), self.gates.total().into());
+        self.summary
+            .insert("outcomes".into(), serde_json::to_value(by_outcome).unwrap());
+        self.summary
+            .insert("hard_gate_total".into(), self.gates.total().into());
     }
 }

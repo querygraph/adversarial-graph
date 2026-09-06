@@ -49,10 +49,20 @@ fn record_grust_pin() {
     let field = |package: &str, key: &str| {
         lock.split("[[package]]")
             .find(|block| block.contains(&format!("name = \"{package}\"")))
-            .and_then(|block| block.lines().find_map(|line| line.trim().strip_prefix(&format!("{key} = "))))
+            .and_then(|block| {
+                block
+                    .lines()
+                    .find_map(|line| line.trim().strip_prefix(&format!("{key} = ")))
+            })
             .map(|value| value.trim_matches('"').to_string())
             .unwrap_or_else(|| "unknown".to_string())
     };
-    println!("cargo:rustc-env=AG_GRUST_GRAPH_VERSION={}", field("grust-graph", "version"));
-    println!("cargo:rustc-env=AG_GRUST_CORE_SOURCE={}", field("grust-core", "source"));
+    println!(
+        "cargo:rustc-env=AG_GRUST_GRAPH_VERSION={}",
+        field("grust-graph", "version")
+    );
+    println!(
+        "cargo:rustc-env=AG_GRUST_CORE_SOURCE={}",
+        field("grust-core", "source")
+    );
 }

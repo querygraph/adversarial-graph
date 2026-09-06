@@ -10,10 +10,10 @@ use std::sync::Arc;
 use grust::{Edge, GraphCommitStore, GraphMutation, GuardedGraphCommit, Node, Props};
 use tokio::sync::Barrier;
 
+use super::Ctx;
 use crate::backends::Backend;
 use crate::dataset::{EDGE_LABEL, NODE_LABEL};
 use crate::report::ScenarioResult;
-use super::Ctx;
 
 pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     let mut r = ScenarioResult::new("A7", ctx.backend.kind.name(), ctx.dataset);
@@ -35,7 +35,12 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     let target = "replay-target".to_string();
     let mutations = vec![
         GraphMutation::UpsertNode(Node::new(NODE_LABEL, target.clone(), Props::new())),
-        GraphMutation::UpsertEdge(Edge::new(EDGE_LABEL, hub.as_str(), target.clone(), Props::new())),
+        GraphMutation::UpsertEdge(Edge::new(
+            EDGE_LABEL,
+            hub.as_str(),
+            target.clone(),
+            Props::new(),
+        )),
     ];
     let commit = GuardedGraphCommit::new("ag-a7-key", "sha256:digest-a", mutations.clone());
 
@@ -58,7 +63,8 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             r.observe("second_replayed", second.replayed);
             if !second.replayed || second.commit_id != first.commit_id {
                 r.gates.non_deterministic_receipt += 1;
-                r.notes.push("replay did not return the original receipt".into());
+                r.notes
+                    .push("replay did not return the original receipt".into());
             }
         }
         Err(e) => {
@@ -71,12 +77,16 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     match store.commit_guarded(&drifted).await {
         Ok(_) => {
             r.gates.duplicate_durable_mutation += 1;
-            r.notes.push("key reuse with a different digest was accepted".into());
+            r.notes
+                .push("key reuse with a different digest was accepted".into());
         }
         Err(e) => r.observe("drift_rejection", e.to_string()),
     }
     // Recovery is read-only.
-    match store.recover_guarded_commit("ag-a7-key", "sha256:digest-a").await {
+    match store
+        .recover_guarded_commit("ag-a7-key", "sha256:digest-a")
+        .await
+    {
         Ok(Some(receipt)) if receipt.replayed && receipt.commit_id == first.commit_id => {}
         Ok(other) => {
             r.gates.non_deterministic_receipt += 1;
@@ -87,11 +97,15 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             r.notes.push(format!("recovery failed: {e}"));
         }
     }
-    match store.recover_guarded_commit("ag-a7-unknown", "sha256:none").await {
+    match store
+        .recover_guarded_commit("ag-a7-unknown", "sha256:none")
+        .await
+    {
         Ok(None) => {}
         other => {
             r.gates.non_deterministic_receipt += 1;
-            r.notes.push(format!("unknown-key recovery returned {other:?}"));
+            r.notes
+                .push(format!("unknown-key recovery returned {other:?}"));
         }
     }
 
@@ -104,10 +118,19 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         let barrier = barrier.clone();
         let path = path.clone();
         let kind = ctx.backend.kind;
-        let commit = GuardedGraphCommit::new("ag-a7-concurrent", "sha256:digest-c", vec![
-            GraphMutation::UpsertNode(Node::new(NODE_LABEL, "replay-concurrent", Props::new())),
-            GraphMutation::UpsertEdge(Edge::new(EDGE_LABEL, hub.as_str(), "replay-concurrent", Props::new())),
-        ]);
+        let commit = GuardedGraphCommit::new(
+            "ag-a7-concurrent",
+            "sha256:digest-c",
+            vec![
+                GraphMutation::UpsertNode(Node::new(NODE_LABEL, "replay-concurrent", Props::new())),
+                GraphMutation::UpsertEdge(Edge::new(
+                    EDGE_LABEL,
+                    hub.as_str(),
+                    "replay-concurrent",
+                    Props::new(),
+                )),
+            ],
+        );
         tasks.push(tokio::spawn(async move {
             let store = Backend::connect_turso(kind, &path).await?;
             barrier.wait().await;
@@ -142,7 +165,9 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                 } else {
                     r.gates.duplicate_durable_mutation += (final_degree - expected) as u64;
                 }
-                r.notes.push(format!("hub out-degree {final_degree} != expected {expected}"));
+                r.notes.push(format!(
+                    "hub out-degree {final_degree} != expected {expected}"
+                ));
             }
         }
         Err(e) => {

@@ -30,6 +30,8 @@ redis = { version = "1", optional = true }
 neo4rs = { version = "0.8", optional = true }
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"], optional = true }
 async-trait = { version = "0.1", optional = true }
+csv = "1"
+zip = { version = "4", default-features = false, features = ["deflate"] }
 
 [features]
 default = []
@@ -58,3 +60,6 @@ grust-turso = { git = "https://github.com/querygraph/grust", rev = "3840d15237d3
 
 [profile.release]
 debug = 0
+
+[dev-dependencies]
+tempfile = "3"

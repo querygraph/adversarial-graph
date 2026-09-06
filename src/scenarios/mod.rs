@@ -21,6 +21,12 @@ pub fn all() -> &'static [&'static str] {
     &["A1", "A2", "A3", "A4", "A7"]
 }
 
+/// Whether a scenario is defined over labelled nodes and typed relationships
+/// (the M2 families) rather than the single-label SNAP shape.
+pub fn accepts_typed(id: &str) -> bool {
+    matches!(id, "A5" | "A6" | "A8" | "A12")
+}
+
 pub async fn run(id: &str, ctx: &Ctx<'_>) -> ScenarioResult {
     let started = std::time::Instant::now();
     let probe = crate::probe::Probe::start(ctx.backend.kind.container());

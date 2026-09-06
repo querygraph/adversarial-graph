@@ -9,23 +9,37 @@ use std::time::{Duration, Instant};
 
 use grust::{CypherParameters, ReadQueryPolicy, run_bounded_read_query};
 
-use crate::report::{ScenarioResult, histogram, record, Latency};
 use super::Ctx;
+use crate::report::{Latency, ScenarioResult, histogram, record};
 
 pub const ATTACKS: &[(&str, &str)] = &[
     ("unanchored-match", "MATCH (n:V) RETURN n"),
     ("cartesian", "MATCH (a:V), (b:V) RETURN count(*)"),
-    ("triple-cartesian", "MATCH (a:V), (b:V), (c:V) RETURN count(*)"),
-    ("range-bomb", "UNWIND range(1, 100000000) AS i RETURN count(i)"),
-    ("union-arms", "MATCH (n:V) RETURN n.id UNION MATCH (n:V) RETURN n.id UNION MATCH (n:V) RETURN n.id UNION MATCH (n:V) RETURN n.id UNION MATCH (n:V) RETURN n.id UNION MATCH (n:V) RETURN n.id"),
-    ("two-hop-collect", "MATCH (a:V)-[:E]->(b:V)-[:E]->(c:V) RETURN collect(c)"),
+    (
+        "triple-cartesian",
+        "MATCH (a:V), (b:V), (c:V) RETURN count(*)",
+    ),
+    (
+        "range-bomb",
+        "UNWIND range(1, 100000000) AS i RETURN count(i)",
+    ),
+    (
+        "union-arms",
+        "MATCH (n:V) RETURN n.id UNION MATCH (n:V) RETURN n.id UNION MATCH (n:V) RETURN n.id UNION MATCH (n:V) RETURN n.id UNION MATCH (n:V) RETURN n.id UNION MATCH (n:V) RETURN n.id",
+    ),
+    (
+        "two-hop-collect",
+        "MATCH (a:V)-[:E]->(b:V)-[:E]->(c:V) RETURN collect(c)",
+    ),
     ("deep-path", "MATCH (a:V)-[:E*1..64]->(b:V) RETURN count(*)"),
 ];
 
 pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     let mut r = ScenarioResult::new("A3", ctx.backend.kind.name(), ctx.dataset);
     let Some(memory) = &ctx.backend.memory else {
-        r.unsupported("bounded read policy is exercised through the reference executor on the memory backend");
+        r.unsupported(
+            "bounded read policy is exercised through the reference executor on the memory backend",
+        );
         return r;
     };
     let graph = memory.graph();
@@ -43,7 +57,8 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                 // A result is acceptable only if it is genuinely small.
                 if table.rows.len() > policy.max_result_rows {
                     r.gates.policy_bypass += 1;
-                    r.notes.push(format!("{name}: returned {} rows", table.rows.len()));
+                    r.notes
+                        .push(format!("{name}: returned {} rows", table.rows.len()));
                 } else {
                     r.observe(&format!("{name}.rows"), table.rows.len());
                 }
@@ -55,7 +70,8 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         }
         if elapsed > deadline {
             r.gates.hang_or_timeout_without_refusal += 1;
-            r.notes.push(format!("{name}: took {:?} (> {:?})", elapsed, deadline));
+            r.notes
+                .push(format!("{name}: took {:?} (> {:?})", elapsed, deadline));
         }
         r.observe(&format!("{name}.ms"), elapsed.as_millis() as u64);
     }

@@ -7,8 +7,8 @@ use std::time::{Duration, Instant};
 
 use grust::{CypherParameters, ReadQueryPolicy, run_bounded_read_query};
 
-use crate::report::{ScenarioResult, histogram, record, Latency};
 use super::Ctx;
+use crate::report::{Latency, ScenarioResult, histogram, record};
 
 pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     let mut r = ScenarioResult::new("A2", ctx.backend.kind.name(), ctx.dataset);
@@ -28,17 +28,21 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         Ok(l) => l,
         Err(e) => {
             if crate::backends::Backend::is_unsupported(&e) {
-            r.unsupported(&format!("backend cannot traverse: {e}"));
-            return r;
-        }
-        r.gates.oom_or_crash += 1;
+                r.unsupported(&format!("backend cannot traverse: {e}"));
+                return r;
+            }
+            r.gates.oom_or_crash += 1;
             r.notes.push(format!("deep traversal failed: {e}"));
             return r;
         }
     };
     record(&mut h, t.elapsed());
     let reached: usize = layers.iter().sum();
-    let deepest = layers.iter().rposition(|n| *n > 0).map(|i| i + 1).unwrap_or(0);
+    let deepest = layers
+        .iter()
+        .rposition(|n| *n > 0)
+        .map(|i| i + 1)
+        .unwrap_or(0);
     r.observe("observed_reached", reached);
     r.observe("observed_deepest", deepest);
     if reached != expected_reached || deepest != expected_deepest {
@@ -55,7 +59,10 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     if let Some(memory) = &ctx.backend.memory {
         let graph = memory.graph();
         let policy = ReadQueryPolicy::default();
-        let query = format!("MATCH (a:V {{id: '{}'}})-[:E*1..200]->(b:V) RETURN count(b)", start.as_str());
+        let query = format!(
+            "MATCH (a:V {{id: '{}'}})-[:E*1..200]->(b:V) RETURN count(b)",
+            start.as_str()
+        );
         let t = Instant::now();
         let outcome = run_bounded_read_query(&graph, &query, &CypherParameters::new(), &policy);
         let elapsed = t.elapsed();
@@ -63,7 +70,8 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         match outcome {
             Ok(_) => {
                 r.gates.policy_bypass += 1;
-                r.notes.push("200-hop pattern was executed despite max_path_length=4".into());
+                r.notes
+                    .push("200-hop pattern was executed despite max_path_length=4".into());
             }
             Err(e) => {
                 r.observe("policy_refusal", e.to_string());
