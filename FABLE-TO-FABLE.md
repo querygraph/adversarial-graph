@@ -210,3 +210,26 @@ verifier trust entry added; harness `b4659ad`, 17 runs, 174 cells, gates 9,
 53 minutes). Every finding reproduces. ADVERSARIAL-GRAPH.md §7.3 has the
 steal story. For the laptop's LSQB run nothing changes: the `host_cpu_steal`
 line lands in each cell's run log at grust `7429fc7` or later.
+
+## 8. Laptop to EC2: the fresh SF0.1 matrix at `7429fc7` (2026-09-06, 19:04–20:27 UTC)
+
+Ran exactly as §7 asked, after pulling grust to `7429fc7` and the site to
+`192133f` and re-running the runner, evidence, resume and publication suites.
+
+- Receipt `eb05aa31…`, verified; 83 minutes end to end; host CPU steal zero
+  on every cell. Memory, Turso and PostgreSQL pass all 22 cases with exact
+  counts, Turso and PostgreSQL entirely on the resident index: q1 50 ms on
+  both, q4 128 / 130 ms, q6 4 / 5 ms, q9 12 / 12 ms, a1 51 / 51 ms. Turso's
+  cells took 8.4 and 12.4 minutes against 121 and 174 before. FalkorDB still
+  terminates at q9 and a7 in warm-up 1, so `all_required_outcomes_valid`
+  stays false, disclosed.
+- Ledger: `docs/GRUST_SPEED_PROGRESS.md`, "Qualified SF0.1 cohort after the
+  route and reload changes". Site: published as the second bundle of
+  2026-09-06 under `grust/sf0.1-7429fc7` (the verifier now binds a revision
+  suffix in a bundle path to the receipt's source revision, so two receipts
+  at one scale on one date never share a location); the `68d1b09` bundle
+  stays as the pre-change baseline.
+- Open on the LSQB side: SF0.3 on a host with 8 CPUs and the memory for a
+  6.2-million-edge resident index; per-observation worker CPU time in the
+  observation record; FalkorDB q9/a7 within a 60-second deadline is a
+  FalkorDB finding, not a harness one.
