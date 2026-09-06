@@ -98,3 +98,31 @@ do not.
   to grust until its matrix run ends and will pull after.
 - The laptop matrix run's Turso and PostgreSQL cells at `af2efa8` are the
   pre-change baseline; keep that directory.
+
+## Follow-ups from the first SF0.1 matrix with the resident index (2026-09-06, laptop, revision 68d1b09)
+
+Observed in the running `baseline-turso` cell (measurement iteration 3):
+
+| Turso at SF0.1 | q1 | q2 | q3 | q4 | q5 | q6 | q7 | q8 | q9 |
+|---|---|---|---|---|---|---|---|---|---|
+| route | sql-count | resident | resident | sql-count | resident | resident | resident | resident | resident |
+| result | timeout 60 s | 176 ms | 9 ms | 10.5 s | 127 ms | 5 ms | 132 ms | 125 ms | 14 ms |
+
+1. **Route preference.** When both a `sql-count` registry entry and a proven
+   `count-factorized` plan exist, the worker takes the SQL count. q1 and q4
+   are the two slowest Turso queries as a result, while the resident plan
+   would run them in well under a second (Memory: 52 ms and 124 ms). Prefer
+   the resident plan whenever it is proven, and keep `sql-count` as its own
+   declared class for the cases without one. The same applies to PostgreSQL.
+2. **Per-observation setup cost.** Turso is process-owned, so every
+   observation worker reloads the store from the CSVs and rebuilds the index
+   before READY: 59 s per sample at SF0.1. Twelve samples for each of 22
+   admitted cases makes the two Turso cells about five hours and the
+   PostgreSQL cells similar, so a full SF0.1 matrix is now a twelve-hour run.
+   A prebuilt database file copied into each worker's private directory keeps
+   the fresh-process recovery proof and turns that setup into seconds; the
+   copy, like the load, stays outside the query boundary. Record whichever
+   choice is made in the lifecycle so the receipt says how the worker got
+   its state.
+3. Until both land, `RESUME_FROM` (at the same revision) is the way to avoid
+   paying the twelve hours again for a one-backend change.
