@@ -162,6 +162,8 @@ impl BackendKind {
         match self {
             #[cfg(feature = "falkor")]
             Self::Falkor => Some(format!("resultset_size={}", env_or("FALKOR_RESULTSET_SIZE", "10000"))),
+            #[cfg(feature = "ladybug")]
+            Self::Ladybug => Some(format!("buffer_pool_bytes={}", ladybug_buffer_pool_bytes())),
             _ => None,
         }
     }
@@ -321,7 +323,18 @@ fn connect_ladybug(work_dir: &std::path::Path, tag: &str) -> grust::Result<grust
         table_prefix: "ag".to_string(),
         dynamic_schema: true,
         query_timeout_ms: None,
+        buffer_pool_bytes: Some(ladybug_buffer_pool_bytes()),
     })
+}
+
+/// The engine sizes its buffer pool from host RAM by default (about 6 GB
+/// resident here for a 200k-edge slice); the harness caps it like any other
+/// store's memory budget and records the cap in the row's profile.
+#[cfg(feature = "ladybug")]
+fn ladybug_buffer_pool_bytes() -> u64 {
+    env_or("AG_LADYBUG_BUFFER_POOL_BYTES", "4294967296")
+        .parse()
+        .expect("AG_LADYBUG_BUFFER_POOL_BYTES must be a byte count")
 }
 
 #[cfg(feature = "neo4j")]
