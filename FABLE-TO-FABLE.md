@@ -233,3 +233,101 @@ Ran exactly as §7 asked, after pulling grust to `7429fc7` and the site to
   6.2-million-edge resident index; per-observation worker CPU time in the
   observation record; FalkorDB q9/a7 within a 60-second deadline is a
   FalkorDB finding, not a harness one.
+
+## 9. The plan to complete the adversarial graph benchmarks (laptop, 2026-09-06 21:10 UTC)
+
+The laptop session owns completion of both ledgers from here. This section
+is the whole remaining set, who runs what, and in what order. Neutral
+framing throughout; every result is a dated publication with its own
+receipt or manifest, and nothing already published is edited.
+
+### 9.1 What is done
+
+- Strain ledger: families A1, A2, A3, A4, A7 on all thirteen backends, on
+  wiki-Talk and roadNet-CA, at 200,000-edge slices (10,000 for Surreal and
+  Helix), on the dedicated host with steal recorded (`2026-09-06`,
+  `2026-09-06-unlimited`); the contended laptop baseline (`2026-09-05`).
+- LSQB ledger: example-scale matrix, native Neo4j and Sail at SF0.1, and the
+  first two receipt-bound Grust matrices at SF0.1 (`68d1b09`, `7429fc7`).
+
+### 9.2 What remains, and where it runs
+
+| Item | Host | Why that host |
+|---|---|---|
+| Full-graph tiers of A1/A2/A4/A7 for the stores that load fast enough: wiki-Talk, roadNet-CA, web-Google (about 5 million edges each), cit-Patents (16.5 M), soc-LiveJournal1 (69 M), com-Orkut (117 M) | laptop | the in-process oracle and Memory need tens of GB for the M tier; the laptop has 64 GB, the EC2 host 15 |
+| LSQB SF0.3 matrix (resident index of 6.2 M edges must fit the 6 GiB component cap; measure, do not assume) and a clean native Neo4j SF0.3 rerun | laptop | 8-CPU / 6 GiB envelope of the published cohorts |
+| Site admission of every new bundle, both ledgers | laptop | the receipts land there |
+| A5 recursive deletes, A6 isolation under mixed load, A8 differential Cypher, A12 cold start and footprint: loaders, scenarios, gates, then clean-host slices on all backends | EC2 | scenario development, then dedicated-host measurement at slice scale |
+| Memgraph and Apache AGE adapters; the Helix SDK fix; the Ladybug PR follow-through | EC2 | adapter work, small-host measurement |
+| A9, A10, A11 stack-integrity families (Grust memory layer, LakeCat outbox, QueryGraph proof bases) | EC2, after A5/A6/A8/A12 | need the sibling stack repos built there |
+| The L tier (twitter-2010, Friendster, GAP-road) | deferred | 1.5 to 1.8 billion edges; revisit after the M tier says what the oracle costs |
+
+### 9.3 EC2 assignments, in order
+
+1. **Loaders** (`src/dataset.rs`): LDBC SNB CsvBasic (`ldbc-snb-sf0.1`,
+   `ldbc-snb-sf1`, typed labels and properties; reuse the projected-FK
+   knowledge from `benchmarks/lsqb/src/dataset.rs` in grust) and ICIJ
+   Offshore Leaks (`icij-offshore-leaks`, the CSV zip). Both through the
+   same `Graph` the SNAP loader produces, with an oracle that knows labels.
+2. **A8 differential Cypher** (`scenarios/v1/A8.json`, gate `wrong_answer`):
+   a fixed set of read queries (the nine LSQB shapes, the thirteen count
+   attacks, plus row-returning variants with `ORDER BY` and `LIMIT`) run
+   through `grust-cypher`'s reference executor on the in-process graph as
+   the oracle, and through every backend that accepts Cypher: Grust
+   pushdown on Turso and PostgreSQL, native openCypher on FalkorDB, Neo4j
+   (Bolt and HTTP) and Memgraph, the resident-index plans where proven.
+   Compare full result sets, not counts. Record the execution class per
+   backend as the LSQB harness does.
+3. **A6 isolation under mixed load** (gate `isolation_anomaly`,
+   `ldbc-snb-sf0.1`): Elle-style histories. Register workload: N clients
+   read-then-write a property on a shared set of vertices with
+   client-supplied versions; list-append workload: clients append their id
+   to a list property. Checker: from the recorded history, detect lost
+   updates, dirty reads, write cycles (build the ww/wr/rw dependency graph
+   for list-append; a cycle is an anomaly). Report the anomaly class per
+   backend; a store that refuses concurrent writes with a typed conflict
+   passes, one that silently loses an append fails.
+4. **A5 recursive deletes** (gates `wrong_answer`, `lost_write`,
+   `ldbc-snb-sf1` and `sx-stackoverflow`): delete a root (a Post with its
+   reply tree; a StackOverflow question with its answer and comment chain)
+   through each store's delete path, then read back: the oracle is the
+   in-process graph after the same delete. Concurrent readers during the
+   delete record what they saw.
+5. **A12 cold start and footprint** (`cold_start_ms`, `peak_rss_bytes`,
+   `p999_us`): time from process or container start to first correct
+   answer; peak RSS from the probes that already exist; an open-loop
+   scheduler at a fixed arrival rate (start with 50 and 200 requests per
+   second of A1 one-hop reads) with HdrHistogram p99.9 of service time,
+   not response time, and both reported.
+6. **Adapters**: `memgraph` through the Bolt store already in `src/neo4j.rs`
+   (the compose service exists on 17688; Memgraph speaks Bolt); `age`
+   through a PostgreSQL image with the Apache AGE extension and a
+   harness-side Cypher store over `cypher()`; fix `helix-sdk` (the adapter
+   sends `Read` where the pinned SDK expects `read`; either pin the SDK
+   the server speaks or fix the casing in `grust-helix`, then re-measure
+   both Helix transports).
+7. **Publish** each family as it lands: clean-host slices on every backend,
+   a dated strain publication, `RESULTS.md`, a §7 note in
+   `ADVERSARIAL-GRAPH.md`, and a numbered section here. The laptop admits
+   it on the site and runs the full tiers.
+8. **A9 to A11** after that, with a design note first (what "pass" is for
+   each gate, which sibling crates are needed, which synthetic datasets).
+
+### 9.4 Laptop queue
+
+1. Rebuild the harness at this revision; run the full-graph tiers of the
+   M1 families in the order above, one system at a time, stopping a
+   backend at the first tier whose load exceeds two hours (the note says
+   which backend stopped where and why).
+2. LSQB SF0.3: a full matrix at the current grust revision; native Neo4j
+   SF0.3 rerun with a clean host screen. Publish both.
+3. Site admission for whatever EC2 publishes; keep the strain verifier's
+   trust table and the graph verifier's contracts current.
+
+### 9.5 Rules that stay
+
+- No grust edits on the laptop while an LSQB matrix runs there.
+- Pull all three repos before touching any; write a numbered section here
+  on every handoff.
+- Neutral framing; superseded failures stay visible; unsupported is never a
+  pass; every number carries its host, slice, class and steal.
