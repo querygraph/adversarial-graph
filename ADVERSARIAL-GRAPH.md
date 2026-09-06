@@ -722,6 +722,16 @@ accepts all 100 at 37 ms each. That is the same shape Turso's WAL mode
 showed in §7: a single-writer engine exposed to concurrent writers either
 queues them or refuses them, and the harness records which.
 
+The Neo4j pair was run twice in this ladder. The first run
+(`20260906T070143Z`, `20260906T070245Z`) came out two to three times
+slower on the wiki-Talk hub cells than every other measurement of the same
+cells on this host (Bolt A4 74.8 ms p50 and 7.15 s server CPU against
+15–17 ms and 2.3–2.5 s; HTTP A1 1.27 s against 0.44–0.46 s), at the same
+recorded load average of about 2. The rerun twenty minutes later
+reproduced the earlier values. Both runs are in the publication's bundle;
+the later one is the row per cell, and the first is listed here as what
+it is: a same-host outlier the ledger keeps rather than discards.
+
 The Ladybug rows are the rewrite's measurement at revision `3840d152`
 (harness `6b4b08c`); the memory and Turso rows are from the same ladder,
 which reproduced their earlier values. The single-statement hub write is

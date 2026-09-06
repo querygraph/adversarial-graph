@@ -106,9 +106,10 @@ Notes for this host:
 
 ## State on 2026-09-06 morning: publication done, what is next
 
-- **Published**: `adversarial-site` publication `2026-09-06` (17 runs, 174
-  cells, hard-gate total 9, manifest digest and harness revision pinned in
-  `scripts/verify-strain-evidence.mjs`), from harness `6b4b08c` with every
+- **Published**: `adversarial-site` publication `2026-09-06` (19 runs, 174
+  cells, hard-gate total 9, manifest `1ebc157a…`, harness revision pinned
+  in `scripts/verify-strain-evidence.mjs`; the Neo4j pair's outlier run is
+  in the bundle and superseded per cell by its rerun), from harness `6b4b08c` with every
   Grust crate pinned to `querygraph/grust` `3840d152` (Memory snapshot reads
   and `traverse_ids`, Turso single-transaction load and resident snapshot,
   Ladybug Arrow bulk load, per-label tables, query-per-table traversal,

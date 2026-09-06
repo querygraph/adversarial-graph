@@ -118,18 +118,18 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | helix-sdk | A7 | 10k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | helix-sdk | LOAD | 10k | fail | 1 | 0 |  |  |  |  |  | x86_64/4 |  | open failed: backend error: Helix SDK replace/drop failed earlier pass (gates=0) in 20260905T162338Z:  |
 | helix-sdk | LOAD | 200k | fail | 1 | 0 |  |  |  |  |  | x86_64/4 |  | open failed: backend error: Helix SDK replace/drop failed earlier fail (gates=1) in 20260905T160543Z: backend error: Helix SDK edge write failed; earlier fail (gates=1) in 20260905T163851Z: backend error: Helix SDK edge write failed |
-| neo4j | A1 | 200k | pass | 0 | 12 | 0.05 | 4 | 4375 | 4375 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j | A2 | 200k | pass | 0 | 219 | 0.08 | 402 | 209919 | 209919 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j | A3 | 200k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 2 | x86_64/4 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
-| neo4j | A4 | 200k | pass | 0 | 368 | 0.09 | 964 | 12807 | 31151 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j | A7 | 200k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 2 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
-| neo4j | LOAD | 200k | pass | 0 | 7788 | 0.04 | 7224 |  |  | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j-http | A1 | 200k | pass | 0 | 16 | 0.06 | 19 | 7567 | 7567 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j-http | A2 | 200k | pass | 0 | 1071 | 0.02 | 2291 | 1062911 | 1062911 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j-http | A3 | 200k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 2 | x86_64/4 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
-| neo4j-http | A4 | 200k | pass | 0 | 1996 | 0.07 | 5938 | 76607 | 157439 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j-http | A7 | 200k | unsupported | 0 | 9 | 0.02 | 15 |  |  | 2 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
-| neo4j-http | LOAD | 200k | pass | 0 | 7001 | 0.04 | 9775 |  |  | 2 | x86_64/4 | harness-native-cypher |  |
+| neo4j | A1 | 200k | pass | 0 | 12 | 0.08 | 13 | 4543 | 4543 | 1 | x86_64/4 | harness-native-cypher |  |
+| neo4j | A2 | 200k | pass | 0 | 219 | 0.08 | 330 | 210815 | 210815 | 1 | x86_64/4 | harness-native-cypher |  |
+| neo4j | A3 | 200k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 1 | x86_64/4 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
+| neo4j | A4 | 200k | pass | 0 | 371 | 0.10 | 902 | 13215 | 23631 | 1 | x86_64/4 | harness-native-cypher |  |
+| neo4j | A7 | 200k | unsupported | 0 | 9 | 0.02 | 8 |  |  | 1 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
+| neo4j | LOAD | 200k | pass | 0 | 7419 | 0.04 | 5965 |  |  | 1 | x86_64/4 | harness-native-cypher |  |
+| neo4j-http | A1 | 200k | pass | 0 | 68 | 0.01 | 174 | 58751 | 58751 | 2 | x86_64/4 | harness-native-cypher |  |
+| neo4j-http | A2 | 200k | pass | 0 | 527 | 0.04 | 1255 | 517887 | 517887 | 2 | x86_64/4 | harness-native-cypher |  |
+| neo4j-http | A3 | 200k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 2 | x86_64/4 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
+| neo4j-http | A4 | 200k | pass | 0 | 627 | 0.05 | 1966 | 20799 | 95999 | 2 | x86_64/4 | harness-native-cypher |  |
+| neo4j-http | A7 | 200k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 2 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
+| neo4j-http | LOAD | 200k | pass | 0 | 5757 | 0.04 | 6672 |  |  | 2 | x86_64/4 | harness-native-cypher |  |
 
 ## web-Google
 
@@ -263,17 +263,17 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | helix-sdk | A7 | 10k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | helix-sdk | LOAD | 10k | fail | 1 | 0 |  |  |  |  |  | x86_64/4 |  | open failed: backend error: Helix SDK replace/drop failed earlier pass (gates=0) in 20260905T162338Z:  |
 | helix-sdk | LOAD | 200k | fail | 1 | 0 |  |  |  |  |  | x86_64/4 |  | open failed: backend error: Helix SDK replace/drop failed earlier fail (gates=1) in 20260905T160543Z: backend error: Helix SDK edge write failed; earlier fail (gates=1) in 20260905T163851Z: backend error: Helix SDK edge write failed |
-| neo4j | A1 | 200k | pass | 0 | 426 | 0.08 | 1169 | 415999 | 415999 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j | A2 | 200k | pass | 0 | 116 | 0.01 | 343 | 106687 | 106687 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j | A3 | 200k | unsupported | 0 | 9 | 0.02 | 16 |  |  | 2 | x86_64/4 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
-| neo4j | A4 | 200k | pass | 0 | 2600 | 0.07 | 7150 | 74751 | 409599 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j | A7 | 200k | unsupported | 0 | 8 | 0.02 | 15 |  |  | 2 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
-| neo4j | LOAD | 200k | pass | 0 | 11776 | 0.03 | 18686 |  |  | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j-http | A1 | 200k | pass | 0 | 1276 | 0.07 | 3904 | 1266687 | 1266687 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j-http | A2 | 200k | pass | 0 | 249 | 0.00 | 908 | 240895 | 240895 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j-http | A3 | 200k | unsupported | 0 | 9 | 0.02 | 131 |  |  | 2 | x86_64/4 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
-| neo4j-http | A4 | 200k | pass | 0 | 4092 | 0.04 | 12586 | 84671 | 567295 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j-http | A7 | 200k | unsupported | 0 | 8 | 0.02 | 14 |  |  | 2 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
-| neo4j-http | LOAD | 200k | pass | 0 | 20789 | 0.02 | 48871 |  |  | 2 | x86_64/4 | harness-native-cypher |  |
+| neo4j | A1 | 200k | pass | 0 | 396 | 0.09 | 1107 | 386815 | 386815 | 1 | x86_64/4 | harness-native-cypher |  |
+| neo4j | A2 | 200k | pass | 0 | 88 | 0.01 | 277 | 79231 | 79231 | 1 | x86_64/4 | harness-native-cypher |  |
+| neo4j | A3 | 200k | unsupported | 0 | 10 | 0.02 | 13 |  |  | 1 | x86_64/4 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
+| neo4j | A4 | 200k | pass | 0 | 765 | 0.10 | 2276 | 15439 | 144639 | 1 | x86_64/4 | harness-native-cypher |  |
+| neo4j | A7 | 200k | unsupported | 0 | 9 | 0.02 | 24 |  |  | 1 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
+| neo4j | LOAD | 200k | pass | 0 | 11763 | 0.03 | 19794 |  |  | 1 | x86_64/4 | harness-native-cypher |  |
+| neo4j-http | A1 | 200k | pass | 0 | 446 | 0.07 | 1285 | 436479 | 436479 | 1 | x86_64/4 | harness-native-cypher |  |
+| neo4j-http | A2 | 200k | pass | 0 | 92 | 0.01 | 285 | 81727 | 81727 | 1 | x86_64/4 | harness-native-cypher |  |
+| neo4j-http | A3 | 200k | unsupported | 0 | 9 | 0.02 | 11 |  |  | 1 | x86_64/4 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
+| neo4j-http | A4 | 200k | pass | 0 | 1144 | 0.05 | 3848 | 27023 | 178687 | 2 | x86_64/4 | harness-native-cypher |  |
+| neo4j-http | A7 | 200k | unsupported | 0 | 10 | 0.02 | 24 |  |  | 2 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
+| neo4j-http | LOAD | 200k | pass | 0 | 10077 | 0.03 | 22029 |  |  | 1 | x86_64/4 | harness-native-cypher |  |
 
-Latest-cell hard-gate total: **16** across 252 cells from 49 runs; 16 earlier failing cell(s) are kept in the Notes column of their superseding row.
+Latest-cell hard-gate total: **16** across 252 cells from 51 runs; 16 earlier failing cell(s) are kept in the Notes column of their superseding row.
