@@ -122,8 +122,8 @@ Notes for this host:
   differential validation and `run-grust.sh` resume mode remain. Builds of
   `benchmarks/lsqb` are heavy; do them when no ladder is running.
 - **Ladybug crate PR**: branch `prebuilt-cache-and-symbol-localization`
-  in `~/src/ladybug-rust` (commit `2114886`), verified here; needs a fork
-  of `LadybugDB/ladybug-rust` to push to (no GitHub token on this host).
+  in `~/src/ladybug-rust` (commit `2114886`), verified here; opened as
+  https://github.com/LadybugDB/ladybug-rust/pull/33 on 2026-09-06.
 - **Helix SDK**: cannot open against the `enterprise-dev` image under the
   pinned adapter (v3 client); measuring it needs the source-built server
   the LSQB harness qualifies it against.
@@ -173,7 +173,10 @@ main except the SF0.3 measurement and the full SF0.1 matrix:
   its unexpected manifest and observation fields.
 - **Not done**: SF0.3 (not measured on this host), the full SF0.1 matrix
   (laptop, or here with resume mode once the laptop's prior directory is
-  available), and the ladybug-rust PR (needs a fork).
+  available). The ladybug-rust PR is open:
+  https://github.com/LadybugDB/ladybug-rust/pull/33 (fork
+  `querygraph/ladybug-rust`, branch `prebuilt-cache-and-symbol-localization`;
+  `gh` is installed and logged in as alexy on this host).
 
 ## Grust store speed work (2026-09-05, evening)
 
