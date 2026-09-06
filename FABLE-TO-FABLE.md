@@ -128,3 +128,76 @@ See `docs/notes/task-turso-resident-index.md`: a resident typed index for the
 durable Grust stores, the harness execution class it needs, and a resume mode
 for `run-grust.sh`. The laptop is running the SF0.1 matrix on `af2efa8` and
 cannot touch grust until it ends.
+
+## 7. EC2 to laptop: what landed on 2026-09-06 and what the laptop runs next
+
+Written 2026-09-06 18:40 UTC by the EC2 session. Everything below is pushed;
+pull all three repos before doing anything: `~/src/grust` main at `7429fc7`,
+`~/src/adversarial-graph` main, `~/src/adversarial-site` master at `192133f`.
+
+### What is on grust main (in order)
+
+| Commit | What |
+|---|---|
+| `97ac532`, `b2a9730` | `backend-resident-index-rust-count`: the harness class, plan registry, Python validator and site `allowedClasses` for Turso and PostgreSQL; `TursoGraphStore::indexed_snapshot` and `PostgresGraphStore::indexed_snapshot` (write-invalidated, built under the connection gate). |
+| `119202d` | `RESUME_FROM=<prior OUTPUT_DIR>` for `run-grust.sh`; the receipt's `reused_cells` list; `resume-cells.sh` with `test-resume-cells.sh`. |
+| `dfb60dc` | `resident_index_built` telemetry (nodes, edges, serialized bytes, build ms) in the coordinator's cell log. |
+| `5c34fc2` | Follow-up 1: the proven `count-factorized` plan comes before the store's scalar SQL count. All 22 pinned cases register as resident entries for Turso and PostgreSQL; `sql-count` stays, under its own class, for a count the proof does not admit. |
+| `9d06b2c` | Follow-up 2: Turso workers copy the coordinator's prebuilt store file (`per-observation-worker-copy`) instead of reloading the CSVs. Validator, merge script and fixtures expect it. |
+| `7429fc7` | One `host_cpu_steal` progress record per cell in the run log (steal ms, wall ms). |
+
+Site: `d8abe1d` validates the manifest's `execution_plans` registry and
+observation `plan` fields (before it, the site rejected every bundle the
+current harness produces), `5ca467a` accepts `reused_cells`, `192133f`
+admits either process-owned Turso lifecycle so the 68d1b09 receipt still
+verifies. All 208 site tests pass.
+
+### What was measured here (diagnostic, not publishable; ledger section
+"Resident index at SF0.1")
+
+Turso baseline cell, SF0.1, this host quiet (zero steal):
+
+| | Before | After 5c34fc2 + 9d06b2c |
+|---|---:|---:|
+| q1 | 260 s (Turso SQL) | 65.9 ms (resident index) |
+| q4 | 14.7 s (Turso SQL) | 176 ms |
+| q2, q5, q7, q8 | 143–202 ms | 146–198 ms (Memory: 150–186 ms) |
+| worker setup per observation | 71–73 s (67 s CSV reload) | 4.7 s (0.24 s copy of a 553 MB file, 4.4 s read-back and index) |
+| nine-query cell, one iteration | ≈ 15 min | 2 min 9 s |
+
+Every count matched the oracle in every run; no store file is left behind.
+
+### What the laptop does now
+
+1. Pull grust to `7429fc7` or later and the site to `192133f` or later.
+2. Run a **fresh full SF0.1 matrix**. Not a resume: resume reuses a cell only
+   at the same source revision, by design, so
+   `benchmarks/lsqb/out/matrix-sf0.1-w2r10-68d1b09-f1` cannot seed a run at
+   the new revision. Keep that directory as the pre-change baseline.
+   ```
+   CELL_TIMEOUT_MS=3600000 SF=0.1 RUNS=10 WARMUPS=2 \
+     OUTPUT_DIR=benchmarks/lsqb/out/matrix-sf0.1-w2r10-<rev>-f1 benchmarks/lsqb/run-grust.sh
+   ```
+   The Turso cells now take minutes, and q1 no longer sits at a timeout, so
+   the run is bounded by the PostgreSQL cells (attach plus a read-back over
+   the wire per observation; not changed here).
+3. If one cell fails, rerun into a fresh directory at the same revision with
+   `RESUME_FROM=<that OUTPUT_DIR>`; only the failed cell executes, and the
+   receipt lists the reused ones.
+4. Publish through the site; the ledger gets a new dated publication.
+5. Before citing numbers, read each cell's `host_cpu_steal` line in its run
+   log. On this host (a burstable t2.xlarge) a repeat that started after
+   2.5 h of continuous compute ran 2× slower with 8.2 h of accumulated
+   steal; the load average never showed it. The laptop is not burstable,
+   but the record is free.
+
+### Also
+
+- `LadybugDB/ladybug-rust` PR #33 is open from the `querygraph` fork
+  (prebuilt cache out of the crate source tree; opt-in localization of the
+  bundled C symbols), with `LADYBUG-NOTES.md` linked.
+- The strain harness records `host_steal_us` per scenario row (`00fdca6`);
+  RESULTS.md shows it in the Host column.
+- Not done: SF0.3 on this host; per-observation worker CPU time in the LSQB
+  observation record (an observation-schema change across validator, merge
+  script and site).
