@@ -128,6 +128,53 @@ Notes for this host:
   pinned adapter (v3 client); measuring it needs the source-built server
   the LSQB harness qualifies it against.
 
+## State on 2026-09-06 afternoon: LSQB resident index, PostgreSQL, resume mode
+
+Everything from `docs/notes/task-turso-resident-index.md` is on `grust`
+main except the SF0.3 measurement and the full SF0.1 matrix:
+
+- **Class and stores** (grust `97ac532`, `b2a9730`): `backend-resident-index-rust-count`
+  in the harness, plan registry, `validate-matrix-publication.py` and the
+  site verifier (`allowedClasses` for `turso` and `postgres`), each with
+  tests. `TursoGraphStore::indexed_snapshot` and
+  `PostgresGraphStore::indexed_snapshot` build the write-invalidated
+  `TypedGraphIndex` under the connection gate; the LSQB worker builds it
+  before READY (Turso inside its per-observation reload, PostgreSQL from a
+  read-back of the once-loaded service at attach). PostgreSQL's 22
+  example-scale cases were executed here against a live 18.6 container:
+  every count matched the oracle, 18 under the resident class, about 100 ms
+  of setup per observation at that scale.
+- **Resume mode** (grust `119202d`, site `5ca467a`):
+  `RESUME_FROM=<prior OUTPUT_DIR>` copies every prior cell that verifies
+  (receipt hashes, revision, images, timeout, valid cell, clean watchdog)
+  and executes the rest; the receipt's `reused_cells` names each with the
+  prior directory, receipt digest and Compose project, and both validators
+  check the copied watchdog records against it. `resume-cells.sh` has its own
+  test (`test-resume-cells.sh`).
+- **SF0.1 diagnostic on this host** (`DISCOVERY`-style, in-process, not
+  publishable; `docs/GRUST_SPEED_PROGRESS.md` "Resident index at SF0.1"):
+  Turso baseline, 432,235 nodes / 2,080,404 edges. Worker setup ≈71 s per
+  observation (≈68 s chunked load, the rest read-back and index build).
+  Resident-index queries answer within a few percent of the Memory cell
+  (6–200 ms); the two queries the dialect still routes to Turso's own
+  scalar SQL count take 14.7 s (q4) and 260 s (q1) against 166 ms and
+  70 ms on Memory. Whether scalar SQL should keep priority over a proven
+  resident plan is now a measured question, not a design assumption; the
+  route order was not changed. Never build while a timing run is on: a
+  `nice -n 19 cargo build` raised setup to 180 s and timed q1 out. Launch
+  long runs with `systemd-run --user` (the session watchdog killed
+  `setsid nohup` wrappers mid-run).
+- **Site registry verification** (site `d8abe1d`): the graph verifier
+  now accepts the manifest's `execution_plans` registry and schema-3
+  observation `plan` fields, and admits a not-materialized row shape or a
+  Turso/PostgreSQL native aggregate only through a matching registry entry
+  (mirror of `validate-matrix-publication.py`, with tests). Before this,
+  every bundle produced by the current harness was rejected by the site for
+  its unexpected manifest and observation fields.
+- **Not done**: SF0.3 (not measured on this host), the full SF0.1 matrix
+  (laptop, or here with resume mode once the laptop's prior directory is
+  available), and the ladybug-rust PR (needs a fork).
+
 ## Grust store speed work (2026-09-05, evening)
 
 - Branch `fable/strain-adapter-reads` in `~/src/grust`, pushed at
