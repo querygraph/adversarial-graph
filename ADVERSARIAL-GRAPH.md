@@ -710,6 +710,18 @@ single-sample or 100-sample scenario; the load halving and the hub-read
 gains are the changes' effect, and the memory store's load now carries the
 index build it previously did not have (about 230 ms at 200k edges).
 
+Ladybug's multi-writer mode (`concurrent_writes=true`, the engine's
+`enable_multi_writes`, run as a second profile) does not make the hot-node
+writes faster; it changes what they return. With four writers on their own
+connections the engine accepted 34 of the 100 wiki-Talk hub writes and
+54 of 100 on roadNet-CA and refused the rest as write-write conflicts, in
+1.3 s and 1.8 s of wall time (p50 2.0 ms on wiki-Talk because a refusal is
+cheap, p99 62 ms); every accepted write was visible afterwards and the
+row passes with 0 gates, the refusals being typed. The serialized default
+accepts all 100 at 37 ms each. That is the same shape Turso's WAL mode
+showed in §7: a single-writer engine exposed to concurrent writers either
+queues them or refuses them, and the harness records which.
+
 The Ladybug rows are the rewrite's measurement at revision `3840d152`
 (harness `6b4b08c`); the memory and Turso rows are from the same ladder,
 which reproduced their earlier values. The single-statement hub write is

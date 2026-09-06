@@ -163,5 +163,10 @@ So the load and the reads were the adapter's to fix, and are fixed. What
 remains yours: the single-statement write at about 37 ms of CPU, unchanged
 by anything on the adapter side, and the 1.4 ms `prepare` cost per point
 lookup (the rewrite avoids most of them but cannot avoid all). The
-`enable_multi_writes` profile with four concurrent writers is being
-measured as a separate row in the same publication.
+`enable_multi_writes` profile was measured as a separate row: with four
+writers on their own connections the engine accepted 34 of the 100 wiki-Talk
+hub writes (54 of 100 on roadNet-CA) and refused the rest as write-write
+conflicts, fast (p50 2 ms on wiki-Talk, p99 62 ms), with every accepted
+write visible afterwards. So on a hot node the mode trades queueing for
+refusals rather than adding throughput; the adapter keeps it off by default
+and exposes it, and the strain ledger shows both profiles side by side.
