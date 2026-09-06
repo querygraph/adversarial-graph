@@ -30,6 +30,22 @@ pub fn loadavg_1m() -> f64 {
     if n >= 1 { loads[0] } else { -1.0 }
 }
 
+/// Cumulative CPU time the hypervisor withheld from this guest, summed over
+/// every vCPU, in microseconds: the `steal` column of the `cpu` line in
+/// `/proc/stat`. A burstable instance out of CPU credits shows it while the
+/// load average stays flat, so a run's delta is the only record of a
+/// throttled measurement. `None` where the kernel does not report it.
+pub fn host_cpu_steal_us() -> Option<u64> {
+    let stat = std::fs::read_to_string("/proc/stat").ok()?;
+    let line = stat.lines().find(|line| line.starts_with("cpu "))?;
+    let steal_ticks: u64 = line.split_whitespace().nth(8)?.parse().ok()?;
+    let ticks_per_second = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
+    if ticks_per_second <= 0 {
+        return None;
+    }
+    Some(steal_ticks * 1_000_000 / ticks_per_second as u64)
+}
+
 #[derive(Debug, Clone, Copy, Default, serde::Serialize)]
 pub struct ContainerUsage {
     pub cpu_usec: u64,
@@ -70,6 +86,7 @@ pub struct Probe {
     started: std::time::Instant,
     rusage: Rusage,
     load: f64,
+    steal_us: Option<u64>,
     container: Option<(String, ContainerUsage)>,
 }
 
@@ -79,6 +96,7 @@ impl Probe {
             started: std::time::Instant::now(),
             rusage: rusage_self(),
             load: loadavg_1m(),
+            steal_us: host_cpu_steal_us(),
             container: container.map(|c| (c.to_string(), container_usage(c))),
         }
     }
@@ -98,6 +116,10 @@ impl Probe {
         result.observe("client_maxrss_bytes", now.maxrss_bytes);
         result.observe("host_loadavg_1m_start", self.load);
         result.observe("host_loadavg_1m_end", loadavg_1m());
+        if let (Some(before), Some(after)) = (self.steal_us, host_cpu_steal_us()) {
+            // Summed over every vCPU; compare with wall_us times the vCPU count.
+            result.observe("host_steal_us", after.saturating_sub(before));
+        }
         if let Some((name, before)) = self.container {
             let after = container_usage(&name);
             result.observe("server_container", name);

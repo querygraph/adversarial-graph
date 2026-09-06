@@ -74,7 +74,9 @@ for path in reports:
             "edges_per_s": o.get("edges_per_s"),
             "notes": "; ".join(r.get("notes", []))[:120],
             "slice": slice_,
-            "host": host,
+            # Host CPU steal during the scenario (all vCPUs summed): a burstable
+            # instance out of credits shows it while the load average stays flat.
+            "host": host + (f", steal {o['host_steal_us'] / 1e6:.1f}s" if o.get("host_steal_us") else ""),
         }
 
 def sort_key(k):
