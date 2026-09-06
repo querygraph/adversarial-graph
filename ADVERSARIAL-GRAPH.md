@@ -757,3 +757,36 @@ invalidates the snapshot spawns the thread that releases it. Before
 `traverse_ids` (change 4) the hub read measured 15.8 ms, so of the original
 23.9 ms about 8 ms was the map walk and about 13 ms the node clones; what
 remains is 12,215 id clones and the harness's own visited set.
+
+### 7.3 The host's CPU steal, and the rerun that records it (2026-09-06, evening)
+
+The dedicated host is a burstable `t2.xlarge`. A Turso diagnostic cell
+(LSQB, SF0.1) that started after two and a half hours of continuous compute
+ran uniformly twice as slow as the same cell an hour earlier: worker setup
+133 s instead of 71 s, q2 390 ms instead of 200 ms, q1 490 s instead of
+260 s, with nothing else on the machine. `/proc/stat` carried 8.2 hours of
+accumulated CPU steal over the 33-hour uptime, the hypervisor's share of
+time the guest was denied once its credit balance was spent; after five idle
+hours the same cell ran at the original speed with zero steal, and an A/B of
+the two binaries agreed on every query. The load average the harness
+recorded never moved, because steal is not runnable load.
+
+Two changes followed. The instance was switched to Unlimited credit mode,
+which bills the excess instead of throttling. And `src/probe.rs` now reads
+the `steal` column of `/proc/stat` before and after every scenario and
+records the delta as `host_steal_us` (summed over the vCPUs; compare with
+`wall_us` times the vCPU count), so a throttled measurement shows in its own
+row; `RESULTS.md` prints it in the Host column when it is non-zero. The LSQB
+coordinator emits the same delta once per cell in its run log
+(`host_cpu_steal`).
+
+The whole ladder was then rerun from harness `b4659ad` at the same Grust pin
+(`3840d152`): 17 runs, 174 cells, hard-gate total 9, in 53 minutes of wall
+time against about ten hours before the Ladybug adapter rewrite. Total steal
+across the 3,008 s of measured scenarios was 4.8 s, the largest single
+reading 0.94 s during a Helix load. Every outcome and every gate reproduces
+§7.1 and §7.2 exactly. It is published as `2026-09-06-unlimited` beside the
+morning publication, which stays as it was: whether any of its runs were
+throttled is not recoverable from the host (CloudWatch's `CPUCreditBalance`
+for the instance would say), and the rerun makes the question moot for
+every number that matters.

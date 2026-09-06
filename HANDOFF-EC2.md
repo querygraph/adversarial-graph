@@ -181,6 +181,11 @@ main except the SF0.3 measurement and the full SF0.1 matrix:
   of 71 s, the nine-query cell in 2 min 9 s). What remains is the laptop's
   rerun of the Turso and PostgreSQL cells with `RESUME_FROM` against
   `benchmarks/lsqb/out/matrix-sf0.1-w2r10-68d1b09-f1`, or a fresh full run.
+- **Host**: `t2.xlarge`, now in Unlimited credit mode (switched 2026-09-06
+  evening after credit throttling halved a diagnostic; ADVERSARIAL-GRAPH.md
+  §7.3). Every strain row records `host_steal_us`; the ladder was rerun as
+  publication `2026-09-06-unlimited` (17 runs, 174 cells, gates 9, 53 min,
+  4.8 s of steal in total). Launch long runs with `systemd-run --user`.
 - **Not done**: SF0.3 (not measured on this host). The ladybug-rust PR is open:
   https://github.com/LadybugDB/ladybug-rust/pull/33 (fork
   `querygraph/ladybug-rust`, branch `prebuilt-cache-and-symbol-localization`;

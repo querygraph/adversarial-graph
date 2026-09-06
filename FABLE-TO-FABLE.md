@@ -201,3 +201,12 @@ Every count matched the oracle in every run; no store file is left behind.
 - Not done: SF0.3 on this host; per-observation worker CPU time in the LSQB
   observation record (an observation-schema change across validator, merge
   script and site).
+
+### Added 2026-09-06 20:30 UTC
+
+The strain ladder was rerun on this host in Unlimited credit mode with the
+new `host_steal_us` column and published as `2026-09-06-unlimited` (site
+verifier trust entry added; harness `b4659ad`, 17 runs, 174 cells, gates 9,
+53 minutes). Every finding reproduces. ADVERSARIAL-GRAPH.md §7.3 has the
+steal story. For the laptop's LSQB run nothing changes: the `host_cpu_steal`
+line lands in each cell's run log at grust `7429fc7` or later.
