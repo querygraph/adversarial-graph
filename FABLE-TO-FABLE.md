@@ -121,3 +121,10 @@ ignore, the transport-aware `RESULTS.md`, `scripts/bundle-site-evidence.py`
 and this file. Merge with `git merge origin/main`; conflicts, if any, will be
 in `RESULTS.md` (regenerate it) and `reports/`. The `.pypi` token file exists
 only on the laptop and must never be committed.
+
+## 6. Next task (added 2026-09-06)
+
+See `docs/notes/task-turso-resident-index.md`: a resident typed index for the
+durable Grust stores, the harness execution class it needs, and a resume mode
+for `run-grust.sh`. The laptop is running the SF0.1 matrix on `af2efa8` and
+cannot touch grust until it ends.
