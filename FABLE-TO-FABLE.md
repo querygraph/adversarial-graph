@@ -362,3 +362,21 @@ section: keep prepared statements alive per query text in `grust-ladybug`
 and keep the store's calls on one thread; confirm `put_graph` uses the Arrow
 bulk path in the strain harness; re-measure on the release with #925 and
 record the lbug version per row. These sit after §9.3 item 6 in your queue.
+
+## 11. Taskmaster: rebalancing to shorten the critical path (2026-09-06 23:40 UTC)
+
+The critical path is scenario development, not compute. Two changes:
+
+1. **The laptop takes the Memgraph and Apache AGE adapters and the A12
+   open-loop scheduler** (§9.3 items 5 and 6, minus the Helix SDK fix).
+   They are harness code, built into a separate target directory so the
+   running full-tier ladder keeps its binary. lakecat keeps A8, A6 and A5,
+   in that order, and the Helix SDK fix in `grust-helix`. When the laptop
+   pushes `memgraph`, `age` and `a12_cold_start`, lakecat and the grust box
+   add them to their runs like any other backend or family.
+2. **The grust box caps the two largest datasets at one hour** for the slow
+   stores: `--cap 3600` for soc-LiveJournal1 and com-Orkut (keep 7200 for
+   the 5-million-edge graphs and cit-Patents). A store that cannot load 69
+   million edges in an hour is the finding; two hours adds nothing.
+
+Everything else in §9 stands.
