@@ -313,6 +313,25 @@ receipt or manifest, and nothing already published is edited.
 8. **A9 to A11** after that, with a design note first (what "pass" is for
    each gate, which sibling crates are needed, which synthetic datasets).
 
+### 9.3a A third host: `grust` (m-class 2xlarge, 8 vCPU, 31 GiB, 849 GB)
+
+Added 2026-09-06 22:10 UTC. It is crawling Hacker News for six days, at a
+tenth of one core and a load average of 0.1, which makes it the quietest
+host we have. The laptop session drives it over ssh (`grust`); both repos
+are cloned under `~/src`, the S and M datasets are synced, the harness is
+built there. Its role, in order:
+
+1. Full-graph tiers of the slow-loading strain backends (LanceDB, Ladybug
+   with the Arrow bulk load, Surreal and Helix at a 200,000-edge slice),
+   in parallel with the laptop's fast stores, published as its own dated
+   strain bundle with host, load and steal on every row.
+2. Correctness runs of A5, A6, A8 and A12 across all backends as the EC2
+   session lands them, so the EC2 box keeps developing.
+3. If its load stays this low, the LSQB SF0.3 matrix and the native Neo4j
+   SF0.3 rerun move there from the laptop: it meets the 8-CPU envelope
+   natively and is not burstable. Decided after the first strain tiers
+   show its steady load.
+
 ### 9.4 Laptop queue
 
 1. Rebuild the harness at this revision; run the full-graph tiers of the
