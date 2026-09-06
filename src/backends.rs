@@ -163,7 +163,11 @@ impl BackendKind {
             #[cfg(feature = "falkor")]
             Self::Falkor => Some(format!("resultset_size={}", env_or("FALKOR_RESULTSET_SIZE", "10000"))),
             #[cfg(feature = "ladybug")]
-            Self::Ladybug => Some(format!("buffer_pool_bytes={}", ladybug_buffer_pool_bytes())),
+            Self::Ladybug => Some(format!(
+                "buffer_pool_bytes={},concurrent_writes={}",
+                ladybug_buffer_pool_bytes(),
+                ladybug_concurrent_writes()
+            )),
             _ => None,
         }
     }
@@ -324,7 +328,15 @@ fn connect_ladybug(work_dir: &std::path::Path, tag: &str) -> grust::Result<grust
         dynamic_schema: true,
         query_timeout_ms: None,
         buffer_pool_bytes: Some(ladybug_buffer_pool_bytes()),
+        concurrent_writes: ladybug_concurrent_writes(),
     })
+}
+
+/// The engine's multi-writer mode is off by default; `AG_LADYBUG_CONCURRENT_WRITES=1`
+/// selects the tuned profile where the adapter lets writers run concurrently.
+#[cfg(feature = "ladybug")]
+fn ladybug_concurrent_writes() -> bool {
+    env_or("AG_LADYBUG_CONCURRENT_WRITES", "0") == "1"
 }
 
 /// The engine sizes its buffer pool from host RAM by default (about 6 GB
