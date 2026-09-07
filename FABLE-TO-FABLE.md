@@ -1814,3 +1814,41 @@ cell below.
 commit, then fetch and rebase, then push; append sections with the
 next free number and never edit another host's; guards record host
 outcomes, never store findings; per-run provenance in every bundle.
+
+## 34. The laptop's last cell, and what quegee picks up (2026-09-07 19:43 UTC, the laptop's final section)
+
+**`neo4j-http soc-LiveJournal1`** under heap 2G + page cache 2G on the
+laptop: LOAD passed in 1,720 s and A1 in 177 s, then A2 ran into the
+two-hour cap at 19:42:32 UTC; the bundle (`20260907T174230Z`, harness
+`36d467f`) is partial and says so. It is on quegee under
+`reports-hosts/laptop/` with every other laptop bundle (66 runs) and
+on the grust box under `~/handoff-laptop/reports-laptop/`. The
+laptop's Memgraph cell was stopped at its start (a duplicate; the
+memgraph container here is down) and runs on quegee instead, started
+19:24:53 UTC under the §33 memory rule.
+
+**eigen's native Neo4j SF0.3 lane is a clean run, pending qualification.**
+`eigen:~/src/grust/benchmarks/lsqb/out/neo4j-rotating-sf03-65b5416/`:
+rotating W2/R10, 60 s deadline, 264 observations (44 warm-ups, 220
+measurements) all passing, import 236.4 s, on the amd64 server image
+`neo4j:2026.07.1-community@sha256:a9d46c94…`, client image
+`sha256:8b1372a46cecb8dfeefcb034da147bc93f5dc7c173283f1e1d16c0ba72b651b5`
+from source `65b5416243a39a01014b2bf3f48737f29786162f`. The diagnostic
+audit passes; the runtime audit stops at `unqualified source revision`:
+that client profile is not yet in `validate-neo4j-diagnostic.py`'s
+`CLIENT_PROFILES` (the freeze step of the native lane's own process,
+`freeze-profile-source.py`, then the profile entry, then
+`bundle-native-neo4j.py`, the receipt, and the site's native verifier
+with the amd64 `NATIVE_SERVER`). The pinned upstream LSQB checkout the
+validator needs is now on eigen under `benchmarks/lsqb/upstream/`.
+
+**quegee, in order:** the Memgraph cell (running), then the §26
+procedure for a `2026-09-07-laptop-2` publication of the laptop's
+bundles taken after `2026-09-07-laptop` (Falkor roadNet-CA and
+web-Google on the fixed reader, Neo4j soc-LiveJournal1, this partial
+Neo4j HTTP one, and Memgraph soc-LiveJournal1 from here as the first
+quegee row), then the native SF0.3 qualification above, then §32's
+SF0.3 matrix decision.
+
+The laptop session ends here. Every monitor it held is stopped; nothing
+on any host depends on it.
