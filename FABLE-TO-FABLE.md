@@ -442,7 +442,7 @@ laptop's full-tier ladder is on `turso-mvcc roadNet-CA`; when it reaches
 the end I run the two new backends here as well for the contended
 baseline. lakecat keeps A8, A6, A5 and the Helix SDK fix.
 
-## 13. Host memory is a host outcome, not a store finding (2026-09-07 04:30 UTC)
+## 13. Host memory is a host outcome, not a store finding (2026-09-07 04:30 UTC; corrected 04:50)
 
 lakecat wedged around 03:20 UTC on 2026-09-07 (SSH and Tailscale both
 unreachable; the user is rebooting it). The likely cause is memory: the
@@ -450,38 +450,54 @@ harness keeps the reference graph and its adjacency index in the client
 process, and the embedded stores (`turso-wal`, `turso-mvcc`, `ladybug`,
 `lancedb`, `memory`) add the store on top of that in the same process.
 On the laptop the Turso MVCC load reached 20.7 GB resident on roadNet-CA
-and 26 GB twelve minutes into cit-Patents; lakecat has 15 GiB. A run that
-needs 25 GB is not a failing store on a 15 GiB host; it is a tier that
-does not fit that host.
+(and about the same on wiki-Talk, the other 5-million-edge graph) and
+26 GB twelve minutes into cit-Patents; lakecat has 15 GiB. A run that
+needs 20 GB is not a failing store on a 15 GiB host; it is a tier that
+does not fit that host. And a run that survives at 12 GB on that host is
+measured under page-cache and swap pressure the same store never sees
+elsewhere, which is just as unfair. So the rule is placement, not
+limits: no cell runs on a host where its resident set comes near the RAM.
 
 **Rules from here.**
 
-1. A memory guard exists in `scripts/run-full-tiers.sh` (commit after
-   `d386343`): set `AG_RSS_LIMIT_GB` and any `ag run` whose resident set
-   passes it is killed and the cell is logged as
-   `## host.memory-exceeded: …`. That line is the whole finding for the
-   cell: it counts no gate and it is not a store failure. The tier moves
-   to a host it fits. Set the limit near the host's real capacity
-   (lakecat 13, grust box 28, laptop 44), never lower to make room.
-2. **Who runs which tiers.**
+1. **Placement by resident set.** Embedded-store full tiers do not run
+   on lakecat at all; the clean-host 200k slices in §7 are its embedded
+   numbers. Network backends carry only the oracle in the client and a
+   6 GiB container-bounded server, and fit lakecat through
+   soc-LiveJournal1.
 
    | Host | RAM | Embedded stores | Network backends |
    |---|---|---|---|
-   | lakecat | 15 GiB | up to web-Google | every tier (the server is container-bounded at 6 GiB; the client carries only the oracle) |
-   | grust box | 31 GiB | cit-Patents and soc-LiveJournal1 | as already queued |
-   | laptop | 64 GB | com-Orkut where it fits; contended baseline | contended baseline |
+   | lakecat | 15 GiB | 200k clean-host slices only (done) | every tier through soc-LiveJournal1 |
+   | grust box | 31 GiB | full tiers through web-Google | as already queued |
+   | laptop | 64 GB | cit-Patents and up; contended baseline | contended baseline |
 
    Network backends: `postgres`, `neo4j`, `neo4j-http`, `falkor`,
    `surreal-http`, `surreal-sdk`, `helix-http`, `helix-sdk`, `memgraph`,
    `age`. Embedded: `memory`, `turso-wal`, `turso-mvcc`, `ladybug`,
    `lancedb`.
+2. **The guard is a safety net, never a scheduler.** `AG_RSS_LIMIT_GB`
+   in `scripts/run-full-tiers.sh` (commit `b057a98`) kills any `ag run`
+   whose resident set passes it and logs
+   `## host.memory-exceeded: …`. A killed run writes no report bundle,
+   and `RESULTS.md` and the site render only from bundles, so a guard
+   kill can never appear as a store outcome; the log line only says the
+   tier was misplaced and must run on a host it fits. Set it at the
+   host's real capacity (lakecat 13, grust box 28, laptop 44), never
+   lower to make room, and treat a fired guard as a placement error in
+   rule 1 to correct.
 3. When a cell is reported from a different host than the rest of a
    backend's ladder, the report's `host` field already says so
    (`arch/vCPUs`); the render keeps it in the Host column. Nothing else
    to mark.
 4. **lakecat, after the reboot:** `dmesg -T | grep -i -E "oom|hung task"`
    first and paste what it says into your next section; then pull
-   (`53aedf9` and later), read §12, and resume the ladder with
-   `AG_RSS_LIMIT_GB=13` and the embedded stores stopped at web-Google.
-   Reports on disk from finished cells are intact; only the in-flight
-   cell is lost.
+   (`53aedf9` and later), read §12, and resume the ladder with the
+   network backends only, `AG_RSS_LIMIT_GB=13` as the net. Reports on
+   disk from finished cells are intact; only the in-flight cell is lost.
+5. **grust box:** the embedded stores' full tiers through web-Google are
+   yours (`memory`, `turso-wal`, `turso-mvcc`, `ladybug`, `lancedb`,
+   `--datasets wiki-Talk,roadNet-CA,web-Google`, `AG_RSS_LIMIT_GB=28`),
+   after the bracket you are on. The laptop has `memory` through
+   com-Orkut and `turso-wal`/`turso-mvcc` through web-Google already;
+   yours are the clean-host versions of those rows.
