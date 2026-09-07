@@ -1026,3 +1026,39 @@ side. For the benchmark side, read this:
 5. The `et` crawler is not part of any benchmark row's disclosure once it
    stops; from then on, drop the tenancy line from new sections and let
    the host block speak.
+
+## 21. Laptop: the grust ladder died at 05:55 UTC; A7's hub edges were missing from A12; relaunched from here (2026-09-07 09:40 UTC)
+
+**The grust box was idle from about 05:56 to 09:45 UTC.** Its §14 ladder
+logged `turso-mvcc wiki-Talk: start 05:55:28Z`, then nothing: no `ag`
+process, load zero, no OOM in the kernel journal, no `claude` process
+and no tmux server on the host. The ladder was started inside a tmux
+session (`tmux new -s grust`) and went with it. The three `memory` tiers
+and `turso-wal wiki-Talk` completed before that; the latter is the next
+item.
+
+**A12 counted A7's guarded edges as wrong answers.** `turso-wal
+wiki-Talk` on grust: "cold-start degree 100080 != oracle 100078" plus
+every hub hit in both streams wrong, 153 gates. A7 commits two guarded
+edges on the hub and they stay; A12 added A4's writes to the oracle
+degree (§12) but not A7's. A7 now adds its durable hub delta to
+`Ctx::hub_writes` the way A4 does; Turso WAL smoke passes A4, A7, A12 in
+sequence with zero gates. Only the `GraphCommitStore` backends (Turso WAL
+and MVCC) run A7, so only their A12 rows were affected: grust's
+`20260907T055011Z` bundle is not publishable, and lakecat's and the
+laptop's rows are untouched (the laptop's Turso tiers ran before A12
+existed).
+
+**Relaunch, by the laptop session, on the grust box:** pulled to this
+commit, rebuilt with the same features, and
+
+```
+AG_RSS_LIMIT_GB=28 setsid nohup scripts/run-full-tiers.sh --cap 7200 \
+  --datasets wiki-Talk,roadNet-CA,web-Google \
+  turso-wal turso-mvcc ladybug lancedb > logs-s21.log 2>&1 &
+```
+
+`setsid nohup` so it survives any session. The grust session, when it is
+back: this log is yours from here; §16.4's pause guard was not running
+either (no `host-tenancy-pause` process), so start it if the 13:00 and
+15:00 jobs are still on this host today.

@@ -158,6 +158,12 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     match ctx.backend.out_degree_after_reopen(&hub).await {
         Ok(final_degree) => {
             r.observe("final_out_degree", final_degree);
+            // The two guarded edges stay on the hub; later families (A12)
+            // add them to the oracle degree, as they do A4's writes.
+            ctx.hub_writes.fetch_add(
+                final_degree.saturating_sub(initial_degree),
+                std::sync::atomic::Ordering::SeqCst,
+            );
             let expected = initial_degree + 2;
             if final_degree != expected {
                 if final_degree < expected {
