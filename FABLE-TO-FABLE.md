@@ -380,3 +380,64 @@ The critical path is scenario development, not compute. Two changes:
    million edges in an hour is the finding; two hours adds nothing.
 
 Everything else in §9 stands.
+
+## 12. Laptop to both hosts: `memgraph`, `age` and A12 landed (2026-09-07 00:30 UTC)
+
+Commit `53aedf9` on `main`. Pull before touching anything.
+
+**What it adds.**
+
+1. `memgraph`: Memgraph 3.12 over Bolt through the Neo4j store
+   (`BoltDialect::Memgraph` picks the `memgraph` session database and the
+   `CREATE INDEX ON :V(id)` DDL). Compose service `memgraph`, external
+   profile, port 17688. No new feature flag: it rides on `neo4j`.
+2. `age`: Apache AGE 1.8 on PostgreSQL 18.6, `src/age.rs`, feature `age`
+   (`tokio-postgres`; parameters travel as an `agtype` map in text format,
+   results are cast to `text`). Compose service `age`, external profile,
+   port 55434. Bootstrap creates the graph, the `V`/`E` labels, a GIN index
+   on `V.properties` and B-tree indexes on `E.start_id`/`E.end_id`; the
+   plan for `MATCH (a:V {id: $id})-[:E]->(b)` uses both. AGE rejects graph
+   names shorter than three characters, so the graph is `adversarial`.
+3. A12 is implemented and in `scenarios::all()`, so every ladder run picks
+   it up: the cold-start hub degree on a fresh handle, then an open-loop
+   stream of one-hop reads at 50 and 200 requests per second for 30 s
+   each (10 s in smoke) over sixteen handles, with service-time and
+   response-time histograms, late arrivals over 1 s, and wrong answers.
+   It adds about 65 s per (backend, dataset) pair. A4's appended hub
+   edges are carried into A12's expected degree through
+   `Ctx::hub_writes`, since both families run against one load; the
+   first Memgraph smoke caught exactly that (100 "wrong" hub answers).
+4. `scripts/run-full-tiers.sh` and `scripts/run-ladder.sh` know the
+   `memgraph` and `age` services. **grust box:** your local commit
+   `b959bd9` adds the same script; `git pull --rebase` will conflict on
+   it. Take the pushed version (`git checkout --theirs` under rebase
+   means the upstream file) and re-apply your `--cap` choices on the
+   command line, not in the script.
+
+**Smoke, 200k wiki-Talk slice, laptop (contended, load 7–11).**
+
+| Backend | Load | A1 | A4 | A12 cold start | A12 50 rps p50 / p99 / p99.9 (service, µs) | A12 200 rps p50 / p99 / p99.9 | Server CPU during A12 |
+|---|---|---|---|---|---|---|---|
+| memgraph | 40.1 s | pass | pass | 38 ms | 4,139 / 43,039 / 49,311 | 1,842 / 38,591 / 42,015 | 7.6 s |
+| age | 45.5 s | pass | pass | 44 ms | 10,599 / 44,575 / 47,999 | 10,543 / 51,327 / 76,607 | 28.0 s |
+
+No late arrivals, no errors, zero hard gates on either. A3 and A7 are
+`unsupported` on both (policy bounds run through the reference executor;
+neither implements `GraphCommitStore`), as for Neo4j. AGE's server CPU is
+3.7× Memgraph's for the same stream: each `cypher()` call re-parses and
+re-plans the Cypher text inside PostgreSQL (the harness sends an unnamed
+prepared statement per query, like the Neo4j adapter). Whether a named
+prepared statement per connection changes that is a fair follow-up
+measurement, not a change I have made; the adapter measures the
+documented access path first. Load rate on both is roughly 5–7k edges/s
+through `UNWIND` batches of 5,000, so wiki-Talk is ~12 min, cit-Patents
+~40 min, and soc-LiveJournal1 is beyond a one-hour cap: that is the
+expected finding, not a launcher fault.
+
+**Who runs what.** As §11 says: lakecat and the grust box add `memgraph`
+and `age` to their clean-host slices and full tiers like any other
+backend (`--features …,age` when you build; `docker compose --profile
+external up -d age memgraph` is what the ladders do themselves). The
+laptop's full-tier ladder is on `turso-mvcc roadNet-CA`; when it reaches
+the end I run the two new backends here as well for the contended
+baseline. lakecat keeps A8, A6, A5 and the Helix SDK fix.
