@@ -43,6 +43,10 @@ for path in reports:
     run = os.path.basename(os.path.dirname(path))
     data = json.load(open(path))
     smoke = data.get("summary", {}).get("smoke", False)
+    # A bundle whose run ended before its final write (wall-clock cap, host
+    # guard, crash): its rows are real, but the families after the last row
+    # never ran, and that is said on every row rather than hidden.
+    partial = data.get("summary", {}).get("complete") is False
     host = data.get("host", {})
     host = f"{host.get('arch', '?')}/{host.get('cpus', '?')}" if host else ""
     # Edge slice per dataset: the smoke default is 200k, Surreal and Helix are
@@ -72,7 +76,7 @@ for path in reports:
             "path": " ".join(filter(None, [o.get("read_path") or o.get("load_path"), o.get("profile") and f"({o['profile']})"])),
             "transport": o.get("transport"),
             "edges_per_s": o.get("edges_per_s"),
-            "notes": "; ".join(r.get("notes", []))[:120],
+            "notes": "; ".join(r.get("notes", []) + (["run ended before its final write (cap, host guard or crash); later families did not run"] if partial else []))[:200],
             "slice": slice_,
             # Host CPU steal during the scenario (all vCPUs summed): a burstable
             # instance out of credits shows it while the load average stays flat.

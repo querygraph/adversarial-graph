@@ -817,3 +817,62 @@ On §16.5: agreed, and nothing to change. The available-memory floor is
 set only here, where there is no co-tenant, and it is the right net for
 the failure this host actually had; the grust box runs on the RSS limit
 alone. `scripts/host-tenancy-pause.sh` is not run on lakecat.
+
+## 19. Laptop review of §15–§18, and four harness fixes they surfaced (2026-09-07 06:40 UTC)
+
+Read all of §15–§18; the facts hold and the placements agree. Four things
+to correct or add, all pushed in this commit (`cargo build` at the
+features `postgres,surreal,falkor,lancedb,neo4j,helix,ladybug,age`; Falkor
+smoke on the 200k slice passes A12 with zero errors at 200 rps).
+
+1. **§16.3 is wrong that a capped run emits no rows.** The harness has
+   persisted after every scenario since the M1 runs: `results.jsonl`
+   gets the row and `report.json` is rewritten through a temp file. A
+   cell capped inside a later family keeps its earlier rows (the
+   laptop's `postgres soc-LiveJournal1` bundle has LOAD and A1; A2 hit
+   the cap). Only a cell capped inside LOAD has no bundle. Two fixes on
+   top: `report.json` lagged one row behind `results.jsonl` (the
+   persist ran before the push), corrected; and `summary.complete` is
+   now `false` on every intermediate write and `true` only on the final
+   one, so a partial bundle says so. `render-results.py` appends "run
+   ended before its final write (cap, host guard or crash); later
+   families did not run" to every row of such a bundle. Publish partial
+   bundles; never hide them.
+2. **The ladder stopped climbing on a hard gate, which is a finding,
+   not a fault.** `ag run` exits 1 when any gate fails, and the script
+   treated every non-zero exit as "cap or crash" and broke out of the
+   tiers. On the laptop `falkor wiki-Talk` completed with the known
+   `RESULTSET_SIZE` truncation on A1 and the ladder skipped the four
+   larger tiers. The decision now reads the harness's `== report:`
+   completion marker from the pair's own output: a complete bundle,
+   whatever its gates, continues to the next tier; only a run that
+   never reached its final write stops the climb. **lakecat: pull
+   before `falkor`**, whose default profile trips A1 on every tier's
+   hub, and before any backend that might fail a gate.
+3. **A12 on FalkorDB reported "pass" with every request errored.**
+   Falkor's `GraphStore` has no read path (reads are `Unsupported`; A1
+   and A4 go through the native Cypher reader), and the stream used the
+   store handles. It now uses the reader as A1 does, one `GRAPH.RO_QUERY`
+   per request on a fresh connection, the same `harness-native-cypher`
+   path; and a stream whose every error is `Unsupported` is reported
+   `unsupported`, not `pass`. Smoke: 50 rps p50/p99 3.6/9.7 ms, 200 rps
+   1.7/6.3 ms, achieved 200.0, zero errors. Runs of A12 on Falkor before
+   this commit are not publishable.
+4. **§16.4's pause guard, two consequences that need a rule, not a
+   note.** (a) A `SIGSTOP` mid-request lands inside A12's service-time
+   histogram and A4's write latencies, not just the wall clock, so any
+   pair whose span overlaps a line in `reports/host-pauses.txt` is
+   rerun, not only the ones that also hit the cap. (b) §16.5 is right
+   that a stopped process keeps its resident set, and that cuts the
+   other way too: a paused 20 GB `turso-mvcc` load plus the 20 GB
+   export exceeds the 31 GiB host, which is the lakecat failure mode.
+   Either the embedded pairs are scheduled clear of 13:00 and 15:00
+   UTC, or the guard kills instead of pausing when the running pair's
+   resident set plus 20 GB exceeds the host, and the ladder reruns the
+   pair. Kill-and-rerun costs at most one two-hour cell; a wedge costs
+   the host.
+
+Laptop state: ladder on `lancedb wiki-Talk`; a follow-up starts when it
+exits with `neo4j` (cit-Patents, soc-LiveJournal1), `falkor` (the four
+skipped tiers), then `neo4j-http`, `memgraph`, `age` on all five, under
+`AG_RSS_LIMIT_GB=44`.

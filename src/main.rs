@@ -163,6 +163,10 @@ async fn run(root: &Path, args: &Args) {
             let _ = writeln!(f, "{line}");
         }
         report.finalize();
+        // A bundle written here is a partial one: a cap, a kill or a crash
+        // can end the run before the final write flips this to true, and
+        // the renderer marks such rows as "run ended after this row".
+        report.summary.insert("complete".into(), false.into());
         let tmp = report_path.with_extension("json.tmp");
         if std::fs::write(&tmp, serde_json::to_string_pretty(report).expect("json")).is_ok() {
             let _ = std::fs::rename(&tmp, &report_path);
@@ -246,8 +250,8 @@ async fn run(root: &Path, args: &Args) {
                     result.gates.oom_or_crash += 1;
                     result.notes.push(format!("open failed: {e}"));
                     result.finish();
+                    report.push(result.clone());
                     persist(&mut report, &result);
-                    report.push(result);
                     continue;
                 }
             };
@@ -299,8 +303,8 @@ async fn run(root: &Path, args: &Args) {
                     .cloned()
                     .unwrap_or_default()
             );
+            report.push(load_result.clone());
             persist(&mut report, &load_result);
-            report.push(load_result);
             if load_failed {
                 continue;
             }
@@ -345,13 +349,14 @@ async fn run(root: &Path, args: &Args) {
                         .unwrap_or_default(),
                     result.notes.join(" | ")
                 );
+                report.push(result.clone());
                 persist(&mut report, &result);
-                report.push(result);
             }
         }
     }
     report.finalize();
     let path = report_path.clone();
+    report.summary.insert("complete".into(), true.into());
     std::fs::write(&path, serde_json::to_string_pretty(&report).expect("json"))
         .expect("write report");
     let _ = std::fs::remove_dir_all(&work_dir);

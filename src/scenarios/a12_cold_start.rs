@@ -89,7 +89,14 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         }
     }
     let handles = Arc::new(handles);
+    // FalkorDB's `GraphStore` has no read path; its reads go through the
+    // native Cypher reader, as A1 and A4 do (`read_path =
+    // harness-native-cypher`), one `GRAPH.RO_QUERY` per request.
+    #[cfg(feature = "falkor")]
+    let falkor = ctx.backend.falkor.clone();
     let mut merged_service = histogram();
+    let mut total_errors = 0u64;
+    let mut total_unsupported = 0u64;
     for rate in RATES {
         let interval = Duration::from_nanos(1_000_000_000 / rate);
         let semaphore = Arc::new(Semaphore::new(HANDLES));
@@ -116,18 +123,36 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             let in_flight = HANDLES - semaphore.available_permits();
             in_flight_max = in_flight_max.max(in_flight);
             let store = handles[(sent as usize) % HANDLES].clone();
+            #[cfg(feature = "falkor")]
+            let reader = falkor.clone();
             sent += 1;
             tasks.push(tokio::spawn(async move {
                 let queued = scheduled.elapsed();
                 let t = Instant::now();
-                let got = store
-                    .get_edges(grust::EdgeQuery {
-                        from: Some(vertex),
-                        to: None,
-                        label: Some(crate::dataset::EDGE_LABEL.into()),
-                    })
-                    .await
-                    .map(|e| e.len());
+                let query = grust::EdgeQuery {
+                    from: Some(vertex.clone()),
+                    to: None,
+                    label: Some(crate::dataset::EDGE_LABEL.into()),
+                };
+                #[cfg(feature = "falkor")]
+                let got = match reader {
+                    Some(reader) => {
+                        let id = vertex.as_str().to_string();
+                        tokio::task::spawn_blocking(move || {
+                            reader.out_degree(
+                                crate::dataset::NODE_LABEL,
+                                crate::dataset::EDGE_LABEL,
+                                &id,
+                            )
+                        })
+                        .await
+                        .map_err(|e| grust::GrustError::Backend(e.to_string()))
+                        .and_then(|r| r)
+                    }
+                    None => store.get_edges(query).await.map(|e| e.len()),
+                };
+                #[cfg(not(feature = "falkor"))]
+                let got = store.get_edges(query).await.map(|e| e.len());
                 drop(permit);
                 (queued, t.elapsed(), got, expected)
             }));
@@ -136,6 +161,7 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         let mut response = histogram();
         let mut wrong = 0u64;
         let mut errors = 0u64;
+        let mut unsupported = 0u64;
         let mut late = 0u64;
         for task in tasks {
             match task.await {
@@ -148,6 +174,10 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                     match got {
                         Ok(n) if n == expected => {}
                         Ok(_) => wrong += 1,
+                        Err(e) if crate::backends::Backend::is_unsupported(&e) => {
+                            unsupported += 1;
+                            errors += 1;
+                        }
                         Err(_) => errors += 1,
                     }
                 }
@@ -185,7 +215,16 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                 "{errors} errored requests in the {rate} rps stream"
             ));
         }
+        total_errors += errors;
+        total_unsupported += unsupported;
     }
     r.latency = Some(Latency::from_histogram(&merged_service));
+    if total_errors > 0 && total_unsupported == total_errors {
+        // Every request was refused as unsupported: the stream measured
+        // nothing, and that is not a pass.
+        r.unsupported(
+            "backend cannot serve one-hop reads through this path; the stream measured nothing",
+        );
+    }
     r
 }

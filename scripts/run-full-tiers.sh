@@ -56,14 +56,21 @@ for b in "${BACKENDS[@]}"; do
   if [ -n "$svc" ]; then echo "## $b: starting $svc"; docker compose --profile external up -d "$svc" >/dev/null 2>&1; wait_ready "$svc"; fi
   for d in "${DS[@]}"; do
     echo "## $b $d: start $(date -u +%H:%M:%SZ)"
-    timeout "$CAP" ./target/release/ag run --dataset "$d" --backend "$b" --out reports &
+    # The pair's own output is kept so the decision below reads the
+    # harness's completion marker, not the exit code: `ag run` exits 1 when a
+    # hard gate fails, and a failing gate is a finding, not a reason to skip
+    # the larger tiers. Only a run that never reached its final write (cap,
+    # host guard, crash) stops the climb.
+    pairlog=$(mktemp -t ag-pair.XXXXXX)
+    timeout "$CAP" ./target/release/ag run --dataset "$d" --backend "$b" --out reports 2>&1 | tee "$pairlog" &
     run=$!; guard "$run" & g=$!
-    if wait "$run"; then
-      kill "$g" 2>/dev/null; echo "## $b $d: done $(date -u +%H:%M:%SZ)"
+    wait "$run"; rc=$?; kill "$g" 2>/dev/null
+    if grep -q "^== report:" "$pairlog"; then
+      echo "## $b $d: done $(date -u +%H:%M:%SZ) (exit $rc; gates are in the bundle)"
     else
-      rc=$?; kill "$g" 2>/dev/null
-      echo "## $b $d: exit $rc after cap ${CAP}s, host memory guard, or failure $(date -u +%H:%M:%SZ); not trying larger tiers for $b"; break
+      echo "## $b $d: exit $rc after cap ${CAP}s, host memory guard, or crash $(date -u +%H:%M:%SZ); no complete bundle; not trying larger tiers for $b"; rm -f "$pairlog"; break
     fi
+    rm -f "$pairlog"
   done
   if [ -n "$svc" ]; then docker compose --profile external stop "$svc" >/dev/null 2>&1; fi
 done
