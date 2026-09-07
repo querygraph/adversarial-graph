@@ -1852,3 +1852,81 @@ SF0.3 matrix decision.
 
 The laptop session ends here. Every monitor it held is stopped; nothing
 on any host depends on it.
+
+## 35. quegee takes the taskmaster's seat: the native SF0.3 lane is admitted, the laptop's last four runs are published, Memgraph's 69 M-edge load is a row (2026-09-07 20:35 UTC)
+
+The successor session runs on **quegee** and this is its first section.
+Two corrections to §33's description of the host, from `/proc` here: the
+instance reports 40 GB of RAM *and* 16 GiB of swap (`swap_total_bytes`
+17179865088 in every bundle taken here), so "no swap" is not true of
+this box. The guard is unchanged and still right: `AG_RSS_LIMIT_GB=30`
+with `AG_MEM_AVAILABLE_MIN_GB=2`, because a client that reaches into
+swap is measuring the pager, not the store. The hostname string is
+`grust` (the box was cloned from that host's image); `ssh grust` from
+here still reaches 172.31.35.136, which is the other machine.
+
+**`memgraph soc-LiveJournal1` is a row, not a placement outcome**
+(`20260907T192453Z`, harness `7472e62`, clean). The load of 68,993,773
+edges ended after 2,485 s with `Memory limit exceeded! Current use is
+5.00GiB, while the maximum allowed size for allocation is set to
+5.00GiB` — the `--memory-limit 5120` of §23, inside the 6 GiB container
+budget every backend gets. That is the store under the declared budget,
+so it is a `fail` with the `oom_or_crash` gate, and it stays a failing
+row. The client peaked at 29.6 GB resident, just under the guard, and
+neither limit fired.
+
+**The native Neo4j SF0.3 lane is admitted** (site `c3c7cdb`,
+`/graph/#lsqb`, publication `2026-09-07/native-neo4j/sf0.3`). eigen's
+run of §32/§34 was complete but unqualified; the freeze step of the
+lane's own process (`freeze-profile-source.py` on eigen's clean
+worktree at `65b5416`: 369 allowlisted inputs, aggregate
+`71ac2df3…`) produced the evidence for the profile entry, and grust
+`b239071` records the revision → client-image pair, its sampling
+capability and its rotating schedule. The runtime and matched-sampling
+audits then pass: 44 warm-ups, 220 measurements, no mismatch, timeout
+or error; import 236.4 s; q4 median 6.597 s, reversed-chain 10.523 s.
+Site admission needed three verifier changes, each keeping what it
+replaced bound: the source/client pin became a profile table (a bundle
+is admitted only for the exact pair its invocation names); both
+platform images of the one pinned index are trusted, and a run must
+have used one of them throughout; and the retained internal-network
+record joined the payload inventory, required at scale 0.3. Compose 5
+stamps its project, service and version into the built image as well as
+the run container, and the build project is not the run project, so the
+label comparison now binds every provenance label and drops that
+namespace — the container's project and service stay bound to the
+watchdog that owned the cell. **The SF0.3 row is not one series with
+the example and SF0.1 rows**: those ran on the arm64 image of the
+pinned tag, this one on amd64, and the page says so.
+
+**`2026-09-07-laptop-2` is published** (site `d104cfd`): the four runs
+the laptop took after its first publication — FalkorDB on roadNet-CA
+and web-Google with the §22 reader, FalkorDB's soc-LiveJournal1 load
+(2,754 s, then `unexpected end of file` from the server: a hard gate,
+a failing row), and the partial `neo4j-http soc-LiveJournal1` whose A2
+met the two-hour cap. 17 cells, hard-gate total 1. A publication name
+may now carry a sequence suffix, so one host can publish twice on one
+date without either bundle being regenerated.
+
+**A mistake worth recording.** Rebuilding the harness here with
+`cargo build --release --bin ag` and no `--features` produced a binary
+with only the embedded backends; the `age` and `postgres` cells that
+followed said `unknown backend age` and wrote empty bundles. They are
+not rows and are not in `reports/` (they are under
+`~/discarded-no-backend-build/`). The harness on any host must be built
+the way `scripts/bootstrap-host.sh` builds it:
+`cargo build --release --features postgres,surreal,falkor,lancedb,neo4j,helix,ladybug,age`.
+`./target/release/ag backends` lists fifteen when it is right.
+
+**Running here now**: `age soc-LiveJournal1` from 20:19:59 UTC, then
+`postgres` (`~/logs/ladder-age-pg-soclj-2.log`, cap 7200 s each, the
+§33 guard). Both are expected to meet the cap inside A2, as they did at
+web-Google; the LOAD and A1 rows still count. quegee's own publication
+(`2026-09-07-quegee`) waits for them, so the Memgraph row and these go
+up together.
+
+**Next, in order**: §32's SF0.3 matrix decision (option 1, the declared
+`backend.memory-exceeded` cell termination, is the one that changes no
+plan and leaves the other ten backends measured) and its rerun on eigen
+inside the windows; lakecat's §26 reruns; then the rest of
+`HANDOFF-SUCCESSOR.md`.
