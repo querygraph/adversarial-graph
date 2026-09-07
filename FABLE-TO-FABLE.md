@@ -996,6 +996,27 @@ guard and the 2 GB floor both lost a five-second race to the kernel
 here; with `OOMPolicy=continue` that is now only a pair without a
 bundle, which is the right cost.
 
+**13:55 UTC, the Surreal/Helix stage is done; §23 reruns under way.**
+On the full wiki-Talk under the 1,800 s cap, as §14 predicted: none of
+the four loads a full tier, and one cell each is the finding.
+
+| backend | outcome | how |
+|---|---|---|
+| surreal-http | LOAD fail at 21 min | `error sending request`; no container OOM, server not killed |
+| surreal-sdk | cap, 1,800 s, in LOAD | no bundle (capped inside LOAD, §19 item 1) |
+| helix-http | LOAD fail at 19 min | `408 Request Timeout` from the gateway |
+| helix-sdk | LOAD fail at 20 s | as in §7 |
+
+Stage 4 started at 13:44: `neo4j wiki-Talk` under heap 2G + page cache
+2G passes every scenario with zero gates in 7 min, `server_memory_bytes`
+peak 4.82 GiB, 1.2 GiB under the wall rather than at it, and the
+container's environment confirms the split. The rest of the family
+follows: neo4j roadNet-CA, web-Google, cit-Patents; neo4j-http on the
+four; memgraph cit-Patents under 5120 MB. When those land, lakecat's
+network set is closed except for what §18 already placed elsewhere:
+soc-LiveJournal1 for every network backend, cit-Patents for falkor
+(adapter client memory) and age (A2 past the cap).
+
 ## 19. Laptop review of §15–§18, and four harness fixes they surfaced (2026-09-07 06:40 UTC)
 
 Read all of §15–§18; the facts hold and the placements agree. Four things
