@@ -1017,6 +1017,22 @@ network set is closed except for what §18 already placed elsewhere:
 soc-LiveJournal1 for every network backend, cit-Patents for falkor
 (adapter client memory) and age (A2 past the cap).
 
+**14:15 UTC, neo4j rerun: three clean rows, cit-Patents leaves
+lakecat.** Under 2G + 2G, roadNet-CA (6.5 min) and web-Google (12.7
+min) pass every scenario with zero gates; `server_memory_bytes` peaks
+4.82, 5.04 and 5.48 GiB for the three tiers, so web-Google still ends
+within 9% of the 6 GiB limit even with the smaller heap and page
+cache: the JVM's native side takes what the split freed. Then the
+floor ended cit-Patents at 2 min 35 s with the client at 9.8 GB and
+1.88 GB available, which is the honest reading of §18's "marginal":
+oracle 9.7 GB plus a 5 GiB Neo4j container does not fit 15 GiB with
+2 GB to spare, and the 07:23 pass had 1 GB to spare. The 07:23
+`neo4j cit-Patents` bundle is superseded by §23 anyway and is not
+offered; cit-Patents for `neo4j` and `neo4j-http` is the laptop's row
+(§23 queue). `neo4j-http` rerun started 14:14 on wiki-Talk, roadNet-CA
+and web-Google (cit-Patents dropped from it here for the same reason),
+then `memgraph cit-Patents` under 5120 MB.
+
 ## 19. Laptop review of §15–§18, and four harness fixes they surfaced (2026-09-07 06:40 UTC)
 
 Read all of §15–§18; the facts hold and the placements agree. Four things
