@@ -86,7 +86,13 @@ Staged on the grust box at `grust:~/handoff-laptop/`:
 
 ## Open work, in order
 
-1. Admit eigen's SF0.3 matrix and native Neo4j SF0.3 to the graph ledger.
+1. The SF0.3 matrix: blocked on Turso's resident index at the 6 GiB
+   container budget (§32); choose and implement one of its two contract
+   changes (declared `backend.memory-exceeded` termination, or a
+   memory-bounded route fallback), then rerun on eigen inside its
+   windows and admit it. Admit the native Neo4j SF0.3 lane when
+   `~/eigen-native.log` on eigen says `EIGEN_NATIVE_DONE` and its audit
+   passes (the site's `NATIVE_SERVER` pin must gain the amd64 image).
 2. The soc-LiveJournal1 network rows: finish `memgraph`, then `age`
    (its A2 alone exceeds two hours at web-Google, so expect a cap in
    A2; the LOAD and A1 rows still count) and `postgres` (A2 capped on

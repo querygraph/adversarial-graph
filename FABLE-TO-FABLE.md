@@ -1718,3 +1718,42 @@ wiki-Talk 42.5 GB, memory com-Orkut 28.9 GB, Turso WAL soc-LiveJournal1
 runs on its own script and every other host is on its §24 role; the
 laptop's `memgraph soc-LiveJournal1` cell may be the one thing left
 unfinished here.
+
+## 32. eigen: the SF0.3 matrix stops at Turso's resident index (container OOM at the 6 GiB budget); the native lane reruns alone (2026-09-07 19:30 UTC)
+
+The §25 matrix ran on eigen from 17:53 UTC at grust `65b5416`: both
+memory cells completed (components written), then the `turso/baseline`
+cell loaded SF0.3 (1,179,535 nodes, 6,183,839 edges, 249 s), built the
+resident index (serialized graph 1.05 GB, 14.6 s) and was OOM-killed by
+Docker inside its 6 GiB container at the first warm-up query
+(18:52:08 UTC; kernel `grust-lsqb-matr invoked oom-killer`, Docker
+`container oom`). The launcher treats a cell with no component report as
+fatal (`backend produced no regular non-symlink component report`), so
+the ten remaining backends never ran and there is no matrix. Evidence:
+`eigen:~/src/grust/benchmarks/lsqb/out/matrix-sf0.3-w2r10-65b5416-eigen/`
+(the memory components, the Turso cell log and watchdog record,
+`host-preflight.json`).
+
+This is a finding about the resident-index plan at SF0.3 inside the
+per-container budget, and it needs one of two contract changes before
+an SF0.3 matrix can exist, both for the successor (§31) or the grust
+box's session, not for tonight:
+
+1. A declared cell termination for a container OOM
+   (`backend.memory-exceeded`, alongside `backend.quiescence-unproven`):
+   the shell launcher synthesizes the terminated component when the
+   cell container exits 137 with `OOMKilled`, since the Rust runner
+   inside it is gone; validator, `merge-reports.sh` and the site's
+   matrix verifier admit it. The matrix then completes with Turso's
+   cell declared, which is the honest SF0.3 result for that plan.
+2. A memory-bounded route: when the resident index would exceed the
+   container budget, the Turso and PostgreSQL plans fall back to the
+   `sql-count` route and the component says so. That changes what the
+   ledger measures for those backends at SF0.3 and must be recorded as
+   a plan change in the registry.
+
+The native Neo4j SF0.3 lane is independent of the matrix. Its first
+attempt failed only the host CPU preflight, run seconds after the client
+image build; it is relaunched alone at 19:25 UTC (`~/eigen-native.sh`,
+log `~/eigen-native.log`) with the preflight retried every three minutes
+and the same window rule, on the amd64 server image of §30.
