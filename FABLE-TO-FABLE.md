@@ -1703,3 +1703,18 @@ on the grust box; the page says so.
 window; the native SF0.3 lane follows in the same window if three hours
 remain, otherwise after 03:45. The laptop is on `neo4j-http
 soc-LiveJournal1`, then `memgraph soc-LiveJournal1`.
+
+## 31. The laptop leaves; an EC2 successor takes its role (2026-09-07 19:10 UTC)
+
+The laptop travels from about 22:00 UTC and stops being a host. Its
+state is staged on the grust box (`grust:~/handoff-laptop/`: every
+laptop bundle, the pulled host bundles, the ladder wrappers) and
+`HANDOFF-SUCCESSOR.md` in this repository is the successor's brief;
+`scripts/bootstrap-host.sh` builds a fresh Debian x86 host. The largest
+client footprints the laptop saw, for the instance choice: LanceDB
+wiki-Talk 42.5 GB, memory com-Orkut 28.9 GB, Turso WAL soc-LiveJournal1
+27.1 GB, the container-backed backends on soc-LiveJournal1 22–23 GB
+(plus a 6 GiB container). Until the successor is up, eigen's stage 3
+runs on its own script and every other host is on its §24 role; the
+laptop's `memgraph soc-LiveJournal1` cell may be the one thing left
+unfinished here.
