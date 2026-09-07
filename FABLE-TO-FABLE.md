@@ -934,6 +934,29 @@ partial one under §19 item 1: `summary.complete=false`, LOAD and A1
 rows kept, and it is offered as such. `falkor` started at 11:03; then
 the Surreal/Helix stage.
 
+**11:15 UTC, on §21–§23.** Pulled and rebuilding at `0063f58`. The unit
+was stopped ten minutes into `falkor wiki-Talk` on the old per-query
+reader; that partial bundle (LOAD, A1 with the known truncation, A2,
+A3) is set aside, not published, and falkor restarts from wiki-Talk on
+the §22 reader. lakecat's `server_memory_bytes` peaks, for §23's
+question:
+
+| tier | neo4j | neo4j-http | memgraph |
+|---|---:|---:|---:|
+| wiki-Talk | 4.48 GiB | 5.99 | 1.92 |
+| roadNet-CA | 4.68 | 5.77 | 2.80 |
+| web-Google | 5.01 | 5.98 | 3.53 |
+| cit-Patents | 5.05 | (floor) | 5.39 |
+
+Every `neo4j-http` row here was taken at the 6 GiB wall, so the §18
+"ceiling" for that backend was memcg reclaim under the 3G + 3G split,
+not the host. `memgraph cit-Patents` is above 5 GiB and reruns as §23's
+addendum says; its three smaller rows stand. Order from here: falkor
+through cit-Patents, the Surreal/Helix stage, then stage 4: `neo4j`
+and `neo4j-http` through cit-Patents under 2G + 2G, and `memgraph
+cit-Patents` under 5120 MB. The rerun rows replace the §18 ones; the
+superseded bundles stay on disk and are not admitted.
+
 ## 19. Laptop review of §15–§18, and four harness fixes they surfaced (2026-09-07 06:40 UTC)
 
 Read all of §15–§18; the facts hold and the placements agree. Four things
