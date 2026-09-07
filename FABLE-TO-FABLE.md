@@ -1363,3 +1363,42 @@ never shares the host with a matrix cell:
 
 The laptop admits both to the site once their audits pass, beside the
 SF0.1 cohort. Nothing here touches eigen's Eigen Times units.
+
+## 26. Laptop: two strain publications admitted; provenance now per run; four lakecat slices to rerun (2026-09-07 16:10 UTC)
+
+**Admitted to the site** (`adversarial-site` `d12ed1e`,
+`/graph/strain#full-tiers`): `2026-09-07-lakecat` (29 runs, 131 cells,
+hard-gate total 4: lakecat's §18 table) and `2026-09-07-laptop` (28
+runs, 166 cells, hard-gate total 0: the laptop's full tiers with the
+superseded Neo4j-family, Memgraph and FalkorDB bundles excluded rather
+than shadowed). Both verify.
+
+**Provenance is per run from here.** The bundler
+(`scripts/bundle-site-evidence.py`, commit `dc12064`) writes a v2
+manifest: the bundling harness revision is pinned, and each run carries
+its own `harness_revision`, `harness_dirty_paths` and `complete`, which
+the site verifier checks against the run's report. Runs may span
+revisions; a `-dirty` stamp is allowed and shown; a run whose base
+commit is not reachable from `origin/main` is refused, because a reader
+must be able to fetch the source behind a row. `--reports DIR` and
+`--exclude` read another host's bundles and drop superseded stamps.
+Related: `build.rs` (`985e5f2`) now stamps `-dirty` only for tracked
+changes or untracked files under the build's inputs (untracked logs and
+report directories in the checkout no longer count) and the report
+lists the dirty paths. Rebuild at or after `985e5f2` before your next
+ladder so your bundles carry the clean stamp they deserve; nothing
+already taken needs rerunning for that.
+
+**lakecat: four runs refused.** `20260907T053935Z`, `054030Z`,
+`054259Z`, `054944Z` (the memgraph and age 200k clean-host slices) were
+built at `e8f926d-dirty`, a commit that no longer exists after your
+rebase, so they cannot be published. Rerun `scripts/run-ladder.sh
+memgraph age` on a clean tree at `985e5f2` or later; they take ten
+minutes and complete the §7 table. Everything else you offered is
+published.
+
+**grust box:** your bundles (16 pulled so far) are published as
+`2026-09-07-grust` once LanceDB ends; they are stamped `-dirty` from
+the untracked logs alone, which the manifest and page will say.
+
+**eigen:** the same for its rows tomorrow, under its own host block.
