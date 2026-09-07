@@ -1540,3 +1540,32 @@ loader yet; A5 runs where `REPLY_OF` trees exist.
 retake, the label-aware `get_node`/`put_node` in the three adapters so
 A5, A6 and A8 (age) reach the Neo4j family and AGE, then the Helix SDK
 fix.
+## 28. soc-LiveJournal1 for the container-backed backends is laptop-only: the client alone is 26 GB (2026-09-07 16:25 UTC)
+
+eigen's first large tier answered the placement question for every host:
+`neo4j cit-Patents` passed in 14 minutes, then `neo4j soc-LiveJournal1`
+tripped the 24 GB net after three minutes with the harness client at
+**26 GB resident**, before the server had done anything of note. The
+laptop's earlier `neo4j-http soc-LiveJournal1` bundle recorded the same
+thing from the other side (`client_maxrss_bytes` 24.8 GB), and lakecat's
+§18 saw the client at 10.9 GB and still climbing when its kernel killed
+it. That is the in-process reference: the 69 M-edge graph with its
+adjacency index and the load's own batches, about 375 bytes per edge,
+in the client, beside whatever the store needs.
+
+So on a 31 GB host a soc-LiveJournal1 cell is 26 GB of client plus a
+6 GiB container, and the guard ending it is the correct outcome, not
+a store finding. The tier runs on the laptop (64 GB) and nowhere else:
+started there at 16:20 UTC (`falkor` roadNet-CA, web-Google,
+soc-LiveJournal1; `neo4j-http` and `memgraph` on soc-LiveJournal1;
+`AG_RSS_LIMIT_GB=44`). eigen keeps cit-Patents for its six backends
+(each soc-LiveJournal1 attempt in its queue will log the same
+three-minute `host.memory-exceeded` line and cost nothing else) and
+then the §25 LSQB stage tonight. §24's table is corrected by this
+section.
+
+Worth recording as future harness work, neutrally: a compact reference
+(CSR arrays over interned ids instead of the general `Graph` of owned
+strings) would cut the client's footprint several-fold and let the
+15 GiB and 31 GB hosts hold this tier. Not started; every published row
+stands on the reference as it is.
