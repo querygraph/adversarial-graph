@@ -114,6 +114,10 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         }
         Ok(final_degree) => {
             r.observe("final_out_degree", final_degree);
+            ctx.hub_writes.fetch_add(
+                final_degree.saturating_sub(initial_degree),
+                std::sync::atomic::Ordering::SeqCst,
+            );
             let expected = initial_degree + accepted;
             if final_degree < expected {
                 r.gates.lost_write += (expected - final_degree) as u64;

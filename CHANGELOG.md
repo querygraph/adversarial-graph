@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Two external adapters: `memgraph` (Memgraph 3.12 over Bolt through the
+  Neo4j store with a `BoltDialect` for the session database and index DDL)
+  and `age` (Apache AGE 1.8 on PostgreSQL 18.6 through the `cypher()` table
+  function, `src/age.rs`, feature `age`), both in the external compose
+  profile and both ladders.
+- A12 cold start and footprint: time to the first correct hub degree on a
+  fresh handle, then an open-loop stream of one-hop reads at 50 and 200
+  requests per second over sixteen handles with service and response time
+  histograms (p50/p99/p99.9/max), late arrivals and wrong answers. The
+  edges A4 appends to the hub are carried into A12's expected degree
+  (`Ctx::hub_writes`), since both families run against one load.
+- `scripts/run-full-tiers.sh`: one (backend, dataset) pair per `ag run`
+  under a wall-clock cap, smallest dataset first; a backend that hits the
+  cap is not tried on larger tiers.
 - First clean-host results (dedicated 4-vCPU EC2 host, load average ≈1)
   for all thirteen backends; ADVERSARIAL-GRAPH.md §7 gains the clean-host
   eight-way table, the HTTP-versus-SDK transport pairs, and four new

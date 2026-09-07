@@ -93,9 +93,27 @@ services:
     ports: ["17687:7687", "17474:7474"]
     profiles: ["external"]
 
+  # Apache AGE: openCypher as a PostgreSQL extension. The harness talks to
+  # it over the PostgreSQL wire protocol through AGE's cypher() function.
+  age:
+    <<: *limits
+    image: "${AGE_IMAGE:-apache/age:release_PG18_1.8.0}"
+    environment:
+      POSTGRES_DB: graph
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d graph"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+    shm_size: 512mb
+    ports: ["55434:5432"]
+    profiles: ["external"]
+
   memgraph:
     <<: *limits
-    image: "${MEMGRAPH_IMAGE:-memgraph/memgraph:3.5}"
+    image: "${MEMGRAPH_IMAGE:-memgraph/memgraph:3.12.0}"
     command: ["--memory-limit=${MEMGRAPH_MEMORY_MB:-6144}", "--log-level=WARNING"]
     ports: ["17688:7687"]
     profiles: ["external"]

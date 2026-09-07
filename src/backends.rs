@@ -39,6 +39,12 @@ pub enum BackendKind {
     Neo4j,
     #[cfg(feature = "neo4j")]
     Neo4jHttp,
+    /// Memgraph over Bolt through the same harness-side store as Neo4j.
+    #[cfg(feature = "neo4j")]
+    Memgraph,
+    /// Apache AGE: openCypher through PostgreSQL's `cypher()` function.
+    #[cfg(feature = "age")]
+    Age,
 }
 
 impl BackendKind {
@@ -67,6 +73,10 @@ impl BackendKind {
             "neo4j" | "neo4j-bolt" => Some(Self::Neo4j),
             #[cfg(feature = "neo4j")]
             "neo4j-http" => Some(Self::Neo4jHttp),
+            #[cfg(feature = "neo4j")]
+            "memgraph" => Some(Self::Memgraph),
+            #[cfg(feature = "age")]
+            "age" | "apache-age" => Some(Self::Age),
             _ => None,
         }
     }
@@ -95,6 +105,10 @@ impl BackendKind {
             Self::Neo4j => "neo4j",
             #[cfg(feature = "neo4j")]
             Self::Neo4jHttp => "neo4j-http",
+            #[cfg(feature = "neo4j")]
+            Self::Memgraph => "memgraph",
+            #[cfg(feature = "age")]
+            Self::Age => "age",
         }
     }
     /// How the harness reaches the system: recorded per run so HTTP and
@@ -123,6 +137,10 @@ impl BackendKind {
             Self::Neo4j => "bolt",
             #[cfg(feature = "neo4j")]
             Self::Neo4jHttp => "http-query-api",
+            #[cfg(feature = "neo4j")]
+            Self::Memgraph => "bolt",
+            #[cfg(feature = "age")]
+            Self::Age => "pg-wire",
         }
     }
     pub fn all() -> Vec<BackendKind> {
@@ -150,6 +168,10 @@ impl BackendKind {
             Self::Neo4j,
             #[cfg(feature = "neo4j")]
             Self::Neo4jHttp,
+            #[cfg(feature = "neo4j")]
+            Self::Memgraph,
+            #[cfg(feature = "age")]
+            Self::Age,
         ]
     }
     /// Docker container serving this backend, if any (for resource probes).
@@ -186,6 +208,10 @@ impl BackendKind {
             Self::HelixHttp | Self::HelixSdk => Some("adversarial-graph-helix-1"),
             #[cfg(feature = "neo4j")]
             Self::Neo4j | Self::Neo4jHttp => Some("adversarial-graph-neo4j-1"),
+            #[cfg(feature = "neo4j")]
+            Self::Memgraph => Some("adversarial-graph-memgraph-1"),
+            #[cfg(feature = "age")]
+            Self::Age => Some("adversarial-graph-age-1"),
             _ => None,
         }
     }
@@ -373,6 +399,15 @@ async fn connect_neo4j(kind: BackendKind) -> grust::Result<Arc<dyn AdminStore>> 
             &user,
             &pass,
         )?),
+        BackendKind::Memgraph => Arc::new(
+            crate::neo4j::Neo4jStore::connect_dialect(
+                &env_or("AG_MEMGRAPH_URI", "bolt://127.0.0.1:17688"),
+                &env_or("AG_MEMGRAPH_USER", ""),
+                &env_or("AG_MEMGRAPH_PASS", ""),
+                crate::neo4j::BoltDialect::Memgraph,
+            )
+            .await?,
+        ),
         _ => Arc::new(
             crate::neo4j::Neo4jStore::connect(
                 &env_or("AG_NEO4J_URI", "bolt://127.0.0.1:17687"),
@@ -382,6 +417,24 @@ async fn connect_neo4j(kind: BackendKind) -> grust::Result<Arc<dyn AdminStore>> 
             .await?,
         ),
     })
+}
+
+#[cfg(feature = "age")]
+async fn connect_age() -> grust::Result<Arc<dyn AdminStore>> {
+    let pool: usize = env_or("AG_AGE_POOL", "16")
+        .parse()
+        .expect("AG_AGE_POOL must be a connection count");
+    Ok(Arc::new(
+        crate::age::AgeStore::connect(
+            &env_or(
+                "AG_AGE_URL",
+                "host=127.0.0.1 port=55434 user=postgres password=postgres dbname=graph",
+            ),
+            &env_or("AG_AGE_GRAPH", "adversarial"),
+            pool,
+        )
+        .await?,
+    ))
 }
 
 #[cfg(feature = "lancedb")]
@@ -488,9 +541,11 @@ impl Backend {
                 Self::prepared(kind, Arc::new(connect_ladybug(work_dir, tag)?), tag).await
             }
             #[cfg(feature = "neo4j")]
-            BackendKind::Neo4j | BackendKind::Neo4jHttp => {
+            BackendKind::Neo4j | BackendKind::Neo4jHttp | BackendKind::Memgraph => {
                 Self::prepared(kind, connect_neo4j(kind).await?, tag).await
             }
+            #[cfg(feature = "age")]
+            BackendKind::Age => Self::prepared(kind, connect_age().await?, tag).await,
             #[cfg(feature = "lancedb")]
             BackendKind::LanceDb => {
                 mkdir()?;
@@ -559,7 +614,11 @@ impl Backend {
                 Ok(s)
             }
             #[cfg(feature = "neo4j")]
-            BackendKind::Neo4j | BackendKind::Neo4jHttp => Ok(self.store.clone()), // the clients pool connections
+            BackendKind::Neo4j | BackendKind::Neo4jHttp | BackendKind::Memgraph => {
+                Ok(self.store.clone())
+            } // the clients pool connections
+            #[cfg(feature = "age")]
+            BackendKind::Age => Ok(self.store.clone()), // round-robin connection pool
         }
     }
 
@@ -646,7 +705,14 @@ impl Backend {
             return "harness-native-cypher";
         }
         #[cfg(feature = "neo4j")]
-        if matches!(self.kind, BackendKind::Neo4j | BackendKind::Neo4jHttp) {
+        if matches!(
+            self.kind,
+            BackendKind::Neo4j | BackendKind::Neo4jHttp | BackendKind::Memgraph
+        ) {
+            return "harness-native-cypher";
+        }
+        #[cfg(feature = "age")]
+        if matches!(self.kind, BackendKind::Age) {
             return "harness-native-cypher";
         }
         "grust-portable-api"

@@ -1,8 +1,11 @@
+pub mod a12_cold_start;
 pub mod a1_fanout;
 pub mod a2_deep_paths;
 pub mod a3_policy_bounds;
 pub mod a4_hot_node;
 pub mod a7_guarded_replay;
+
+use std::sync::atomic::AtomicUsize;
 
 use crate::backends::Backend;
 use crate::oracle::Oracle;
@@ -15,10 +18,14 @@ pub struct Ctx<'a> {
     pub oracle: &'a Oracle<'a>,
     pub backend: &'a Backend,
     pub smoke: bool,
+    /// Edges the hot-node family (A4) has appended to the hub in this
+    /// process: later families that read the hub add it to the oracle
+    /// degree instead of counting accepted writes as wrong answers.
+    pub hub_writes: &'a AtomicUsize,
 }
 
 pub fn all() -> &'static [&'static str] {
-    &["A1", "A2", "A3", "A4", "A7"]
+    &["A1", "A2", "A3", "A4", "A7", "A12"]
 }
 
 /// Whether a scenario is defined over labelled nodes and typed relationships
@@ -36,6 +43,7 @@ pub async fn run(id: &str, ctx: &Ctx<'_>) -> ScenarioResult {
         "A3" => a3_policy_bounds::run(ctx).await,
         "A4" => a4_hot_node::run(ctx).await,
         "A7" => a7_guarded_replay::run(ctx).await,
+        "A12" => a12_cold_start::run(ctx).await,
         other => {
             let mut r = ScenarioResult::new(other, ctx.backend.kind.name(), ctx.dataset);
             r.unsupported("unknown scenario id");

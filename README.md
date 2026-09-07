@@ -30,8 +30,10 @@ The harness depends on the published `grust-graph` 0.13.0 crates, plus
 Grust's two unpublished internal adapters (`grust-helix`, `grust-ladybug`)
 pinned to the same release tag by a `git` dependency; it never reads a Grust
 checkout. Additional backends are feature-gated
-(`--features postgres,surreal,falkor,lancedb,helix,ladybug,neo4j`) and reach
+(`--features postgres,surreal,falkor,lancedb,helix,ladybug,neo4j,age`) and reach
 their services through the digest-pinned `compose.yaml`. Systems with both an
 HTTP API and a Rust client are two backends each (`surreal-http`/`surreal-sdk`,
-`helix-http`/`helix-sdk`, `neo4j`/`neo4j-http`); `ag backends` lists every
+`helix-http`/`helix-sdk`, `neo4j`/`neo4j-http`); Memgraph (`memgraph`) shares the
+Bolt store with Neo4j and Apache AGE (`age`) is reached through PostgreSQL's
+`cypher()` function; `ag backends` lists every
 backend with its transport.

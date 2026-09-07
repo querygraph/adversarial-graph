@@ -5,6 +5,8 @@
 //!   ag datasets                  list the datasets in datasets/MANIFEST.json
 //!   ag backends                  list built-in backends
 
+#[cfg(feature = "age")]
+mod age;
 mod backends;
 mod dataset;
 #[cfg(feature = "falkor")]
@@ -284,6 +286,7 @@ async fn run(root: &Path, args: &Args) {
             if load_failed {
                 continue;
             }
+            let hub_writes = std::sync::atomic::AtomicUsize::new(0);
             for scenario in &args.scenarios {
                 let ctx = Ctx {
                     dataset: dataset_name,
@@ -291,6 +294,7 @@ async fn run(root: &Path, args: &Args) {
                     oracle: &oracle,
                     backend: &backend,
                     smoke: args.smoke,
+                    hub_writes: &hub_writes,
                 };
                 let result = if typed && !scenarios::accepts_typed(scenario) {
                     // The M1 families are defined over the single-label,

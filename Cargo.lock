@@ -22,6 +22,7 @@ name = "adversarial-graph"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bytes",
  "chrono",
  "csv",
  "flate2",
@@ -38,6 +39,7 @@ dependencies = [
  "sha2 0.10.9",
  "tempfile",
  "tokio",
+ "tokio-postgres",
  "zip",
 ]
 

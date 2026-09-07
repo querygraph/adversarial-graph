@@ -8,3 +8,6 @@ reports/*/
 
 # Development-build bundles (harness patched to a local Grust checkout); never published
 reports-dev/
+
+# Dev-build target dir (harness built with extra features for adapter work)
+target-dev/

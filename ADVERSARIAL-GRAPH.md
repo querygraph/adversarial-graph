@@ -310,7 +310,8 @@ they are reported as stack-integrity evidence, not as a comparison.
 | Grust `HelixHttpGraphStore` and `HelixSdkGraphStore` | HelixDB (`enterprise-dev`, digest-pinned) | same internal-adapter route as Ladybug; two backends, `helix-http` (dynamic queries posted to `/v1/query`) and `helix-sdk` (the `helix-db` client crate, pinned `=2.0.0` by the adapter) against one container |
 | Grust `SailGraphStore` | Sail Spark Connect, pinned rev | Cypher pushdown |
 | Neo4j 5.26 Community | Bolt (`neo4rs`, `src/neo4j.rs`) and the HTTP Query API (`POST /db/neo4j/query/v2`, `src/neo4j_http.rs`) | two backends, `neo4j` and `neo4j-http`, sharing Cypher, labels, batching and the `(:V {id})` index; heap 3G / page cache 3G / `db.memory.transaction.total.max` 1G in an 8 GiB container (`compose.yaml`); `read_path = harness-native-cypher` |
-| Memgraph, Apache AGE | external adapters (phase 2) | |
+| Memgraph 3.12 | Bolt through the same harness-side store as Neo4j (`src/neo4j.rs`, `BoltDialect::Memgraph`) | backend `memgraph`; the session database is `memgraph`, the id index is `CREATE INDEX ON :V(id)`; `--memory-limit` 6 GiB in `compose.yaml`; `read_path = harness-native-cypher` |
+| Apache AGE 1.8 on PostgreSQL 18.6 | PostgreSQL wire protocol through AGE's `cypher()` table function (`tokio-postgres`, `src/age.rs`) | backend `age`; parameters travel as an `agtype` map in text format and results are cast to `text` (AGE has no binary `agtype`); bootstrap creates the graph, the `V`/`E` labels, a GIN index on `V.properties` (what AGE's planner uses for `{id: $id}`) and B-tree indexes on `E.start_id`/`E.end_id` (AGE keeps edges in a plain heap, so without them a one-hop read is a sequential scan of the edge table); a 16-connection round-robin pool; `read_path = harness-native-cypher` |
 
 ### 4.2 Report contract
 

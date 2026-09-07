@@ -26,7 +26,7 @@ BACKENDS=("$@")
 service_for() {
   case "$1" in
     postgres) echo postgres;; surreal-*) echo surreal;; falkor) echo falkor;;
-    helix-*) echo helix;; neo4j*) echo neo4j;; *) echo "";;
+    helix-*) echo helix;; neo4j*) echo neo4j;; memgraph) echo memgraph;; age) echo age;; *) echo "";;
   esac
 }
 wait_ready() {
@@ -37,6 +37,8 @@ wait_ready() {
     helix) until curl -sf -m 2 -X POST http://127.0.0.1:18082/v1/query -H 'Content-Type: application/json' \
       -d '{"request_type":"read","query":{"queries":[],"returns":[]},"parameters":{},"parameter_types":{}}' >/dev/null; do sleep 1; done;;
     neo4j) until curl -sf -m 2 http://127.0.0.1:17474 >/dev/null; do sleep 2; done; sleep 5;;
+    memgraph) until echo 'RETURN 1;' | docker compose exec -T memgraph mgconsole >/dev/null 2>&1; do sleep 1; done;;
+    age) until docker compose exec -T age pg_isready -U postgres -d graph >/dev/null 2>&1; do sleep 1; done;;
   esac
 }
 for b in "${BACKENDS[@]}"; do

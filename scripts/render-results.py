@@ -32,7 +32,7 @@ if not reports:
     sys.exit("no reports/*/report.json found")
 
 order = ["memory", "turso-wal", "turso-mvcc", "ladybug", "lancedb", "postgres", "surreal-http", "surreal-sdk",
-         "falkor", "helix-http", "helix-sdk", "neo4j", "neo4j-http"]
+         "falkor", "helix-http", "helix-sdk", "neo4j", "neo4j-http", "memgraph", "age"]
 # Runs before the HTTP/SDK split recorded the SDK store as plain "surreal".
 alias = {"surreal": "surreal-sdk"}
 

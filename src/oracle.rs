@@ -62,6 +62,29 @@ impl<'g> Oracle<'g> {
 
     /// Vertex with the largest out-degree (ties broken by id order, which is
     /// stable because loaders sort node ids).
+    /// Out-degree of one vertex in the untyped view (0 for an unknown id).
+    pub fn out_degree(&self, id: &NodeId) -> usize {
+        self.index.outgoing_edges(id).len()
+    }
+
+    /// A deterministic sample of up to `n` vertex ids spread evenly through
+    /// the node list, so a stream over it touches the graph broadly and the
+    /// same sample recurs run to run.
+    pub fn sample_vertices(&self, n: usize) -> Vec<NodeId> {
+        let total = self.graph.nodes.len();
+        if total == 0 || n == 0 {
+            return Vec::new();
+        }
+        let step = (total / n).max(1);
+        self.graph
+            .nodes
+            .iter()
+            .step_by(step)
+            .take(n)
+            .map(|node| node.id.clone())
+            .collect()
+    }
+
     pub fn max_out_degree_vertex(&self) -> (NodeId, usize) {
         self.max_out_degree_vertex_over(EdgeFilter::Any)
     }

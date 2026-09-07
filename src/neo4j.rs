@@ -16,9 +16,18 @@ use crate::dataset::{EDGE_LABEL, NODE_LABEL};
 
 const BATCH: usize = 5_000;
 
+/// Which Bolt server is on the other end. Both speak openCypher over Bolt;
+/// only the index DDL differs, so one store serves both engines.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BoltDialect {
+    Neo4j,
+    Memgraph,
+}
+
 #[derive(Clone)]
 pub struct Neo4jStore {
     driver: Driver,
+    dialect: BoltDialect,
 }
 
 fn backend(err: impl std::fmt::Display) -> GrustError {
@@ -27,8 +36,30 @@ fn backend(err: impl std::fmt::Display) -> GrustError {
 
 impl Neo4jStore {
     pub async fn connect(uri: &str, user: &str, pass: &str) -> grust::Result<Self> {
-        let driver = Driver::new(uri, user, pass).await.map_err(backend)?;
-        Ok(Self { driver })
+        Self::connect_dialect(uri, user, pass, BoltDialect::Neo4j).await
+    }
+
+    pub async fn connect_dialect(
+        uri: &str,
+        user: &str,
+        pass: &str,
+        dialect: BoltDialect,
+    ) -> grust::Result<Self> {
+        // The driver defaults to the `neo4j` database; Memgraph only serves
+        // `memgraph`, so the dialect picks the session database.
+        let db = match dialect {
+            BoltDialect::Neo4j => "neo4j",
+            BoltDialect::Memgraph => "memgraph",
+        };
+        let config = neo4rs::ConfigBuilder::default()
+            .uri(uri)
+            .user(user)
+            .password(pass)
+            .db(db)
+            .build()
+            .map_err(backend)?;
+        let driver = Driver::connect(config).await.map_err(backend)?;
+        Ok(Self { driver, dialect })
     }
 
     async fn run(&self, q: neo4rs::Query) -> grust::Result<()> {
@@ -171,10 +202,14 @@ impl GraphStore for Neo4jStore {
 #[async_trait]
 impl GraphAdminStore for Neo4jStore {
     async fn bootstrap(&self) -> grust::Result<()> {
-        self.run(query(&format!(
-            "CREATE INDEX v_id IF NOT EXISTS FOR (n:{NODE_LABEL}) ON (n.id)"
-        )))
-        .await
+        let ddl = match self.dialect {
+            BoltDialect::Neo4j => {
+                format!("CREATE INDEX v_id IF NOT EXISTS FOR (n:{NODE_LABEL}) ON (n.id)")
+            }
+            // Memgraph's label-property index DDL; creating it twice is a no-op.
+            BoltDialect::Memgraph => format!("CREATE INDEX ON :{NODE_LABEL}(id)"),
+        };
+        self.run(query(&ddl)).await
     }
 
     async fn clear(&self) -> grust::Result<()> {
