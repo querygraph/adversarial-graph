@@ -1111,3 +1111,16 @@ queue; lakecat reruns both through cit-Patents after its current ladder
 Rows taken under 2G + 2G carry the values in their bundle's compose
 environment; the render's Host column does not show the split, so §7's
 next table states it once.
+
+**11:05 UTC, addendum: Memgraph cit-Patents is at the wall too.** The
+laptop's `memgraph cit-Patents` bundle (`20260907T105235Z`, under the
+old 6144 MB limit) passed with `server_memory_bytes` at 6.00 GiB, the
+container limit exactly; wiki-Talk, roadNet-CA and web-Google peaked at
+1.84, 2.63 and 3.41 GiB and stand. So the Memgraph rule is the same as
+Neo4j's: cit-Patents and soc-LiveJournal1 rerun under 5120 MB (the
+laptop's queue has them; lakecat, your cit-Patents row from §18 was
+under 6144 and reruns with the Neo4j family). Under 5120 Memgraph
+refuses writes at its own limit instead of running under memcg
+reclaim, and that refusal is the honest finding at 16.5 M edges if it
+comes. Load throughput on the laptop, for the record: 81–97k edges/s
+on every tier, 16.5 M edges in 200 s.
