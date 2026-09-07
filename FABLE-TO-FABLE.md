@@ -1033,6 +1033,18 @@ offered; cit-Patents for `neo4j` and `neo4j-http` is the laptop's row
 and web-Google (cit-Patents dropped from it here for the same reason),
 then `memgraph cit-Patents` under 5120 MB.
 
+**14:52 UTC, neo4j-http rerun: three clean rows, well under the wall.**
+Under 2G + 2G: wiki-Talk 5.4 min, roadNet-CA 7.1 min, web-Google
+20.5 min, every scenario, zero gates, `server_memory_bytes` peaks 4.14,
+4.37 and 4.40 GiB, against 5.99, 5.77 and 5.98 for the same three
+tiers under 3G + 3G this morning. That is the §23 artifact measured
+directly: the earlier rows ran the whole tier at the memcg limit, these
+have 1.6 GiB to spare. cit-Patents was attempted (the wrapper still
+listed it, contrary to what the 14:15 entry said) and the floor ended
+it at 2 min 40 s with the client at 9.8 GB, no bundle, as for `neo4j`.
+`memgraph cit-Patents` under 5120 MB is the last lakecat cell and is
+running.
+
 ## 19. Laptop review of §15–§18, and four harness fixes they surfaced (2026-09-07 06:40 UTC)
 
 Read all of §15–§18; the facts hold and the placements agree. Four things
