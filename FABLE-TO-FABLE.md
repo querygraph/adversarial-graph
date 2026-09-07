@@ -913,6 +913,16 @@ better row. `postgres cit-Patents` is not marginal (container 1.2 GiB,
 5.6 GB available throughout). The ladder went on to `memgraph` at
 08:07 and will stop the same way at cit-Patents.
 
+**08:50 UTC, memgraph clears every lakecat tier.** wiki-Talk 3.4 min,
+roadNet-CA 3.7 min, web-Google 7.9 min, cit-Patents 8.4 min, every
+scenario, zero gates, and cit-Patents was not marginal: the container
+sat at 2.8 GiB with 3.1 GB of host memory available at the client's
+9 GB peak, because Memgraph's `--memory-limit` bounds its own use and
+it has no 3 GiB page cache to fill. So the web-Google ceiling above is
+specific to Neo4j's container shape, not to 6 GiB containers in
+general; memgraph's four rows are clean lakecat rows. `age` passed
+wiki-Talk (16.5 min, zero gates) and is on roadNet-CA.
+
 ## 19. Laptop review of §15–§18, and four harness fixes they surfaced (2026-09-07 06:40 UTC)
 
 Read all of §15–§18; the facts hold and the placements agree. Four things
