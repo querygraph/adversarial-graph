@@ -1930,3 +1930,78 @@ up together.
 plan and leaves the other ten backends measured) and its rerun on eigen
 inside the windows; lakecat's §26 reruns; then the rest of
 `HANDOFF-SUCCESSOR.md`.
+
+## 36. §32's decision: a cell whose container exceeds its memory limit is declared, and the matrix goes on; the SF0.3 matrix moves to the grust box (2026-09-07 21:10 UTC)
+
+**The choice is option 1** of §32, and it is implemented end to end. Option 2
+(a memory-bounded route fallback) changes what the ledger measures for two
+backends and needs a plan change in the registry; option 1 changes no plan,
+leaves every other backend measured, and says plainly that one cell did not
+run. That is the honest SF0.3 result for the resident-index plan inside a
+6 GiB per-container budget.
+
+**What it does.** A cell whose container the kernel takes away under its
+memory limit leaves no runner to write a component report, so the launcher
+used to treat the missing file as fatal and the ten remaining backends never
+ran (§32). Now:
+
+- the **cell watchdog** (`cell-watchdog.py`, grust `67a682d`) reads the
+  container's own `ExitCode` and `OOMKilled` before its cleanup removes it and
+  keeps them in the completion record. The field appears only for a cell that
+  exited non-zero, so every passing cell's record keeps the shape it had, and
+  it is `null` rather than absent when the container could not be read: an
+  unread state is recorded, never guessed;
+- `declare-cell-termination.py` (`208f22c`) turns exactly that evidence into a
+  `grust-lsqb-cell-memory-exceeded-v1` declaration under `terminations/`, and
+  `run-grust.sh` continues to the next cell. **A missing component report with
+  no such proof is still fatal**;
+- `merge-reports.sh --declaration` (`c999daa`) carries the declaration where
+  the component report would be. The matrix is **never complete** — a cell
+  that did not run is not a result, and no outcome of its enters `valid` — and
+  gains `accounted`, true when every canonical backend has a component report
+  or a declaration;
+- `validate-evidence.sh --declaration` and `validate-matrix-publication.py`
+  (`d45569d`) take the same shape: the declaration replaces its component in
+  the bundle inventory, the cell's watchdog record must be the very record the
+  declaration was made from, and the receipt's status becomes `accounted` and
+  names every cell that did not run. The launcher still exits non-zero;
+- the site's matrix verifier (`adversarial-site` `4bd8bd3`) admits such a
+  bundle independently, and refuses a declaration without its OOM proof, a
+  declared cell that also has a component report, a receipt that claims
+  completeness, a watchdog record that differs from its declaration, and a
+  matrix that hides a declaration its receipt names.
+
+A declaration asserts nothing only the dead runner could have known: the
+backend's adapter version, the container's CPU model, the load time and every
+observation are absent, because nothing observed them. It carries the cell's
+identity, the images the launcher itself pinned, the budget, and the
+container's own exit.
+
+**The SF0.3 matrix runs on the grust box, not eigen.** eigen's tenancy windows
+would have held it until 03:45 UTC; the 31 GB grust box has none and was idle,
+so the matrix started there at 21:04 UTC at grust `d45569d`
+(`~/grust-matrix-sf03.sh`, log `~/grust-matrix-sf03.log`, output
+`benchmarks/lsqb/out/matrix-sf0.3-w2r10-d45569d-grust`). It needed `jq` and
+the SF0.3 dataset, both now in place. Expect Turso's baseline cell to be
+declared and the other eleven backends measured; the run ends non-zero and
+still writes a receipt, which is the point. eigen's waiting script is stopped
+and its log says why.
+
+**Also admitted**: `2026-09-07-lakecat-2` (site `4ebae2d`) — the four §26 runs
+refused for an unreachable base commit, rerun on a clean tree, plus the
+roadNet-CA halves of the two clean-host slices. 42 cells, six clean runs,
+zero gates. The refused runs still have no rows anywhere.
+
+**One pre-existing failure worth naming**: `test-observation-plan.py`'s
+`test_each_advertised_plan_matches_its_execution_classes` fails at
+`sql-count`/`backend-native-aggregate` with `backend load strategy is
+untruthful`, on `65b5416` and every commit since. It is not mine and not
+caused by any change above (verified by stashing); it is the next session's to
+look at.
+
+**Still open**: quegee's `age` then `postgres` on soc-LiveJournal1 and the
+`2026-09-07-quegee` publication that waits for them; admitting the SF0.3
+matrix when the grust box finishes; then the compact reference (§28),
+LanceDB's bulk batching (4a), the Helix SDK casing fix, and A9-A11. eigen and
+lakecat are idle: nothing left in the queue fits a 31 GB or 15 GiB host that
+is not already running somewhere.
