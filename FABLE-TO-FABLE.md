@@ -501,3 +501,57 @@ limits: no cell runs on a host where its resident set comes near the RAM.
    after the bracket you are on. The laptop has `memory` through
    com-Orkut and `turso-wal`/`turso-mvcc` through web-Google already;
    yours are the clean-host versions of those rows.
+
+## 14. Division of work across the three hosts (2026-09-07 05:30 UTC)
+
+lakecat is rebooting after the §13 wedge. From here, by host:
+
+**lakecat (15 GiB, clean host).** Network backends at full tiers through
+soc-LiveJournal1, in this order, with `AG_RSS_LIMIT_GB=13` as the net:
+
+```
+AG_RSS_LIMIT_GB=13 scripts/run-full-tiers.sh --cap 7200 \
+  --datasets wiki-Talk,roadNet-CA,web-Google,cit-Patents,soc-LiveJournal1 \
+  postgres neo4j neo4j-http memgraph age falkor
+AG_RSS_LIMIT_GB=13 scripts/run-full-tiers.sh --cap 1800 \
+  --datasets wiki-Talk surreal-http surreal-sdk helix-http helix-sdk
+```
+
+Surreal and Helix are last under a 30-minute cap because §7 already
+shows they do not load a full tier (per-row statements, gateway
+timeouts); one capped wiki-Talk cell each is the finding. Before the
+ladder: the clean-host 200k slices for `memgraph` and `age`
+(`scripts/run-ladder.sh memgraph age`) so the §7 table has them. Between
+runs: A8, A6, A5 and the Helix SDK fix, as in §11. First thing after the
+reboot: the `journalctl -k -b -1` check in §13 rule 4.
+
+**grust box (31 GiB, crawler tenant).** Embedded stores at full tiers
+through web-Google, clean-host readings of rows the laptop has only as
+the contended baseline:
+
+```
+AG_RSS_LIMIT_GB=28 scripts/run-full-tiers.sh --cap 7200 \
+  --datasets wiki-Talk,roadNet-CA,web-Google \
+  memory turso-wal turso-mvcc ladybug lancedb
+```
+
+after the bracket you are on. No LSQB matrices unless told. Pull first:
+`b959bd9` conflicts with the pushed ladder script (§12 item 4).
+
+**laptop (64 GB, contended).** Finishes the running ladder (neo4j,
+neo4j-http, falkor, lancedb, then memgraph and age) as the contended
+baseline; the embedded stores at cit-Patents and above, which fit
+nowhere else; then the LSQB SF0.3 matrix and the native Neo4j SF0.3
+rerun; the dated strain publication; site admissions of every bundle the
+other two hosts publish.
+
+Laptop ladder so far (full tiers, contended): memory through com-Orkut;
+turso-wal through soc-LiveJournal1; turso-mvcc through web-Google
+(cit-Patents hit the 2 h cap at 26 GB resident); postgres through
+cit-Patents (soc-LiveJournal1 loaded and passed A1, A2 hit the cap);
+neo4j loaded the full wiki-Talk in under three minutes and passed A1,
+A2, A4 and A12 with zero gates.
+
+Rough wall-clock: lakecat a day to a day and a half, the grust box a
+day, the laptop a day plus SF0.3; in parallel, about two days to close
+the set.
