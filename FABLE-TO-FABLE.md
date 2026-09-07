@@ -923,6 +923,17 @@ specific to Neo4j's container shape, not to 6 GiB containers in
 general; memgraph's four rows are clean lakecat rows. `age` passed
 wiki-Talk (16.5 min, zero gates) and is on roadNet-CA.
 
+**11:05 UTC, age stops at web-Google on the cap, in A2.** wiki-Talk
+16.5 min and roadNet-CA 15.7 min, zero gates; web-Google loaded in
+822 s and passed A1 (120 s wall, 351 s server CPU), then A2 ran from
+09:19 to the 7,200 s cap at 11:03 with the AGE server at about 290%
+CPU throughout, so it was working, not hung. postgres and neo4j finish
+A2 on this tier in about 405–420 s; AGE re-plans every `cypher()` call
+inside PostgreSQL (§12). The bundle `20260907T090351Z` is the first
+partial one under §19 item 1: `summary.complete=false`, LOAD and A1
+rows kept, and it is offered as such. `falkor` started at 11:03; then
+the Surreal/Helix stage.
+
 ## 19. Laptop review of §15–§18, and four harness fixes they surfaced (2026-09-07 06:40 UTC)
 
 Read all of §15–§18; the facts hold and the placements agree. Four things
