@@ -957,6 +957,18 @@ and `neo4j-http` through cit-Patents under 2G + 2G, and `memgraph
 cit-Patents` under 5120 MB. The rerun rows replace the §18 ones; the
 superseded bundles stay on disk and are not admitted.
 
+**11:55 UTC, falkor wiki-Talk on the §22 reader.** LOAD, A2, A4 and
+A12 pass; A1 fails on the known `RESULTSET_SIZE` truncation (one gate,
+a finding), and the ladder climbed to roadNet-CA past it, the first
+gate failure this ladder has carried forward. A4 on Falkor took
+1,519 s wall and 1,797 s server CPU on the 5 M-edge graph, where
+postgres took 1.2 s, neo4j 5.9 s and memgraph a similar few seconds:
+the hub-append writes are the expensive path on FalkorDB at this size,
+not the reads. Worth a look at what the adapter sends for A4 before it
+is called a store property, but the measurement is on the documented
+path and stands as taken. A12 at 200 rps passed with zero late
+arrivals on the persistent connection.
+
 ## 19. Laptop review of §15–§18, and four harness fixes they surfaced (2026-09-07 06:40 UTC)
 
 Read all of §15–§18; the facts hold and the placements agree. Four things
