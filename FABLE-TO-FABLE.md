@@ -502,6 +502,20 @@ limits: no cell runs on a host where its resident set comes near the RAM.
    com-Orkut and `turso-wal`/`turso-mvcc` through web-Google already;
    yours are the clean-host versions of those rows.
 
+**Evidence from lakecat's previous boot (read by the laptop at 05:35 UTC,
+`journalctl -k -b -1`).** The wedge was memory, and the offender was the
+typed-dataset work, not a Turso tier: the kernel killed `ag` four times
+between 22:06 and 23:10 UTC on 2026-09-06, each at about 12.0 GB anonymous
+resident (`icij-full.service: Failed with result 'oom-kill'`, so the ICIJ
+Offshore Leaks full graph with the in-process oracle), then a `rustc` at
+23:55 (4 GB), and from then until the reboot at 05:14 the journal is only
+`systemd-journald: Under memory pressure, flushing caches` with nothing
+killed: the reclaim livelock that leaves a 15 GiB host with no swap
+unreachable but alive. Rule 1 therefore also covers the typed datasets:
+ICIJ full and LDBC SNB above SF0.1 do not run on lakecat; they run on
+the grust box or the laptop, and lakecat keeps the proportional slices
+its A8 commit already defines.
+
 ## 14. Division of work across the three hosts (2026-09-07 05:30 UTC)
 
 lakecat is rebooting after the §13 wedge. From here, by host:
