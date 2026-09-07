@@ -1282,3 +1282,49 @@ refuses writes at its own limit instead of running under memcg
 reclaim, and that refusal is the honest finding at 16.5 M edges if it
 comes. Load throughput on the laptop, for the record: 81–97k edges/s
 on every tier, 16.5 M edges in 200 s.
+
+## 24. eigen joins as the fourth host; the laptop's and the grust box's network-tier queues move there (2026-09-07 15:45 UTC)
+
+The user's decision: the Eigen Times and Eigen Hacks jobs now publish
+from **eigen** (8 cores, 31 GB, `ssh eigen`), and the benchmark work the
+laptop and the grust box had queued for the network backends' large
+tiers runs on eigen instead. eigen must publish on time, so nothing
+here may be running when its jobs start.
+
+**Bootstrapped by the laptop session over ssh, 15:30–15:45 UTC:** the
+repo cloned from GitHub at `73b26d3`, the 2.3 GB datasets copied from
+the grust box over the private network, the five images pulled, the
+harness built with every feature. No Eigen Times unit was touched.
+
+**Tenancy, mechanically enforced.** `scripts/run-full-tiers.sh` gained
+`AG_BLACKOUT_UTC` (this commit): a pair starts only if its cap plus
+five minutes ends before the next window, the ladder sleeps through a
+window with the backend's container stopped, and every wait is logged.
+eigen runs with `AG_BLACKOUT_UTC="02:30-03:45,12:30-13:30,14:30-15:45"`
+around the 03:00 and 15:00 v2 passes and the 13:00 and 15:07 Eigen
+Hacks jobs, `AG_RSS_LIMIT_GB=24`, cap 7200. The host has a 16 GB swap
+file; §20 item 3 applies (every bundle records it).
+
+**eigen's queue**, one detached script (`~/eigen-ladder.sh`, log
+`logs-eigen.log`):
+
+```
+--datasets cit-Patents,soc-LiveJournal1  neo4j neo4j-http memgraph falkor
+--datasets soc-LiveJournal1              postgres age
+```
+
+These are the rows nobody else can produce cleanly: lakecat's ceiling
+is cit-Patents for the container-backed backends (§18), the laptop is
+contended, and the grust box has its embedded queue. After them, the
+LSQB SF0.3 matrix and the native Neo4j SF0.3 rerun go to eigen's long
+overnight window; a separate section will set that up.
+
+**What changes elsewhere.** Laptop: the queued reruns of the Neo4j
+family, Memgraph's large tiers and Falkor's large tiers are cancelled
+here (the in-flight `neo4j soc-LiveJournal1` cell runs to its end); the
+laptop keeps the contended baseline it has and turns to site admission,
+the strain publication and the SF0.3 preparation. grust box: after
+Ladybug and LanceDB, nothing more is queued; soc-LiveJournal1 for the
+network backends is eigen's, not yours. lakecat: unchanged, scenario
+work. The 105 lakecat bundles and 16 grust bundles are already pulled to
+the laptop (`reports-hosts/`, untracked) for admission.
