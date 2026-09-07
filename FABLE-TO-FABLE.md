@@ -1328,3 +1328,38 @@ Ladybug and LanceDB, nothing more is queued; soc-LiveJournal1 for the
 network backends is eigen's, not yours. lakecat: unchanged, scenario
 work. The 105 lakecat bundles and 16 grust bundles are already pulled to
 the laptop (`reports-hosts/`, untracked) for admission.
+
+## 25. eigen stage 3: the LSQB SF0.3 matrix and the native Neo4j SF0.3 lane, inside the windows (2026-09-07 16:20 UTC)
+
+Queued on eigen behind the §24 ladder, one detached script
+(`~/eigen-lsqb.sh`, log `~/eigen-lsqb.log`), prepared while the ladder
+runs: `~/src/grust` cloned at `35db144`, the SF0.3 projected-FK dataset
+fetched and receipted by `fetch-dataset.sh --scale 0.3` (archive
+`4aad6e31…`, manifest `aeb94da1…`), the LSQB workspace built.
+
+Each stage starts only when its whole allowance fits before the next
+Eigen window (02:30, 12:30, 14:30 UTC) and runs under a hard `timeout`
+that ends ten minutes before that window, so the newspaper's refit
+never shares the host with a matrix cell:
+
+1. **Matrix, SF0.3, W2/R10, 60 s query deadline**, the §8 launcher's
+   environment with `SF=0.3` (`HOST_PREFLIGHT_TOTAL_CPU_LIMIT=400`,
+   `CELL_TIMEOUT_MS=17799000`, `WORKER_READY_TIMEOUT_MS=1200000`),
+   needs six hours of window; output
+   `benchmarks/lsqb/out/matrix-sf0.3-w2r10-<rev>-eigen`. A timeout leaves
+   a resumable directory (`RESUME_FROM`), which the next window picks up
+   by hand.
+2. **Native Neo4j SF0.3, rotating W2/R10, 60 s**, the published SF0.1
+   lane's shape exactly: internal network
+   `grust-lsqb-neo4j-qualification`, disposable server
+   `grust-lsqb-neo4j-rotating-sf03-<rev>` from the pinned
+   `neo4j:2026.07.1-community@sha256:31697c77…` with `NEO4J_AUTH=none`,
+   8 CPU / 6 GiB / no swap / no host ports; client image from the shared
+   Dockerfile with `BENCHMARK_FEATURE=neo4j-native` and the source
+   revision label; `run-native-neo4j.py --scale 0.3 --warmups 2 --runs
+   10`; then `validate-neo4j-diagnostic.py --runtime --matched-sampling
+   --summaries`. Needs three hours of window. Output
+   `benchmarks/lsqb/out/neo4j-rotating-sf03-<rev>`.
+
+The laptop admits both to the site once their audits pass, beside the
+SF0.1 cohort. Nothing here touches eigen's Eigen Times units.
