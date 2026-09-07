@@ -169,6 +169,12 @@ impl Report {
                 .unwrap_or(0)
                 .to_string(),
         );
+        // Memory and swap, so a row says whether the host could have paged
+        // instead of failing: swap turns an over-RAM run into a silent thrash
+        // that no resident-set guard sees.
+        for (key, value) in host_memory() {
+            host.insert(key.into(), value);
+        }
         Self {
             schema: "adversarial-graph/report/v1",
             benchmark: "GRAPH-ADVERSARIAL-v1",
@@ -200,4 +206,51 @@ impl Report {
         self.summary
             .insert("hard_gate_total".into(), self.gates.total().into());
     }
+}
+
+/// `mem_total_bytes` and `swap_total_bytes` from `/proc/meminfo` on Linux
+/// and from `sysctl` on macOS; absent where neither answers.
+fn host_memory() -> Vec<(&'static str, String)> {
+    let mut out = Vec::new();
+    if let Ok(text) = std::fs::read_to_string("/proc/meminfo") {
+        for line in text.lines() {
+            let mut parts = line.split_whitespace();
+            match (parts.next(), parts.next()) {
+                (Some("MemTotal:"), Some(kb)) => {
+                    if let Ok(kb) = kb.parse::<u64>() {
+                        out.push(("mem_total_bytes", (kb * 1024).to_string()));
+                    }
+                }
+                (Some("SwapTotal:"), Some(kb)) => {
+                    if let Ok(kb) = kb.parse::<u64>() {
+                        out.push(("swap_total_bytes", (kb * 1024).to_string()));
+                    }
+                }
+                _ => {}
+            }
+        }
+        return out;
+    }
+    if cfg!(target_os = "macos") {
+        let sysctl = |key: &str| {
+            std::process::Command::new("sysctl")
+                .args(["-n", key])
+                .output()
+                .ok()
+                .and_then(|o| String::from_utf8(o.stdout).ok())
+                .map(|s| s.trim().to_string())
+        };
+        if let Some(bytes) = sysctl("hw.memsize") {
+            out.push(("mem_total_bytes", bytes));
+        }
+        // `vm.swapusage` prints "total = 9216.00M  used = …"; macOS swap
+        // grows on demand, so the total is the current file size.
+        if let Some(line) = sysctl("vm.swapusage")
+            && let Some(total) = line.split_whitespace().nth(2)
+            && let Some(mb) = total.strip_suffix('M').and_then(|m| m.parse::<f64>().ok())
+        {
+            out.push(("swap_total_bytes", ((mb * 1048576.0) as u64).to_string()));
+        }
+    }
+    out
 }

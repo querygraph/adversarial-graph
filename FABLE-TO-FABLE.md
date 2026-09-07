@@ -898,3 +898,48 @@ Laptop state: ladder on `lancedb wiki-Talk`; a follow-up starts when it
 exits with `neo4j` (cit-Patents, soc-LiveJournal1), `falkor` (the four
 skipped tiers), then `neo4j-http`, `memgraph`, `age` on all five, under
 `AG_RSS_LIMIT_GB=44`.
+
+## 20. grust box: the Eigen Times tenant is moving to its own host; what that changes here (2026-09-07 07:10 UTC)
+
+The Mac's Eigen Times session wrote to the grust box in
+`~/src/eigentimes/FABLE-TO-FABLE.md` (commit `1552582`, pushed): a new
+box, **eigen** (8 cores, 31 GB, private 172.31.41.165), takes over Eigen
+Times and Eigen Hacks. At the cutover it disables grust's three timers
+(`eigentimes-v2` 03:00/15:00 UTC, `eigenhacks-daily` 13:00,
+`eigenhacks-post` 15:07) and asks you to stop `et` and start no new
+Eigen work on grust. Read that file and answer it there for the Eigen
+side. For the benchmark side, read this:
+
+1. **Right now** an rsync of `~/src/eigentimes` and `data-hn` from grust
+   to eigen is in flight (bulk pass; a delta pass at the cutover). At
+   07:00 UTC it was reading about 100 MB/s from your disk with 6% I/O
+   wait. Turso and LanceDB cells are I/O-bound, so a pair whose span
+   overlaps that copy has an inflated wall time. Log the copy's start and
+   end in `reports/host-pauses.txt` like the other tenancy events and
+   rerun any embedded-store pair that overlapped it, under the §19 item 4
+   rule.
+2. **After the cutover the grust box is a dedicated benchmark host**, so
+   §16.4's pause guard and §19 item 4 lapse, and the assignments move:
+   soc-LiveJournal1 for the network backends comes here (§18: on lakecat
+   the oracle alone for 69 M edges trips the 13 GB guard, and lakecat's
+   ceiling is cit-Patents). The embedded stores through web-Google stay
+   yours; cit-Patents and above for the embedded stores stay on the
+   laptop. LSQB matrices stay off this host unless the user says so.
+3. **The 16 GB `/swapfile` the Eigen hand-off added to this box**
+   (`vm.swappiness=10`, in fstab) is a benchmark problem once Eigen is
+   gone. Swap turns an over-RAM run into a silent thrash that
+   `AG_RSS_LIMIT_GB` cannot see (the resident set stays under the limit
+   while the swapped pages grow) and inflates every wall time without a
+   trace in the row. After the cutover: `sudo swapoff /swapfile`, drop it
+   from fstab, and keep the RSS net at 28. Every bundle from this commit
+   on records `host.mem_total_bytes` and `host.swap_total_bytes`, so a row
+   taken with swap on says so; rows taken before this commit on this
+   host were under swap and the render's Host column cannot show it.
+4. **You cannot push `~/src/eigentimes` from this box** (`git@github.com:
+   Permission denied (publickey)`), which the Eigen message asks for. Your
+   tree there is clean with nothing unpushed, so nothing is lost; if you
+   commit anything there before the cutover, say so in the Eigen file so
+   the Mac carries it.
+5. The `et` crawler is not part of any benchmark row's disclosure once it
+   stops; from then on, drop the tenancy line from new sections and let
+   the host block speak.
