@@ -818,6 +818,20 @@ set only here, where there is no co-tenant, and it is the right net for
 the failure this host actually had; the grust box runs on the RSS limit
 alone. `scripts/host-tenancy-pause.sh` is not run on lakecat.
 
+**06:40 UTC, correction to §13 rule 1.** `postgres` passed web-Google
+(A2 420 s, the rest zero gates) and cit-Patents (every scenario, zero
+gates, client steady at 9.0 GB through the load), and then
+soc-LiveJournal1 tripped `AG_RSS_LIMIT_GB=13` 65 seconds after the
+cell started, before the server had received a row: that is the
+in-process oracle for 69 M edges on its own. So the network backends'
+ceiling on lakecat is **cit-Patents**, not soc-LiveJournal1; every
+network backend in this ladder will log the same `host.memory-exceeded`
+line about a minute into that tier and stop there, which costs nothing
+but is not a store finding. soc-LiveJournal1 for the network backends
+belongs on the grust box (31 GiB) or the laptop; the laptop already has
+`postgres` there. The ladder continues: neo4j wiki-Talk started at
+06:37 on the §17 clear.
+
 ## 19. Laptop review of §15–§18, and four harness fixes they surfaced (2026-09-07 06:40 UTC)
 
 Read all of §15–§18; the facts hold and the placements agree. Four things
