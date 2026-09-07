@@ -61,10 +61,46 @@ guard() { # $1 = pid of the background pair
     sleep 5
   done
 }
+# Tenancy blackouts. AG_BLACKOUT_UTC="HH:MM-HH:MM,..." names windows (UTC)
+# during which a co-tenant's job owns the host's memory; no pair is started
+# whose cap could still be running when a window opens, and the ladder
+# sleeps until the window closes. Every wait is logged, so a host's rows
+# carry the schedule they were taken under.
+BLACKOUTS="${AG_BLACKOUT_UTC:-}"
+wait_for_window() { # $1 = the backend's compose service, stopped while waiting
+  [ -z "$BLACKOUTS" ] && return 0
+  local waited=""
+  while true; do
+    local now start_s cap_end blocked="" w
+    now=$(date -u +%s); start_s=$(( $(date -u +%H) * 3600 + $(date -u +%M) * 60 + $(date -u +%S) ))
+    cap_end=$(( start_s + CAP + 300 ))
+    IFS=, read -ra WINDOWS <<<"$BLACKOUTS"
+    for w in "${WINDOWS[@]}"; do
+      local a b as bs
+      a=${w%-*}; b=${w#*-}
+      as=$(( 10#${a%:*} * 3600 + 10#${a#*:} * 60 )); bs=$(( 10#${b%:*} * 3600 + 10#${b#*:} * 60 ))
+      # A window later today that the pair would still be inside, or one we
+      # are in right now; windows are compared on the same day (they are
+      # short and never span midnight).
+      if { [ "$start_s" -ge "$as" ] && [ "$start_s" -lt "$bs" ]; } || { [ "$as" -ge "$start_s" ] && [ "$as" -lt "$cap_end" ]; }; then blocked="$w"; break; fi
+    done
+    if [ -z "$blocked" ]; then
+      if [ -n "$waited" ] && [ -n "${1:-}" ]; then docker compose --profile external up -d "$1" >/dev/null 2>&1; wait_ready "$1"; fi
+      return 0
+    fi
+    if [ -z "$waited" ] && [ -n "${1:-}" ]; then docker compose --profile external stop "$1" >/dev/null 2>&1; fi
+    waited=1
+    b=${blocked#*-}; bs=$(( 10#${b%:*} * 3600 + 10#${b#*:} * 60 ))
+    local sleep_s=$(( bs - start_s )); [ "$sleep_s" -le 0 ] && sleep_s=$(( sleep_s + 86400 ))
+    echo "## tenancy blackout $blocked: waiting $((sleep_s / 60)) min from $(date -u +%H:%M:%SZ) before the next pair"
+    sleep "$sleep_s"
+  done
+}
 for b in "${BACKENDS[@]}"; do
   svc=$(service_for "$b")
   if [ -n "$svc" ]; then echo "## $b: starting $svc"; docker compose --profile external up -d "$svc" >/dev/null 2>&1; wait_ready "$svc"; fi
   for d in "${DS[@]}"; do
+    wait_for_window "$svc"
     echo "## $b $d: start $(date -u +%H:%M:%SZ)"
     # The pair's own output is kept so the decision below reads the
     # harness's completion marker, not the exit code: `ag run` exits 1 when a
