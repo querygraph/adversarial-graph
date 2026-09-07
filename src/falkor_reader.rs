@@ -5,14 +5,23 @@
 //! way are labelled `read_path = "harness-native-cypher"` in the report so
 //! they are never mistaken for Grust's portable API.
 
+use std::sync::{Arc, Mutex};
+
 use redis::Value;
 
 use crate::differential::{Cell, ResultSet};
 
+/// One persistent connection per reader, opened on first use and reopened
+/// after an error, the way any client library keeps a session: a connection
+/// per query exhausted the host's ephemeral ports after a few thousand
+/// one-hop reads (`Can't assign requested address`), which is a harness
+/// artifact and not a store finding. Clones share the connection;
+/// [`FalkorReader::fresh`] gives a clone its own.
 #[derive(Clone)]
 pub struct FalkorReader {
     client: redis::Client,
     graph: String,
+    conn: Arc<Mutex<Option<redis::Connection>>>,
 }
 
 fn escape(id: &str) -> String {
@@ -100,21 +109,48 @@ impl FalkorReader {
         Ok(Self {
             client,
             graph: graph.to_string(),
+            conn: Arc::new(Mutex::new(None)),
         })
+    }
+
+    /// The same client and graph with a connection of its own.
+    pub fn fresh(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            graph: self.graph.clone(),
+            conn: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    /// Run one command on this reader's connection; a failed connection is
+    /// dropped so the next call reconnects.
+    fn query(&self, command: &str, cypher: &str) -> grust::Result<Value> {
+        let mut slot = self.conn.lock().expect("falkor connection slot");
+        if slot.is_none() {
+            *slot = Some(
+                self.client
+                    .get_connection()
+                    .map_err(|e| grust::GrustError::Backend(format!("falkor connect: {e}")))?,
+            );
+        }
+        let conn = slot.as_mut().expect("connection present");
+        let result: Result<Value, redis::RedisError> = redis::cmd(command)
+            .arg(&self.graph)
+            .arg(cypher)
+            .arg("--compact")
+            .query(conn);
+        match result {
+            Ok(value) => Ok(value),
+            Err(e) => {
+                *slot = None;
+                Err(grust::GrustError::Backend(format!("falkor {command}: {e}")))
+            }
+        }
     }
 
     /// Every row of a read-only query through `GRAPH.RO_QUERY`.
     pub fn rows(&self, cypher: &str) -> grust::Result<ResultSet> {
-        let mut conn = self
-            .client
-            .get_connection()
-            .map_err(|e| grust::GrustError::Backend(format!("falkor connect: {e}")))?;
-        let value: Value = redis::cmd("GRAPH.RO_QUERY")
-            .arg(&self.graph)
-            .arg(cypher)
-            .arg("--compact")
-            .query(&mut conn)
-            .map_err(|e| grust::GrustError::Backend(format!("falkor GRAPH.RO_QUERY: {e}")))?;
+        let value = self.query("GRAPH.RO_QUERY", cypher)?;
         let Value::Array(parts) = value else {
             return Err(grust::GrustError::Backend(
                 "falkor: unexpected result shape".into(),
@@ -146,16 +182,7 @@ impl FalkorReader {
 
     /// First column of every result row, as strings.
     pub fn column(&self, cypher: &str) -> grust::Result<Vec<String>> {
-        let mut conn = self
-            .client
-            .get_connection()
-            .map_err(|e| grust::GrustError::Backend(format!("falkor connect: {e}")))?;
-        let value: Value = redis::cmd("GRAPH.QUERY")
-            .arg(&self.graph)
-            .arg(cypher)
-            .arg("--compact")
-            .query(&mut conn)
-            .map_err(|e| grust::GrustError::Backend(format!("falkor GRAPH.QUERY: {e}")))?;
+        let value = self.query("GRAPH.QUERY", cypher)?;
         // Result shape: [header, rows, statistics]; each row is an array of
         // cells, each cell (compact) is [type, value].
         let Value::Array(parts) = value else {

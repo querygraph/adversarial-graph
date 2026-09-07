@@ -93,7 +93,11 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     // native Cypher reader, as A1 and A4 do (`read_path =
     // harness-native-cypher`), one `GRAPH.RO_QUERY` per request.
     #[cfg(feature = "falkor")]
-    let falkor = ctx.backend.falkor.clone();
+    let falkor: Option<Arc<Vec<crate::falkor_reader::FalkorReader>>> = ctx
+        .backend
+        .falkor
+        .as_ref()
+        .map(|r| Arc::new((0..HANDLES).map(|_| r.fresh()).collect()));
     let mut merged_service = histogram();
     let mut total_errors = 0u64;
     let mut total_unsupported = 0u64;
@@ -124,7 +128,9 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             in_flight_max = in_flight_max.max(in_flight);
             let store = handles[(sent as usize) % HANDLES].clone();
             #[cfg(feature = "falkor")]
-            let reader = falkor.clone();
+            let reader = falkor
+                .as_ref()
+                .map(|rs| rs[(sent as usize) % HANDLES].clone());
             sent += 1;
             tasks.push(tokio::spawn(async move {
                 let queued = scheduled.elapsed();

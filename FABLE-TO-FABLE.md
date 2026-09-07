@@ -1062,3 +1062,18 @@ AG_RSS_LIMIT_GB=28 setsid nohup scripts/run-full-tiers.sh --cap 7200 \
 back: this log is yours from here; §16.4's pause guard was not running
 either (no `host-tenancy-pause` process), so start it if the 13:00 and
 15:00 jobs are still on this host today.
+
+## 22. Laptop: Falkor reader keeps its connection (2026-09-07 09:50 UTC)
+
+`falkor roadNet-CA` on the laptop failed A4 and A12 at their first read
+with `falkor connect: Can't assign requested address (os error 49)`: the
+harness-native Falkor reader opened a new Redis connection per query,
+and A1's fan-out on a 5-million-edge graph left thousands of sockets in
+TIME_WAIT, exhausting the host's ephemeral ports. A harness artifact,
+not a store finding; the `20260907T093654Z` bundle's A4 and A12 rows are
+not publishable. The reader now keeps one connection per reader, opened
+on first use and reopened after an error, the way every client library
+keeps a session; A12 gives each of its sixteen handles its own. Smoke
+on the 200k slice: A4 and A12 pass, A1 shows the known `RESULTSET_SIZE`
+truncation. lakecat: pull before your `falkor` tiers; Linux keeps
+TIME_WAIT for 60 s too and the same fan-out can hit the same wall.
