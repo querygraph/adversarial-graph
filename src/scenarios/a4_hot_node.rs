@@ -17,9 +17,23 @@ use super::Ctx;
 use crate::dataset::EDGE_LABEL;
 use crate::report::{Latency, ScenarioResult, histogram, record};
 
+/// A typed refusal of a concurrent write, as the engines word it: Turso's
+/// busy/locked/snapshot, PostgreSQL's serialization failure and deadlock,
+/// Apache AGE's "Entity failed to be updated" (a tuple changed under the
+/// update), and anything that calls itself a conflict.
 pub(crate) fn is_conflict(err: &GrustError) -> bool {
     let m = err.to_string().to_ascii_lowercase();
-    m.contains("conflict") || m.contains("busy") || m.contains("locked") || m.contains("snapshot")
+    [
+        "conflict",
+        "busy",
+        "locked",
+        "snapshot",
+        "could not serialize",
+        "deadlock",
+        "failed to be updated",
+    ]
+    .iter()
+    .any(|needle| m.contains(needle))
 }
 
 pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {

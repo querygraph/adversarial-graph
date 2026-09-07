@@ -1579,3 +1579,53 @@ Worth recording as future harness work, neutrally: a compact reference
 strings) would cut the client's footprint several-fold and let the
 15 GiB and 31 GB hosts hold this tier. Not started; every published row
 stands on the reference as it is.
+
+### 27.5 The adapters read typed vertices now; A5 and A6 reach every store with a delete or a vertex read (16:45 UTC)
+
+`0d7b0f0` and this commit: in `src/neo4j.rs` (Bolt: Neo4j and
+Memgraph), `src/neo4j_http.rs` and `src/age.rs`, `get_node` matches
+any label and returns the vertex with its label and every property
+(`labels(n)`/`label(n)` and `properties(n)`), `put_node` upserts on the
+vertex's own label and sets its properties (one `SET n += $props` on
+the Cypher engines, one `SET` per property on AGE, which has no map
+`+=`), and `get_edges` honours the relationship type asked for or
+returns every type; the SNAP shape (`:V` anchor, `[:E]`) keeps its
+exact statement so the hot-node and stream families keep their access
+path. `src/typed_load.rs` gained the JSON-to-`Value` helpers. AGE's
+`Entity failed to be updated` (a tuple changed under the update) is a
+typed conflict in `is_conflict`, as PostgreSQL's serialization failure
+and deadlock now are; A4's classification gains the same words.
+
+Retaken on all of them (smoke, SNB SF0.1 slice, `24fdea3`+):
+
+| backend | write mode | A6 register acc/conf | A6 append acc/conf | A6 anomalies | A6 | A5 deletes / orphan reads | A5 |
+|---|---|---:|---:|---|---|---|---|
+| memory | upsert | 40/0 | 40/0 | 4 lost updates, 7 lost appends | fail | 21 / 1 | pass |
+| turso-wal | guarded CAS | 6/34 | 12/28 | none | pass | 21 / 970 | pass |
+| turso-mvcc | guarded CAS | 34/6 | 33/7 | none | pass | 21 / 122 | pass |
+| postgres | upsert | 40/0 | 40/0 | 7 lost updates, 7 lost appends, 1 intermediate read | fail | 21 / 49 | pass |
+| age | upsert, tuple check | 32/8 | 30/10 | 6 lost updates, 2 lost appends | fail | 21 / 108 | pass |
+| neo4j | upsert | 40/0 | 40/0 | 1 lost append | fail | 21 / 30 | pass |
+| neo4j-http | upsert | 40/0 | 40/0 | 4 lost updates | fail | 21 / 24 | pass |
+| memgraph | upsert | 40/0 | 40/0 | 9 lost updates, 8 lost appends | fail | 21 / 20 | pass |
+| falkor | | | | no vertex read in the Grust Falkor store | unsupported | | unsupported |
+
+Read: every store with a delete path deletes a 21-vertex reply tree
+cleanly and leaves nothing dangling (A5 passes on eight); the readers'
+orphan column is how long each store lets a reply outlive its parent
+in the eyes of a concurrent reader, from 1 read on the in-process store
+to 970 on Turso WAL. A6 says what §9 asked it to: only the guarded
+commit refuses the racing write, and it passes on both journal modes;
+every unconditional path loses updates, Neo4j least (its Bolt round
+trip serialises the four clients most of the time) and Memgraph most;
+AGE's tuple check catches 8 of 40 races and misses the ones that commit
+between a client's read and its write. These are the portable-API
+rows; a conditional write through each engine's own Cypher (`WHERE
+n.version = $v SET …`, one statement) is the fair second reading for
+the Cypher engines and is the next A6 step. The bundles are in
+`reports-dev/` under `1634`–`1637`; offered as the A5/A6 clean-host
+slices once the laptop says how it wants dev bundles.
+
+**Still open on lakecat:** A8 on AGE (route `Backend::cypher` to the
+AGE adapter with column names taken from the `RETURN` clause), the
+Cypher conditional-write path for A6, the Helix SDK fix.
