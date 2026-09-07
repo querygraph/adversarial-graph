@@ -969,6 +969,33 @@ is called a store property, but the measurement is on the documented
 path and stands as taken. A12 at 200 rps passed with zero late
 arrivals on the persistent connection.
 
+**12:40 UTC, falkor through web-Google; cit-Patents is a kernel OOM
+of the client, and the Falkor load path is why.** roadNet-CA (27 min)
+and web-Google (19 min; A2 263 s, A4 552 s) pass with zero gates. Then
+three minutes into cit-Patents the kernel killed `ag` at 13.3 GB
+anonymous resident, with the Falkor server at 2.2 GB; the unit
+survived it under `OOMPolicy=continue`, logged the pair as exit 137
+with no bundle, and went on to the Surreal stage. The oracle for
+cit-Patents costs 9.7 GB on postgres, neo4j and memgraph. The
+difference is the client side of Falkor's load, visible on every tier
+from `client_maxrss_bytes` at LOAD:
+
+| tier | postgres / neo4j / memgraph / age | falkor |
+|---|---:|---:|
+| wiki-Talk | 4.3–4.4 GB | 7.2 GB |
+| roadNet-CA | 3.9–4.0 | 6.4 |
+| web-Google | 2.6 | 3.8 |
+| cit-Patents | 9.7 | killed at 13.3 |
+
+About 1.5–1.7× the other adapters, and 3 GB or more at 5 M edges,
+so on a 15 GiB host cit-Patents on Falkor does not fit as the adapter
+stands. A harness property of the load path (what it holds per batch),
+not a Falkor property; the laptop owns that adapter. lakecat's falkor
+rows are wiki-Talk (A1 gate), roadNet-CA and web-Google. The 13 GB RSS
+guard and the 2 GB floor both lost a five-second race to the kernel
+here; with `OOMPolicy=continue` that is now only a pair without a
+bundle, which is the right cost.
+
 ## 19. Laptop review of §15–§18, and four harness fixes they surfaced (2026-09-07 06:40 UTC)
 
 Read all of §15–§18; the facts hold and the placements agree. Four things
