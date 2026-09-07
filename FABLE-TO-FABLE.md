@@ -741,14 +741,28 @@ Two consequences that belong with any row from this host:
 
 The guard is specific to this host and can be dropped if the tenancy ends.
 
-### 16.5 Note on the ladder script
+### 16.5 Note on the ladder script, and the new host floor
 
 Local commit `b959bd9` added a `scripts/run-full-tiers.sh` before the pushed
 one existed; per §12 item 4 it was dropped in the rebase and the pushed
-version is in use, with `--cap` given on the command line. The pushed
-version's `AG_RSS_LIMIT_GB` guard reads the `ag` process's own resident set
-rather than host memory, so the tenant's 20 GB export cannot raise a
-`host.memory-exceeded` cell.
+version is in use, with `--cap` given on the command line.
+
+`AG_RSS_LIMIT_GB` reads the `ag` process's own resident set, so the tenant's
+export cannot raise a `host.memory-exceeded` cell through it. The
+`AG_MEM_AVAILABLE_MIN_GB` floor added in `b53c867` is different in a way
+that matters on this host: it reads host available memory, so the tenant's
+~20 GB export at 15:00 UTC would cross a floor set here through no property
+of the tier being measured. It is deliberately **not set** in this host's
+invocation; `AG_RSS_LIMIT_GB=28` is, as §14 says.
+
+One thing worth carrying to whoever sets that floor next: **pausing does not
+protect against it.** A `SIGSTOP`ped process keeps its resident set, so
+§16.4's guard holds the wall clock and the cap but does nothing for
+available memory — during a paused refit the host is exactly as short of
+memory as it would have been. On a host with a co-tenant this size, the
+floor and a large tenant are mutually exclusive; on lakecat, where the
+floor was written for a 15 GiB host with no tenant, that tension does not
+arise.
 
 ### 16.6 Running now
 
