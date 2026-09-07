@@ -195,18 +195,21 @@ and the in-process oracle always see one multiset of nodes and edges:
   (`ldbc-snb-csvbasic`; `ldbc-snb-sf0.1`, `ldbc-snb-sf1`): the archive is
   extracted beside itself on first use (`tar --zstd`). Node ids are
   namespaced by label (`Person:933`) because SNB ids repeat across entity
-  types; the raw id stays as the `id` property. `organisation` and `place`
-  split into Company/University and Continent/Country/City by their `type`
-  column, as the LSQB projected-FK layout does; relationship types are the
+  types; the raw id stays as the `sourceId` property, since `id` is the
+  node's identity in every store. Posts and comments are one label,
+  `Message`, with `kind` = `Post` or `Comment`, and `organisation` and
+  `place` split into Company/University and Continent/Country/City by
+  their `type` column: the LSQB projected-FK shape, so the LSQB queries and
+  their digests carry over to A8; relationship types are the
   file's verb in upper snake case (`KNOWS`, `HAS_CREATOR`, `REPLY_OF`);
   millisecond-epoch columns (`creationDate`, `birthday`, `joinDate`) become
   RFC 3339 `DateTime` values, integers `Int`, and the multi-valued attribute
-  files become string arrays (`speaks`, `email`). SF0.1: 327,588 nodes in 11
+  files become string arrays (`speaks`, `email`). SF0.1: 327,588 nodes in 10
   labels, 1,477,965 edges in 15 types, 4.7 s to load, no dangling edges.
 - **ICIJ Offshore Leaks** (`icij-offshore-leaks`): the CSV zip read in
   place. Labels are the file's kind (Entity, Officer, Intermediary,
   Address, Other); `node_id` is unique across files and is both the node
-  id and the `id` property; `rel_type` becomes the relationship type
+  id and the `sourceId` property; `rel_type` becomes the relationship type
   (`OFFICER_OF`, `REGISTERED_ADDRESS`, `SAME_AS`, …) with `link`, `status`,
   the dates and `sourceID` as properties; every other column is a string,
   empty cells absent. Full graph: 2,016,523 nodes in 5 labels, 2,901,722
@@ -286,7 +289,7 @@ answers and proof bases · **L7** OpenLineage.
 | **A5** | Recursive deletes | SNB v2-style delete cascades and temporal-stream deletes of repeated edges; post-state must equal the oracle; parallel edges must survive when the model declares them | L1, L3 | LDBC SNB SF1 updates, sx-stackoverflow | `wrong_answer`, `lost_write` | CP-9.3–9.5 |
 | **A6** | Isolation under mixed load | Elle-style register and list-append histories on node properties and adjacency under concurrent readers/writers; anomalies classified (G0, G1a/b/c, G-single, lost update, dirty traversal) | L3 | LDBC SNB SF0.1 | `isolation_anomaly` | — |
 | **A7** | Ambiguous commit and restart | Kill the store mid-transaction; kill the process between COMMIT and ack; restart; replay the guarded commit with the same idempotency key; exactly one durable effect | L0, L3 | any M-tier | `duplicate_durable_mutation`, `lost_write`, `non_deterministic_receipt` | — |
-| **A8** | Differential Cypher | GDsmith/Gamera-style generated queries (metamorphic: add-then-remove, projection narrowing, reversed patterns) run on every backend and the reference executor; disagreement is a logic bug | L2 | LDBC SF0.1, ICIJ | `wrong_answer` | CP-8 |
+| **A8** | Differential Cypher | A pinned read set (the nine LSQB shapes, the thirteen LSQB count attacks, row-returning variants with `ORDER BY`/`LIMIT` and an unordered one; an ICIJ set) run through every store that accepts Cypher and compared, full result sets, against grust-cypher over the in-process graph; disagreement is a logic bug. GDsmith/Gamera-style generated metamorphic queries are the next cut. | L2 | LDBC SF0.1, ICIJ | `wrong_answer` | CP-8 |
 | **A9** | Governed memory under strain | Recall with typed clearance while an adversary inserts confusables, oversized records, forged provenance, cross-tenant ids, and replayed proposals at high rate; rank-only paths must never widen authority | L4 | ICIJ (as a memory corpus), synthetic tenants | `unauthorized_disclosure`, `cross_scope_leakage`, `residual_recall_after_forget` | — |
 | **A10** | Catalog projection replay | LakeCat emits catalog events for thousands of tables under commit contention while the graph sink is periodically unavailable; outbox replay must produce exactly the oracle graph with stable event ids | L5, L1 | synthetic catalog (10k tables) | `duplicate_durable_mutation`, `lost_write`, `wrong_answer` | — |
 | **A11** | Semantic answer drift | Publish an Ossie model over LDBC SF1 tables, answer five metrics, then perturb artifact, model, policy, plan, graph, lineage under concurrent load; every drift must be rejected | L5–L7 | LDBC SNB SF1 | `drift_accepted`, `non_deterministic_receipt` | — |

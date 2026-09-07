@@ -167,15 +167,13 @@ pub fn typed_value(column: &str, cell: &str, epoch_millis_columns: &[&str]) -> O
     if cell.is_empty() {
         return None;
     }
-    if epoch_millis_columns.contains(&column) {
-        if let Some(datetime) = cell
+    if epoch_millis_columns.contains(&column)
+        && let Some(datetime) = cell
             .parse::<i64>()
             .ok()
             .and_then(chrono::DateTime::from_timestamp_millis)
-        {
-            return Value::datetime(datetime.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
-                .ok();
-        }
+    {
+        return Value::datetime(datetime.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)).ok();
     }
     if let Ok(int) = cell.parse::<i64>() {
         return Some(Value::Int(int));

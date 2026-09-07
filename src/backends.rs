@@ -12,7 +12,9 @@ use grust::GraphAdminStore as _;
 use grust::{Edge, EdgeQuery, Graph, GraphAdminStore, GraphStore, NodeId, Traversal};
 use grust::{TursoConfig, TursoGraphStore, TursoJournalMode};
 
-use crate::dataset::{EDGE_LABEL, NODE_LABEL};
+use crate::dataset::EDGE_LABEL;
+#[cfg(feature = "falkor")]
+use crate::dataset::NODE_LABEL;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BackendKind {
@@ -224,8 +226,18 @@ fn env_or(key: &str, default: &str) -> String {
     std::env::var(key).unwrap_or_else(|_| default.to_string())
 }
 
+/// A tag as an identifier every store accepts: lowercase, `[a-z0-9_]`
+/// only, so `ldbc-snb-sf0.1` is `ldbc_snb_sf0_1`.
 fn slug(tag: &str) -> String {
-    tag.replace('-', "_").to_ascii_lowercase()
+    tag.chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect()
 }
 
 #[cfg(feature = "postgres")]
@@ -390,33 +402,32 @@ fn ladybug_buffer_pool_bytes() -> u64 {
 }
 
 #[cfg(feature = "neo4j")]
-async fn connect_neo4j(kind: BackendKind) -> grust::Result<Arc<dyn AdminStore>> {
-    let user = env_or("AG_NEO4J_USER", "neo4j");
-    let pass = env_or("AG_NEO4J_PASS", "adversarial");
-    Ok(match kind {
-        BackendKind::Neo4jHttp => Arc::new(crate::neo4j_http::Neo4jHttpStore::connect(
-            &env_or("AG_NEO4J_HTTP_URL", "http://127.0.0.1:17474"),
-            &user,
-            &pass,
-        )?),
-        BackendKind::Memgraph => Arc::new(
-            crate::neo4j::Neo4jStore::connect_dialect(
-                &env_or("AG_MEMGRAPH_URI", "bolt://127.0.0.1:17688"),
-                &env_or("AG_MEMGRAPH_USER", ""),
-                &env_or("AG_MEMGRAPH_PASS", ""),
-                crate::neo4j::BoltDialect::Memgraph,
-            )
-            .await?,
-        ),
-        _ => Arc::new(
-            crate::neo4j::Neo4jStore::connect(
-                &env_or("AG_NEO4J_URI", "bolt://127.0.0.1:17687"),
-                &user,
-                &pass,
-            )
-            .await?,
-        ),
-    })
+fn connect_neo4j_http() -> grust::Result<crate::neo4j_http::Neo4jHttpStore> {
+    crate::neo4j_http::Neo4jHttpStore::connect(
+        &env_or("AG_NEO4J_HTTP_URL", "http://127.0.0.1:17474"),
+        &env_or("AG_NEO4J_USER", "neo4j"),
+        &env_or("AG_NEO4J_PASS", "adversarial"),
+    )
+}
+
+/// Neo4j over Bolt, or Memgraph through the same store with its dialect.
+#[cfg(feature = "neo4j")]
+async fn connect_neo4j_bolt(kind: BackendKind) -> grust::Result<crate::neo4j::Neo4jStore> {
+    if kind == BackendKind::Memgraph {
+        return crate::neo4j::Neo4jStore::connect_dialect(
+            &env_or("AG_MEMGRAPH_URI", "bolt://127.0.0.1:17688"),
+            &env_or("AG_MEMGRAPH_USER", ""),
+            &env_or("AG_MEMGRAPH_PASS", ""),
+            crate::neo4j::BoltDialect::Memgraph,
+        )
+        .await;
+    }
+    crate::neo4j::Neo4jStore::connect(
+        &env_or("AG_NEO4J_URI", "bolt://127.0.0.1:17687"),
+        &env_or("AG_NEO4J_USER", "neo4j"),
+        &env_or("AG_NEO4J_PASS", "adversarial"),
+    )
+    .await
 }
 
 #[cfg(feature = "age")]
@@ -467,6 +478,12 @@ pub struct Backend {
     pub tag: String,
     #[cfg(feature = "falkor")]
     pub falkor: Option<crate::falkor_reader::FalkorReader>,
+    #[cfg(feature = "postgres")]
+    pub postgres: Option<Arc<grust::PostgresGraphStore>>,
+    #[cfg(feature = "neo4j")]
+    pub neo4j: Option<crate::neo4j::Neo4jStore>,
+    #[cfg(feature = "neo4j")]
+    pub neo4j_http: Option<crate::neo4j_http::Neo4jHttpStore>,
 }
 
 impl Backend {
@@ -480,6 +497,12 @@ impl Backend {
             tag: tag.to_string(),
             #[cfg(feature = "falkor")]
             falkor: None,
+            #[cfg(feature = "postgres")]
+            postgres: None,
+            #[cfg(feature = "neo4j")]
+            neo4j: None,
+            #[cfg(feature = "neo4j")]
+            neo4j_http: None,
         }
     }
 
@@ -512,7 +535,10 @@ impl Backend {
             }
             #[cfg(feature = "postgres")]
             BackendKind::Postgres => {
-                Self::prepared(kind, Arc::new(connect_postgres(tag).await?), tag).await
+                let store = Arc::new(connect_postgres(tag).await?);
+                let mut b = Self::prepared(kind, store.clone(), tag).await?;
+                b.postgres = Some(store);
+                Ok(b)
             }
             #[cfg(feature = "surreal")]
             BackendKind::SurrealHttp | BackendKind::SurrealSdk => {
@@ -541,8 +567,18 @@ impl Backend {
                 Self::prepared(kind, Arc::new(connect_ladybug(work_dir, tag)?), tag).await
             }
             #[cfg(feature = "neo4j")]
-            BackendKind::Neo4j | BackendKind::Neo4jHttp | BackendKind::Memgraph => {
-                Self::prepared(kind, connect_neo4j(kind).await?, tag).await
+            BackendKind::Neo4jHttp => {
+                let store = connect_neo4j_http()?;
+                let mut b = Self::prepared(kind, Arc::new(store.clone()), tag).await?;
+                b.neo4j_http = Some(store);
+                Ok(b)
+            }
+            #[cfg(feature = "neo4j")]
+            BackendKind::Neo4j | BackendKind::Memgraph => {
+                let store = connect_neo4j_bolt(kind).await?;
+                let mut b = Self::prepared(kind, Arc::new(store.clone()), tag).await?;
+                b.neo4j = Some(store);
+                Ok(b)
             }
             #[cfg(feature = "age")]
             BackendKind::Age => Self::prepared(kind, connect_age().await?, tag).await,
@@ -627,11 +663,9 @@ impl Backend {
         if let Some(reader) = &self.falkor {
             let reader = reader.clone();
             let graph = graph.clone();
-            return tokio::task::spawn_blocking(move || {
-                reader.load_graph(NODE_LABEL, EDGE_LABEL, &graph)
-            })
-            .await
-            .map_err(|e| grust::GrustError::Backend(e.to_string()))?;
+            return tokio::task::spawn_blocking(move || reader.load_graph(&graph))
+                .await
+                .map_err(|e| grust::GrustError::Backend(e.to_string()))?;
         }
         self.store.put_graph(graph).await
     }
@@ -696,6 +730,118 @@ impl Backend {
             .map_err(|e| grust::GrustError::Backend(e.to_string()))?;
         }
         Ok(self.out_edges(from).await?.len())
+    }
+
+    /// Run a read-only Cypher query through the store's own query path and
+    /// return every row: Grust's reference executor or resident index for
+    /// Memory, Grust pushdown for Turso and PostgreSQL, the engine's own
+    /// openCypher for FalkorDB and Neo4j. Stores without a Cypher path
+    /// return `Unsupported`.
+    pub async fn cypher(&self, cypher: &str) -> grust::Result<crate::differential::ResultSet> {
+        use crate::differential::{ResultSet, Route, resident_proven};
+        let run_indexed = |index: Arc<grust::TypedGraphIndex>, cypher: String| async move {
+            tokio::task::spawn_blocking(move || {
+                grust_cypher::read::run_read_query_indexed(
+                    &index,
+                    &cypher,
+                    &grust_cypher::CypherParameters::new(),
+                )
+            })
+            .await
+            .map_err(|e| grust::GrustError::Backend(e.to_string()))?
+            .map(ResultSet::from_table)
+        };
+        if let Some(memory) = &self.memory {
+            if resident_proven(cypher) {
+                return run_indexed(memory.indexed_snapshot()?, cypher.to_string()).await;
+            }
+            let graph = memory.graph();
+            let cypher = cypher.to_string();
+            return tokio::task::spawn_blocking(move || {
+                grust_cypher::read::run_read_query(
+                    &graph,
+                    &cypher,
+                    &grust_cypher::CypherParameters::new(),
+                )
+            })
+            .await
+            .map_err(|e| grust::GrustError::Backend(e.to_string()))?
+            .map(ResultSet::from_table);
+        }
+        let params = grust_cypher::CypherParameters::new();
+        if let Some(turso) = &self.turso {
+            if self.cypher_route(cypher) == Route::ResidentIndexRustCount {
+                return run_indexed(turso.indexed_snapshot().await?, cypher.to_string()).await;
+            }
+            return Ok(ResultSet::from_table(
+                turso.run_read_query(cypher, &params).await?,
+            ));
+        }
+        #[cfg(feature = "postgres")]
+        if let Some(postgres) = &self.postgres {
+            if self.cypher_route(cypher) == Route::ResidentIndexRustCount {
+                return run_indexed(postgres.indexed_snapshot().await?, cypher.to_string()).await;
+            }
+            return Ok(ResultSet::from_table(
+                postgres.run_read_query(cypher, &params).await?,
+            ));
+        }
+        #[cfg(feature = "falkor")]
+        if let Some(reader) = &self.falkor {
+            let reader = reader.clone();
+            let cypher = cypher.to_string();
+            return tokio::task::spawn_blocking(move || reader.rows(&cypher))
+                .await
+                .map_err(|e| grust::GrustError::Backend(e.to_string()))?;
+        }
+        #[cfg(feature = "neo4j")]
+        if let Some(store) = &self.neo4j {
+            return store.rows(cypher).await;
+        }
+        #[cfg(feature = "neo4j")]
+        if let Some(store) = &self.neo4j_http {
+            return store.rows(cypher).await;
+        }
+        Err(grust::GrustError::Unsupported(format!(
+            "{} has no Cypher read path in this harness",
+            self.kind.name()
+        )))
+    }
+
+    /// The route `cypher` takes on this store, as the LSQB harness names it.
+    pub fn cypher_route(&self, cypher: &str) -> crate::differential::Route {
+        use crate::differential::{Route, resident_proven, sql_route};
+        if self.memory.is_some() {
+            return if resident_proven(cypher) {
+                Route::ResidentIndexRustCount
+            } else {
+                Route::InProcessReference
+            };
+        }
+        if self.turso.is_some() {
+            // The resident plan comes before the store's own SQL, as in the
+            // LSQB harness since 5c34fc2 (260 s vs 66 ms for q1 at SF0.1).
+            if resident_proven(cypher) {
+                return Route::ResidentIndexRustCount;
+            }
+            return sql_route(cypher, &grust::TursoReadDialect::new("ag"));
+        }
+        #[cfg(feature = "postgres")]
+        if self.postgres.is_some() {
+            if resident_proven(cypher) {
+                return Route::ResidentIndexRustCount;
+            }
+            let config = grust::PostgresGraphConfig {
+                schema: "public".to_string(),
+                table_prefix: format!("ag_{}", slug(&self.tag)),
+                ..grust::PostgresGraphConfig::default()
+            };
+            return sql_route(
+                cypher,
+                &grust_postgres_core::PostgresReadDialect::new(&config),
+            );
+        }
+        Route::NativeCypher
     }
 
     /// Which read path `neighbors`/`out_degree` use, recorded in reports.

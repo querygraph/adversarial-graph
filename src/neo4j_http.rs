@@ -12,6 +12,7 @@ use grust::{
 use serde_json::{Value, json};
 
 use crate::dataset::{EDGE_LABEL, NODE_LABEL};
+use crate::differential::{Cell, ResultSet};
 
 const BATCH: usize = 5_000;
 
@@ -27,6 +28,25 @@ fn backend(err: impl std::fmt::Display) -> GrustError {
     GrustError::Backend(format!("neo4j-http: {err}"))
 }
 
+/// Grust properties as JSON for the Query API: ints, floats, bools and
+/// strings as themselves, string arrays as lists, dates as their text.
+fn json_props(props: &Props) -> Value {
+    let mut map = serde_json::Map::new();
+    for (key, value) in props.iter() {
+        let cell = match value {
+            grust::Value::Null => continue,
+            grust::Value::Bool(b) => json!(b),
+            grust::Value::Int(i) => json!(i),
+            grust::Value::Float(f) => json!(f),
+            grust::Value::String(s) => json!(s),
+            grust::Value::StringArray(items) => json!(items),
+            other => json!(crate::differential::value_text(other)),
+        };
+        map.insert(key.clone(), cell);
+    }
+    Value::Object(map)
+}
+
 impl Neo4jHttpStore {
     pub fn connect(base_url: &str, user: &str, pass: &str) -> grust::Result<Self> {
         let client = reqwest::Client::builder()
@@ -40,6 +60,57 @@ impl Neo4jHttpStore {
             user: user.to_string(),
             pass: pass.to_string(),
         })
+    }
+
+    /// Every row of a read query, cells normalized for comparison.
+    pub async fn rows(&self, cypher: &str) -> grust::Result<ResultSet> {
+        let body = json!({ "statement": cypher, "parameters": {} });
+        let response = self
+            .client
+            .post(&self.url)
+            .basic_auth(&self.user, Some(&self.pass))
+            .json(&body)
+            .send()
+            .await
+            .map_err(backend)?;
+        let status = response.status();
+        let text = response.text().await.map_err(backend)?;
+        let parsed: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+        if let Some(errors) = parsed.get("errors").and_then(Value::as_array)
+            && let Some(first) = errors.first()
+        {
+            return Err(backend(format!(
+                "{} {}",
+                first.get("code").and_then(Value::as_str).unwrap_or("?"),
+                first.get("message").and_then(Value::as_str).unwrap_or("")
+            )));
+        }
+        if !status.is_success() {
+            return Err(backend(format!(
+                "HTTP {status}: {}",
+                text.chars().take(200).collect::<String>()
+            )));
+        }
+        let columns = parsed
+            .pointer("/data/fields")
+            .and_then(Value::as_array)
+            .map(|f| {
+                f.iter()
+                    .filter_map(|c| c.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let rows = parsed
+            .pointer("/data/values")
+            .and_then(Value::as_array)
+            .map(|rows| {
+                rows.iter()
+                    .filter_map(|r| r.as_array())
+                    .map(|r| r.iter().map(Cell::from_json).collect())
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok(ResultSet { columns, rows })
     }
 
     /// Run one statement; returns the result rows (`data.values`).
@@ -116,28 +187,47 @@ impl GraphStore for Neo4jHttpStore {
 
     async fn put_graph(&self, graph: &Graph) -> grust::Result<LoadReport> {
         let mut report = LoadReport::default();
-        for chunk in graph.nodes.chunks(BATCH) {
-            let ids: Vec<&str> = chunk.iter().map(|n| n.id.as_str()).collect();
-            self.query(
-                format!("UNWIND $ids AS id MERGE (n:{NODE_LABEL} {{id: id}})"),
-                json!({ "ids": ids }),
-            )
-            .await?;
-            report.nodes += chunk.len();
-        }
-        for chunk in graph.edges.chunks(BATCH) {
-            let froms: Vec<&str> = chunk.iter().map(|e| e.from.as_str()).collect();
-            let tos: Vec<&str> = chunk.iter().map(|e| e.to.as_str()).collect();
+        let plan = crate::typed_load::LoadPlan::of(graph);
+        for label in plan.node_labels() {
             self.query(
                 format!(
-                    "UNWIND range(0, size($froms) - 1) AS i \
-                     MATCH (a:{NODE_LABEL} {{id: $froms[i]}}), (b:{NODE_LABEL} {{id: $tos[i]}}) \
-                     CREATE (a)-[:{EDGE_LABEL}]->(b)"
+                    "CREATE INDEX {} IF NOT EXISTS FOR (n:{label}) ON (n.id)",
+                    crate::typed_load::index_name(label)
                 ),
-                json!({ "froms": froms, "tos": tos }),
+                json!({}),
             )
             .await?;
-            report.edges += chunk.len();
+        }
+        self.query("CALL db.awaitIndexes(600)".to_string(), json!({}))
+            .await?;
+        for (label, nodes) in plan.nodes_by_label() {
+            for chunk in nodes.chunks(BATCH) {
+                let rows: Vec<Value> = chunk.iter().map(|n| json_props(&n.props)).collect();
+                self.query(
+                    format!("UNWIND $rows AS r CREATE (n:{label}) SET n = r"),
+                    json!({ "rows": rows }),
+                )
+                .await?;
+                report.nodes += chunk.len();
+            }
+        }
+        for (key, edges) in plan.edges_by_shape() {
+            for chunk in edges.chunks(BATCH) {
+                let rows: Vec<Value> = chunk
+                    .iter()
+                    .map(|e| json!({ "from": e.from.as_str(), "to": e.to.as_str(), "props": json_props(&e.props) }))
+                    .collect();
+                self.query(
+                    format!(
+                        "UNWIND $rows AS r MATCH (a:{} {{id: r.from}}), (b:{} {{id: r.to}}) \
+                         CREATE (a)-[e:{}]->(b) SET e = r.props",
+                        key.from_label, key.to_label, key.relationship
+                    ),
+                    json!({ "rows": rows }),
+                )
+                .await?;
+                report.edges += chunk.len();
+            }
         }
         Ok(report)
     }

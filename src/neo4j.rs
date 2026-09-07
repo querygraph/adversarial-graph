@@ -1,7 +1,9 @@
 //! Neo4j over Bolt (`neo4rs`), presented to the harness as a Grust
 //! `GraphStore` so it runs the same scenarios as every internal backend.
-//! Nodes are `(:V {id})`, edges `[:E]`; loads go through `UNWIND` batches of
-//! parallel id arrays; reads are ordinary Cypher. Memory tuning lives in
+//! A SNAP graph loads as `(:V {id})` and `[:E]`; a typed graph loads its
+//! labels, relationship types and properties, one `UNWIND` batch per label
+//! or per (type, from label, to label) with an id index per label. Reads
+//! are ordinary Cypher. Memory tuning lives in
 //! `compose.yaml` and is recorded per run. Every result taken through this
 //! adapter reports `read_path = "harness-native-cypher"`.
 
@@ -10,9 +12,10 @@ use grust::{
     Edge, EdgeQuery, Graph, GraphAdminStore, GraphStore, GrustError, LoadReport, Node, NodeId,
     Props, PutOutcome, Traversal,
 };
-use neo4rs::{Graph as Driver, query};
+use neo4rs::{BoltList, BoltMap, BoltString, BoltType, Graph as Driver, query};
 
 use crate::dataset::{EDGE_LABEL, NODE_LABEL};
+use crate::differential::{Cell, ResultSet};
 
 const BATCH: usize = 5_000;
 
@@ -32,6 +35,32 @@ pub struct Neo4jStore {
 
 fn backend(err: impl std::fmt::Display) -> GrustError {
     GrustError::Backend(format!("neo4j: {err}"))
+}
+
+/// Grust properties as a Bolt map: ints, floats, bools and strings as
+/// themselves, string arrays as lists, dates and decimals as their text.
+fn bolt_props(props: &Props) -> BoltType {
+    let mut map = BoltMap::new();
+    for (key, value) in props.iter() {
+        let cell = match value {
+            grust::Value::Null => continue,
+            grust::Value::Bool(b) => BoltType::Boolean(neo4rs::BoltBoolean::new(*b)),
+            grust::Value::Int(i) => BoltType::Integer(neo4rs::BoltInteger::new(*i)),
+            grust::Value::Float(f) => BoltType::Float(neo4rs::BoltFloat::new(*f)),
+            grust::Value::String(s) => BoltType::String(BoltString::from(s.as_str())),
+            grust::Value::StringArray(items) => BoltType::List(BoltList::from(
+                items
+                    .iter()
+                    .map(|s| BoltType::String(BoltString::from(s.as_str())))
+                    .collect::<Vec<_>>(),
+            )),
+            other => BoltType::String(BoltString::from(
+                crate::differential::value_text(other).as_str(),
+            )),
+        };
+        map.put(BoltString::from(key.as_str()), cell);
+    }
+    BoltType::Map(map)
 }
 
 impl Neo4jStore {
@@ -64,6 +93,25 @@ impl Neo4jStore {
 
     async fn run(&self, q: neo4rs::Query) -> grust::Result<()> {
         self.driver.run(q).await.map_err(backend)
+    }
+
+    /// Every row of a read query, cells normalized for comparison.
+    pub async fn rows(&self, cypher: &str) -> grust::Result<ResultSet> {
+        let mut stream = self.driver.execute(query(cypher)).await.map_err(backend)?;
+        let mut result = ResultSet::default();
+        while let Some(row) = stream.next().await.map_err(backend)? {
+            // The driver hands a row back as a map; the scenario realigns
+            // cells to the oracle's column order by name.
+            let fields: std::collections::BTreeMap<String, serde_json::Value> =
+                row.to().map_err(backend)?;
+            if result.columns.is_empty() {
+                result.columns = fields.keys().cloned().collect();
+            }
+            result
+                .rows
+                .push(fields.values().map(Cell::from_json).collect());
+        }
+        Ok(result)
     }
 
     /// First column of every row as strings.
@@ -106,31 +154,55 @@ impl GraphStore for Neo4jStore {
 
     async fn put_graph(&self, graph: &Graph) -> grust::Result<LoadReport> {
         let mut report = LoadReport::default();
-        for chunk in graph.nodes.chunks(BATCH) {
-            let ids: Vec<String> = chunk.iter().map(|n| n.id.as_str().to_string()).collect();
-            self.run(
-                query(&format!(
-                    "UNWIND $ids AS id MERGE (n:{NODE_LABEL} {{id: id}})"
-                ))
-                .param("ids", ids),
-            )
+        let plan = crate::typed_load::LoadPlan::of(graph);
+        for label in plan.node_labels() {
+            self.run(query(&format!(
+                "CREATE INDEX {} IF NOT EXISTS FOR (n:{label}) ON (n.id)",
+                crate::typed_load::index_name(label)
+            )))
             .await?;
-            report.nodes += chunk.len();
         }
-        for chunk in graph.edges.chunks(BATCH) {
-            let froms: Vec<String> = chunk.iter().map(|e| e.from.as_str().to_string()).collect();
-            let tos: Vec<String> = chunk.iter().map(|e| e.to.as_str().to_string()).collect();
-            self.run(
-                query(&format!(
-                    "UNWIND range(0, size($froms) - 1) AS i \
-                     MATCH (a:{NODE_LABEL} {{id: $froms[i]}}), (b:{NODE_LABEL} {{id: $tos[i]}}) \
-                     CREATE (a)-[:{EDGE_LABEL}]->(b)"
-                ))
-                .param("froms", froms)
-                .param("tos", tos),
-            )
-            .await?;
-            report.edges += chunk.len();
+        self.run(query("CALL db.awaitIndexes(600)")).await?;
+        for (label, nodes) in plan.nodes_by_label() {
+            for chunk in nodes.chunks(BATCH) {
+                let rows: Vec<BoltType> = chunk.iter().map(|n| bolt_props(&n.props)).collect();
+                self.run(
+                    query(&format!("UNWIND $rows AS r CREATE (n:{label}) SET n = r"))
+                        .param("rows", BoltType::List(BoltList::from(rows))),
+                )
+                .await?;
+                report.nodes += chunk.len();
+            }
+        }
+        for (key, edges) in plan.edges_by_shape() {
+            for chunk in edges.chunks(BATCH) {
+                let rows: Vec<BoltType> = chunk
+                    .iter()
+                    .map(|e| {
+                        let mut map = BoltMap::new();
+                        map.put(
+                            BoltString::from("from"),
+                            BoltType::String(BoltString::from(e.from.as_str())),
+                        );
+                        map.put(
+                            BoltString::from("to"),
+                            BoltType::String(BoltString::from(e.to.as_str())),
+                        );
+                        map.put(BoltString::from("props"), bolt_props(&e.props));
+                        BoltType::Map(map)
+                    })
+                    .collect();
+                self.run(
+                    query(&format!(
+                        "UNWIND $rows AS r MATCH (a:{} {{id: r.from}}), (b:{} {{id: r.to}}) \
+                         CREATE (a)-[e:{}]->(b) SET e = r.props",
+                        key.from_label, key.to_label, key.relationship
+                    ))
+                    .param("rows", BoltType::List(BoltList::from(rows))),
+                )
+                .await?;
+                report.edges += chunk.len();
+            }
         }
         Ok(report)
     }

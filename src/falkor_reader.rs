@@ -7,6 +7,8 @@
 
 use redis::Value;
 
+use crate::differential::{Cell, ResultSet};
+
 #[derive(Clone)]
 pub struct FalkorReader {
     client: redis::Client,
@@ -15,6 +17,69 @@ pub struct FalkorReader {
 
 fn escape(id: &str) -> String {
     id.replace('\\', "\\\\").replace('\'', "\\'")
+}
+
+/// A Grust value as a Cypher literal: ints, floats and bools as themselves,
+/// strings quoted, string arrays as lists, dates and decimals as text.
+fn literal(value: &grust::Value) -> Option<String> {
+    Some(match value {
+        grust::Value::Null => return None,
+        grust::Value::Bool(b) => b.to_string(),
+        grust::Value::Int(i) => i.to_string(),
+        grust::Value::Float(f) => f.to_string(),
+        grust::Value::String(s) => format!("'{}'", escape(s)),
+        grust::Value::StringArray(items) => format!(
+            "[{}]",
+            items
+                .iter()
+                .map(|s| format!("'{}'", escape(s)))
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        other => format!("'{}'", escape(&crate::differential::value_text(other))),
+    })
+}
+
+fn props_literal(props: &grust::Props) -> String {
+    let fields: Vec<String> = props
+        .iter()
+        .filter_map(|(k, v)| literal(v).map(|lit| format!("`{}`: {lit}", k.replace('`', "``"))))
+        .collect();
+    format!("{{{}}}", fields.join(", "))
+}
+
+/// A compact-mode cell (`[type, value]`) as a comparison cell. FalkorDB's
+/// compact types: 1 null, 2 string, 3 integer, 4 boolean, 5 double, 6 array;
+/// nodes, edges, paths and maps are reported as their text.
+fn compact_cell(cell: &Value) -> Cell {
+    let (kind, inner) = match cell {
+        Value::Array(typed) if typed.len() == 2 => (
+            match &typed[0] {
+                Value::Int(k) => *k,
+                _ => 0,
+            },
+            &typed[1],
+        ),
+        other => (0, other),
+    };
+    match (kind, inner) {
+        (1, _) | (_, Value::Nil) => Cell::Null,
+        (3, Value::Int(i)) => Cell::Int(*i),
+        (3, other) => value_to_string(other)
+            .and_then(|s| s.parse().ok())
+            .map(Cell::Int)
+            .unwrap_or(Cell::Null),
+        (4, other) => Cell::Bool(value_to_string(other).is_some_and(|s| s == "true")),
+        (5, other) => value_to_string(other)
+            .and_then(|s| s.parse().ok())
+            .map(Cell::Float)
+            .unwrap_or(Cell::Null),
+        (6, Value::Array(items)) => Cell::List(items.iter().map(compact_cell).collect()),
+        (_, Value::Int(i)) => Cell::Int(*i),
+        (_, other) => value_to_string(other)
+            .map(Cell::Str)
+            .unwrap_or_else(|| Cell::Str(format!("{other:?}"))),
+    }
 }
 
 fn value_to_string(value: &Value) -> Option<String> {
@@ -36,6 +101,47 @@ impl FalkorReader {
             client,
             graph: graph.to_string(),
         })
+    }
+
+    /// Every row of a read-only query through `GRAPH.RO_QUERY`.
+    pub fn rows(&self, cypher: &str) -> grust::Result<ResultSet> {
+        let mut conn = self
+            .client
+            .get_connection()
+            .map_err(|e| grust::GrustError::Backend(format!("falkor connect: {e}")))?;
+        let value: Value = redis::cmd("GRAPH.RO_QUERY")
+            .arg(&self.graph)
+            .arg(cypher)
+            .arg("--compact")
+            .query(&mut conn)
+            .map_err(|e| grust::GrustError::Backend(format!("falkor GRAPH.RO_QUERY: {e}")))?;
+        let Value::Array(parts) = value else {
+            return Err(grust::GrustError::Backend(
+                "falkor: unexpected result shape".into(),
+            ));
+        };
+        // Compact header: [[type, name], …]
+        let columns = match parts.first() {
+            Some(Value::Array(header)) => header
+                .iter()
+                .filter_map(|column| match column {
+                    Value::Array(pair) if pair.len() == 2 => value_to_string(&pair[1]),
+                    other => value_to_string(other),
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        let rows = match parts.get(1) {
+            Some(Value::Array(rows)) => rows
+                .iter()
+                .filter_map(|row| match row {
+                    Value::Array(cells) => Some(cells.iter().map(compact_cell).collect()),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        Ok(ResultSet { columns, rows })
     }
 
     /// First column of every result row, as strings.
@@ -76,9 +182,16 @@ impl FalkorReader {
     }
 
     /// `grust-falkor` lowercases node labels through `schema_identifier`
-    /// (`V` is stored as `v`) and keeps relationship types as given.
+    /// (`V` is stored as `v`) and keeps relationship types as given; the
+    /// SNAP label follows it so the adapter's own writes and this reader
+    /// meet on one label. Typed labels are stored as loaded, so Cypher
+    /// written for the dataset (`:Person`) matches them.
     fn label(node_label: &str) -> String {
-        node_label.to_ascii_lowercase()
+        if node_label == crate::dataset::NODE_LABEL {
+            node_label.to_ascii_lowercase()
+        } else {
+            node_label.to_string()
+        }
     }
 
     /// The Grust adapter only creates its id index inside `apply_schema`,
@@ -99,42 +212,48 @@ impl FalkorReader {
     /// (`MATCH (a {id: …})`), which FalkorDB cannot serve from its per-label
     /// index, so its loads scan every node per edge; this path is what a
     /// FalkorDB user would write, and it is recorded as
-    /// `load_path = "harness-native-cypher"`.
-    pub fn load_graph(
-        &self,
-        node_label: &str,
-        edge_label: &str,
-        graph: &grust::Graph,
-    ) -> grust::Result<grust::LoadReport> {
-        let label = Self::label(node_label);
+    /// `load_path = "harness-native-cypher"`. A typed graph loads one batch
+    /// per label and per (type, from label, to label), with properties as
+    /// literal maps and an id index per label.
+    pub fn load_graph(&self, graph: &grust::Graph) -> grust::Result<grust::LoadReport> {
+        let plan = crate::typed_load::LoadPlan::of(graph);
         let mut report = grust::LoadReport::default();
-        for chunk in graph.nodes.chunks(5_000) {
-            let ids: Vec<String> = chunk
-                .iter()
-                .map(|n| format!("'{}'", escape(n.id.as_str())))
-                .collect();
-            self.column(&format!(
-                "UNWIND [{}] AS id CREATE (:{label} {{id: id}})",
-                ids.join(",")
-            ))?;
-            report.nodes += chunk.len();
+        for label in plan.node_labels() {
+            self.ensure_index(label)?;
         }
-        for chunk in graph.edges.chunks(2_000) {
-            let pairs: Vec<String> = chunk
-                .iter()
-                .map(|e| {
-                    format!(
-                        "['{}','{}']",
-                        escape(e.from.as_str()),
-                        escape(e.to.as_str())
-                    )
-                })
-                .collect();
-            self.column(&format!(
-                "UNWIND [{}] AS p MATCH (a:{label} {{id: p[0]}}), (b:{label} {{id: p[1]}}) CREATE (a)-[:{edge_label}]->(b)",
-                pairs.join(",")
-            ))?;
-            report.edges += chunk.len();
+        for (label, nodes) in plan.nodes_by_label() {
+            let label = Self::label(label);
+            for chunk in nodes.chunks(5_000) {
+                let maps: Vec<String> = chunk.iter().map(|n| props_literal(&n.props)).collect();
+                self.column(&format!(
+                    "UNWIND [{}] AS r CREATE (n:{label}) SET n = r",
+                    maps.join(",")
+                ))?;
+                report.nodes += chunk.len();
+            }
+        }
+        for (shape, edges) in plan.edges_by_shape() {
+            let (from_label, to_label) =
+                (Self::label(&shape.from_label), Self::label(&shape.to_label));
+            for chunk in edges.chunks(2_000) {
+                let rows: Vec<String> = chunk
+                    .iter()
+                    .map(|e| {
+                        format!(
+                            "['{}','{}',{}]",
+                            escape(e.from.as_str()),
+                            escape(e.to.as_str()),
+                            props_literal(&e.props)
+                        )
+                    })
+                    .collect();
+                self.column(&format!(
+                    "UNWIND [{}] AS p MATCH (a:{from_label} {{id: p[0]}}), (b:{to_label} {{id: p[1]}}) CREATE (a)-[e:{}]->(b) SET e = p[2]",
+                    rows.join(","),
+                    shape.relationship
+                ))?;
+                report.edges += chunk.len();
+            }
         }
         Ok(report)
     }

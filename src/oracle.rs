@@ -18,6 +18,7 @@ pub struct Oracle<'g> {
 
 /// Which edges a traversal follows: every edge, or one relationship type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)] // the typed traversal families select a relationship type; A1–A7 follow every edge
 pub enum EdgeFilter<'a> {
     Any,
     Label(&'a Label),

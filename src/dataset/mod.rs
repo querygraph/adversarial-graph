@@ -112,7 +112,7 @@ pub fn load_snap_edge_list(
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        let mut parts = line.split(|c: char| c == '\t' || c == ' ' || c == ',');
+        let mut parts = line.split(['\t', ' ', ',']);
         let (Some(from), Some(to)) = (parts.next(), parts.next()) else {
             continue;
         };

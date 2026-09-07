@@ -9,6 +9,7 @@
 mod age;
 mod backends;
 mod dataset;
+mod differential;
 #[cfg(feature = "falkor")]
 mod falkor_reader;
 #[cfg(feature = "neo4j")]
@@ -19,6 +20,7 @@ mod oracle;
 mod probe;
 mod report;
 mod scenarios;
+mod typed_load;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -200,10 +202,26 @@ async fn run(root: &Path, args: &Args) {
                 )
             }
         );
-        report
-            .datasets
-            .push(serde_json::json!({ "manifest": entry, "load": stats, "schema": schema }));
         let typed = !schema.is_untyped();
+        let format = stats.format.clone();
+        let skipped: Vec<&str> = args
+            .scenarios
+            .iter()
+            .map(String::as_str)
+            .filter(|id| !scenarios::applies(id, typed))
+            .collect();
+        if !skipped.is_empty() {
+            eprintln!(
+                "   skipping {} (not defined over this dataset's shape)",
+                skipped.join(",")
+            );
+        }
+        report.datasets.push(serde_json::json!({
+            "manifest": entry,
+            "load": stats,
+            "schema": schema,
+            "skipped_scenarios": skipped
+        }));
         let oracle = match Oracle::with_schema(&graph, schema) {
             Ok(o) => o,
             Err(e) => {
@@ -287,26 +305,21 @@ async fn run(root: &Path, args: &Args) {
                 continue;
             }
             let hub_writes = std::sync::atomic::AtomicUsize::new(0);
-            for scenario in &args.scenarios {
+            for scenario in args
+                .scenarios
+                .iter()
+                .filter(|id| scenarios::applies(id, typed))
+            {
                 let ctx = Ctx {
                     dataset: dataset_name,
+                    format: &format,
                     graph: &graph,
                     oracle: &oracle,
                     backend: &backend,
                     smoke: args.smoke,
                     hub_writes: &hub_writes,
                 };
-                let result = if typed && !scenarios::accepts_typed(scenario) {
-                    // The M1 families are defined over the single-label,
-                    // single-type SNAP view and the adapters index that
-                    // shape; a typed dataset is not a pass for them.
-                    let mut r = report::ScenarioResult::new(scenario, kind.name(), dataset_name);
-                    r.unsupported("scenario is defined over the untyped SNAP shape; typed datasets run the M2 families");
-                    r.finish();
-                    r
-                } else {
-                    scenarios::run(scenario, &ctx).await
-                };
+                let result = scenarios::run(scenario, &ctx).await;
                 eprintln!(
                     "   {:<3} {:<12} {:?}  gates={}  wall={}ms cpu={:.2} load1m={}{}  {}",
                     result.scenario,

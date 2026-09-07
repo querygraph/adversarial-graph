@@ -16,8 +16,8 @@ grust = { package = "grust-graph", version = "0.13.0", features = ["memory", "tu
 # (`publish = false`): pinned to one published Grust revision (the
 # `fable/strain-adapter-reads` branch head, on top of v0.13.1) so the harness
 # still never depends on a local Grust checkout.
-grust-helix = { git = "https://github.com/querygraph/grust", rev = "3840d15237d3524e15c6723b75e5564449019713", optional = true }
-grust-ladybug = { git = "https://github.com/querygraph/grust", rev = "3840d15237d3524e15c6723b75e5564449019713", optional = true }
+grust-helix = { git = "https://github.com/querygraph/grust", rev = "7429fc716815a069a0882e59cc43a31eddbe1829", optional = true }
+grust-ladybug = { git = "https://github.com/querygraph/grust", rev = "7429fc716815a069a0882e59cc43a31eddbe1829", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -34,10 +34,12 @@ reqwest = { version = "0.13", default-features = false, features = ["rustls", "j
 async-trait = { version = "0.1", optional = true }
 csv = "1"
 zip = { version = "4", default-features = false, features = ["deflate"] }
+grust-cypher = "0.13"
+grust-postgres-core = { version = "0.13", optional = true }
 
 [features]
 default = []
-postgres = ["grust/postgres"]
+postgres = ["grust/postgres", "dep:grust-postgres-core"]
 postgres-pgq = ["grust/postgres-pgq"]
 pggraph = ["grust/pggraph"]
 surreal = ["grust/surreal"]
@@ -57,9 +59,11 @@ full-backends = ["postgres", "postgres-pgq", "pggraph", "surreal", "falkor", "la
 # pinned to the same revision for the store changes measured in
 # ADVERSARIAL-GRAPH.md §7.2, ahead of their crates.io release.
 [patch.crates-io]
-grust-core = { git = "https://github.com/querygraph/grust", rev = "3840d15237d3524e15c6723b75e5564449019713" }
-grust-memory = { git = "https://github.com/querygraph/grust", rev = "3840d15237d3524e15c6723b75e5564449019713" }
-grust-turso = { git = "https://github.com/querygraph/grust", rev = "3840d15237d3524e15c6723b75e5564449019713" }
+grust-core = { git = "https://github.com/querygraph/grust", rev = "7429fc716815a069a0882e59cc43a31eddbe1829" }
+grust-memory = { git = "https://github.com/querygraph/grust", rev = "7429fc716815a069a0882e59cc43a31eddbe1829" }
+grust-turso = { git = "https://github.com/querygraph/grust", rev = "7429fc716815a069a0882e59cc43a31eddbe1829" }
+grust-cypher = { git = "https://github.com/querygraph/grust", rev = "7429fc716815a069a0882e59cc43a31eddbe1829" }
+grust-postgres-core = { git = "https://github.com/querygraph/grust", rev = "7429fc716815a069a0882e59cc43a31eddbe1829" }
 
 [profile.release]
 debug = 0

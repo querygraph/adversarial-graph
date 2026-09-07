@@ -3,7 +3,9 @@
 //! `nodes-intermediaries.csv`, `nodes-addresses.csv`, `nodes-others.csv`)
 //! and `relationships.csv`. Node labels are the file's kind (Entity,
 //! Officer, Intermediary, Address, Other); `node_id` is unique across the
-//! files and is the node id as well as the `id` property. Relationship
+//! files and is the node id as well as the `sourceId` property (Grust
+//! mirrors a node's identity as its `id` property, so the source column
+//! keeps its own name). Relationship
 //! types are `rel_type` in upper snake case (`OFFICER_OF`,
 //! `REGISTERED_ADDRESS`), with `link`, `status`, `start_date`, `end_date`
 //! and `sourceID` as properties. Every other column is a string property;
@@ -62,7 +64,11 @@ fn load_nodes(
         };
         let mut props = Props::new();
         for (column, cell) in headers.iter().zip(record.iter()) {
-            let column = if column == "node_id" { "id" } else { column };
+            let column = if column == "node_id" {
+                "sourceId"
+            } else {
+                column
+            };
             if let Some(value) = typed_value(column, cell, &[]) {
                 props.insert(column.to_string(), value);
             }
@@ -141,7 +147,11 @@ mod tests {
             .iter()
             .find(|n| n.id.as_str() == "10000001")
             .unwrap();
-        assert_eq!(entity.props.get("id"), Some(&Value::Int(10000001)));
+        assert_eq!(entity.props.get("sourceId"), Some(&Value::Int(10000001)));
+        assert_eq!(
+            entity.props.get("id"),
+            Some(&Value::String("10000001".into()))
+        );
         assert_eq!(
             entity.props.get("name"),
             Some(&Value::String(
