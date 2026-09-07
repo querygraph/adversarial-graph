@@ -139,8 +139,16 @@ impl Neo4jStore {
 #[async_trait]
 impl GraphStore for Neo4jStore {
     async fn put_node(&self, node: &Node) -> grust::Result<PutOutcome> {
+        // Label-preserving upsert: a typed vertex keeps its label and its
+        // properties travel as one map, so a read-modify-write on a
+        // `Person` lands on the `Person`, not on a fresh `:V`.
         self.run(
-            query(&format!("MERGE (n:{NODE_LABEL} {{id: $id}})")).param("id", node.id.as_str()),
+            query(&format!(
+                "MERGE (n:`{}` {{id: $id}}) SET n += $props",
+                node.label.as_str().replace('`', "``")
+            ))
+            .param("id", node.id.as_str())
+            .param("props", bolt_props(&node.props)),
         )
         .await?;
         Ok(PutOutcome::Upserted)
@@ -222,19 +230,33 @@ impl GraphStore for Neo4jStore {
     }
 
     async fn get_node(&self, id: &NodeId) -> grust::Result<Option<Node>> {
-        let found = self
-            .column(
-                query(&format!(
-                    "MATCH (n:{NODE_LABEL} {{id: $id}}) RETURN n.id AS id"
-                ))
-                .param("id", id.as_str()),
-                "id",
+        // Whatever the label: the typed loads put `Person`, `Message`, …
+        // and the SNAP loads `V`; the vertex comes back with its label and
+        // every property.
+        let mut stream = self
+            .driver
+            .execute(
+                query("MATCH (n {id: $id}) RETURN labels(n) AS labels, properties(n) AS props LIMIT 1")
+                    .param("id", id.as_str()),
             )
-            .await?;
-        Ok(found
-            .into_iter()
-            .next()
-            .map(|id| Node::new(NODE_LABEL, id, Props::new())))
+            .await
+            .map_err(backend)?;
+        let Some(row) = stream.next().await.map_err(backend)? else {
+            return Ok(None);
+        };
+        let fields: std::collections::BTreeMap<String, serde_json::Value> =
+            row.to().map_err(backend)?;
+        let labels: Vec<String> = fields
+            .get("labels")
+            .and_then(|v| v.as_array())
+            .map(|items| items.iter().filter_map(|l| l.as_str().map(String::from)).collect())
+            .unwrap_or_default();
+        let label = crate::typed_load::label_from_list(labels.iter().map(String::as_str));
+        let props = fields
+            .get("props")
+            .map(crate::typed_load::props_from_json)
+            .unwrap_or_default();
+        Ok(Some(Node::new(label, id.as_str(), props)))
     }
 
     async fn get_edges(&self, q: EdgeQuery) -> grust::Result<Vec<Edge>> {
@@ -243,19 +265,49 @@ impl GraphStore for Neo4jStore {
                 "neo4j adapter: unanchored edge query".into(),
             ));
         };
-        let tos = self
-            .column(
+        if q.label.as_ref().is_some_and(|l| l.as_str() == EDGE_LABEL) {
+            // The SNAP shape, on the `:V` id index: unchanged, so the
+            // hot-node and stream families keep their access path.
+            let tos = self
+                .column(
+                    query(&format!(
+                        "MATCH (a:{NODE_LABEL} {{id: $id}})-[:{EDGE_LABEL}]->(b) RETURN b.id AS id"
+                    ))
+                    .param("id", from.as_str()),
+                    "id",
+                )
+                .await?;
+            return Ok(tos
+                .into_iter()
+                .map(|to| Edge::new(EDGE_LABEL, from.as_str(), to, Props::new()))
+                .collect());
+        }
+        // Typed graphs: any label on the anchor, the asked-for relationship
+        // type or every type, with the type reported per edge.
+        let rel = q
+            .label
+            .as_ref()
+            .map(|l| format!(":`{}`", l.as_str().replace('`', "``")))
+            .unwrap_or_default();
+        let mut stream = self
+            .driver
+            .execute(
                 query(&format!(
-                    "MATCH (a:{NODE_LABEL} {{id: $id}})-[:{EDGE_LABEL}]->(b) RETURN b.id AS id"
+                    "MATCH (a {{id: $id}})-[r{rel}]->(b) RETURN type(r) AS label, b.id AS to"
                 ))
                 .param("id", from.as_str()),
-                "id",
             )
-            .await?;
-        Ok(tos
-            .into_iter()
-            .map(|to| Edge::new(EDGE_LABEL, from.as_str(), to, Props::new()))
-            .collect())
+            .await
+            .map_err(backend)?;
+        let mut edges = Vec::new();
+        while let Some(row) = stream.next().await.map_err(backend)? {
+            let label: String = row.get("label").map_err(backend)?;
+            let to: String = row.get("to").map_err(backend)?;
+            if q.to.as_ref().is_none_or(|t| t.as_str() == to) {
+                edges.push(Edge::new(label, from.as_str(), to, Props::new()));
+            }
+        }
+        Ok(edges)
     }
 
     async fn traverse(&self, traversal: Traversal) -> grust::Result<Vec<Node>> {

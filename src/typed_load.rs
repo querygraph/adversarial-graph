@@ -122,3 +122,54 @@ mod tests {
         assert_eq!(index_name("TagClass"), "ag_id_tagclass");
     }
 }
+
+/// A property value as an engine's JSON or JSON-like text reports it, back
+/// to the harness's `Value`: what a typed vertex round-trips through a
+/// `properties(n)` read.
+pub fn value_from_json(value: &serde_json::Value) -> grust::Value {
+    match value {
+        serde_json::Value::Null => grust::Value::Null,
+        serde_json::Value::Bool(b) => grust::Value::Bool(*b),
+        serde_json::Value::Number(n) => match n.as_i64() {
+            Some(i) => grust::Value::Int(i),
+            None => grust::Value::Float(n.as_f64().unwrap_or(f64::NAN)),
+        },
+        serde_json::Value::String(s) => grust::Value::String(s.clone()),
+        serde_json::Value::Array(items) => grust::Value::StringArray(
+            items
+                .iter()
+                .map(|item| match item {
+                    serde_json::Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                })
+                .collect(),
+        ),
+        serde_json::Value::Object(_) => grust::Value::String(value.to_string()),
+    }
+}
+
+/// A `properties(n)` map as `Props`.
+pub fn props_from_json(value: &serde_json::Value) -> grust::Props {
+    value
+        .as_object()
+        .map(|map| {
+            map.iter()
+                .map(|(k, v)| (k.clone(), value_from_json(v)))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The label a typed vertex carries, from the engine's label list: the
+/// first one that is not the untyped `V`, else `V`.
+pub fn label_from_list<'a>(labels: impl IntoIterator<Item = &'a str>) -> String {
+    let mut fallback = None;
+    for label in labels {
+        if label == crate::dataset::NODE_LABEL {
+            fallback = Some(label);
+        } else {
+            return label.to_string();
+        }
+    }
+    fallback.unwrap_or(crate::dataset::NODE_LABEL).to_string()
+}

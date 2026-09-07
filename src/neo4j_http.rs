@@ -177,9 +177,14 @@ impl Neo4jHttpStore {
 #[async_trait]
 impl GraphStore for Neo4jHttpStore {
     async fn put_node(&self, node: &Node) -> grust::Result<PutOutcome> {
+        // Label-preserving upsert with the properties as one map (see the
+        // Bolt adapter).
         self.query(
-            format!("MERGE (n:{NODE_LABEL} {{id: $id}})"),
-            json!({ "id": node.id.as_str() }),
+            format!(
+                "MERGE (n:`{}` {{id: $id}}) SET n += $props",
+                node.label.as_str().replace('`', "``")
+            ),
+            json!({ "id": node.id.as_str(), "props": json_props(&node.props) }),
         )
         .await?;
         Ok(PutOutcome::Upserted)
@@ -244,16 +249,27 @@ impl GraphStore for Neo4jHttpStore {
     }
 
     async fn get_node(&self, id: &NodeId) -> grust::Result<Option<Node>> {
-        let found = self
-            .column(
-                format!("MATCH (n:{NODE_LABEL} {{id: $id}}) RETURN n.id"),
+        // Whatever the label, with every property (see the Bolt adapter).
+        let rows = self
+            .query(
+                "MATCH (n {id: $id}) RETURN labels(n), properties(n) LIMIT 1".to_string(),
                 json!({ "id": id.as_str() }),
             )
             .await?;
-        Ok(found
-            .into_iter()
-            .next()
-            .map(|id| Node::new(NODE_LABEL, id, Props::new())))
+        let Some(row) = rows.into_iter().next() else {
+            return Ok(None);
+        };
+        let labels: Vec<String> = row
+            .first()
+            .and_then(|v| v.as_array())
+            .map(|items| items.iter().filter_map(|l| l.as_str().map(String::from)).collect())
+            .unwrap_or_default();
+        let label = crate::typed_load::label_from_list(labels.iter().map(String::as_str));
+        let props = row
+            .get(1)
+            .map(crate::typed_load::props_from_json)
+            .unwrap_or_default();
+        Ok(Some(Node::new(label, id.as_str(), props)))
     }
 
     async fn get_edges(&self, q: EdgeQuery) -> grust::Result<Vec<Edge>> {
@@ -262,15 +278,40 @@ impl GraphStore for Neo4jHttpStore {
                 "neo4j-http adapter: unanchored edge query".into(),
             ));
         };
-        let tos = self
-            .column(
-                format!("MATCH (a:{NODE_LABEL} {{id: $id}})-[:{EDGE_LABEL}]->(b) RETURN b.id"),
+        if q.label.as_ref().is_some_and(|l| l.as_str() == EDGE_LABEL) {
+            // The SNAP shape on the `:V` id index, unchanged (see the Bolt
+            // adapter).
+            let tos = self
+                .column(
+                    format!("MATCH (a:{NODE_LABEL} {{id: $id}})-[:{EDGE_LABEL}]->(b) RETURN b.id"),
+                    json!({ "id": from.as_str() }),
+                )
+                .await?;
+            return Ok(tos
+                .into_iter()
+                .map(|to| Edge::new(EDGE_LABEL, from.as_str(), to, Props::new()))
+                .collect());
+        }
+        let rel = q
+            .label
+            .as_ref()
+            .map(|l| format!(":`{}`", l.as_str().replace('`', "``")))
+            .unwrap_or_default();
+        let rows = self
+            .query(
+                format!("MATCH (a {{id: $id}})-[r{rel}]->(b) RETURN type(r), b.id"),
                 json!({ "id": from.as_str() }),
             )
             .await?;
-        Ok(tos
+        Ok(rows
             .into_iter()
-            .map(|to| Edge::new(EDGE_LABEL, from.as_str(), to, Props::new()))
+            .filter_map(|row| {
+                let label = row.first()?.as_str()?.to_string();
+                let to = row.get(1)?.as_str()?.to_string();
+                q.to.as_ref()
+                    .is_none_or(|t| t.as_str() == to)
+                    .then(|| Edge::new(label, from.as_str(), to, Props::new()))
+            })
             .collect())
     }
 

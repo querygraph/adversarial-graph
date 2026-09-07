@@ -1540,6 +1540,16 @@ loader yet; A5 runs where `REPLY_OF` trees exist.
 retake, the label-aware `get_node`/`put_node` in the three adapters so
 A5, A6 and A8 (age) reach the Neo4j family and AGE, then the Helix SDK
 fix.
+
+**16:35 UTC, §26's four retaken.** On a clean tree at `24fdea3`
+(`harness_dirty_paths` empty on every bundle): `20260907T161420Z`
+memgraph wiki-Talk 200k, `161514Z` age wiki-Talk 200k, `161743Z`
+postgres wiki-Talk full, `162433Z` postgres roadNet-CA full; every
+scenario passes, hard-gate total 0 on all four. They replace the four
+refused `e8f926d-dirty` bundles, which stay on disk unoffered. The A5
+and A6 bundles are in `reports-dev/` and are not offered until the
+adapter fix below is in and the Neo4j-family rows are real.
+
 ## 28. soc-LiveJournal1 for the container-backed backends is laptop-only: the client alone is 26 GB (2026-09-07 16:25 UTC)
 
 eigen's first large tier answered the placement question for every host:

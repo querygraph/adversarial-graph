@@ -242,9 +242,33 @@ impl AgeStore {
 #[async_trait]
 impl GraphStore for AgeStore {
     async fn put_node(&self, node: &Node) -> grust::Result<PutOutcome> {
+        // Label-preserving upsert. AGE has no `SET n += map`, so every
+        // property is its own `SET` clause bound to its own parameter.
+        let mut params = serde_json::Map::new();
+        params.insert("id".into(), serde_json::json!(node.id.as_str()));
+        let mut sets = Vec::with_capacity(node.props.len());
+        for (i, (key, value)) in node.props.iter().enumerate() {
+            let cell = match value {
+                grust::Value::Null => continue,
+                grust::Value::Bool(b) => serde_json::json!(b),
+                grust::Value::Int(v) => serde_json::json!(v),
+                grust::Value::Float(f) => serde_json::json!(f),
+                grust::Value::String(s) => serde_json::json!(s),
+                grust::Value::StringArray(items) => serde_json::json!(items),
+                other => serde_json::json!(crate::differential::value_text(other)),
+            };
+            let name = format!("p{i}");
+            sets.push(format!("n.`{}` = ${name}", key.replace('`', "``")));
+            params.insert(name, cell);
+        }
+        let set_clause = if sets.is_empty() {
+            String::new()
+        } else {
+            format!(" SET {}", sets.join(", "))
+        };
         self.column(
-            &format!("MERGE (n:{NODE_LABEL} {{id: $id}}) RETURN 1"),
-            serde_json::json!({ "id": node.id.as_str() }),
+            &format!("MERGE (n:{} {{id: $id}}){set_clause} RETURN 1", node.label.as_str()),
+            serde_json::Value::Object(params),
         )
         .await?;
         Ok(PutOutcome::Upserted)
@@ -293,16 +317,26 @@ impl GraphStore for AgeStore {
     }
 
     async fn get_node(&self, id: &NodeId) -> grust::Result<Option<Node>> {
-        let found = self
-            .column(
-                &format!("MATCH (n:{NODE_LABEL} {{id: $id}}) RETURN n.id"),
+        // Whatever the label, with every property: `label(n)` and
+        // `properties(n)` come back as agtype text, which for a map of
+        // scalars is JSON.
+        let rows = self
+            .cypher(
+                "MATCH (n {id: $id}) RETURN label(n), properties(n) LIMIT 1",
                 serde_json::json!({ "id": id.as_str() }),
+                &["l", "p"],
             )
             .await?;
-        Ok(found
-            .into_iter()
-            .next()
-            .map(|id| Node::new(NODE_LABEL, id, Props::new())))
+        let Some(row) = rows.into_iter().next() else {
+            return Ok(None);
+        };
+        let label = row.first().filter(|l| !l.is_empty()).cloned().unwrap_or_else(|| NODE_LABEL.to_string());
+        let props = row
+            .get(1)
+            .and_then(|text| serde_json::from_str::<serde_json::Value>(text).ok())
+            .map(|v| crate::typed_load::props_from_json(&v))
+            .unwrap_or_default();
+        Ok(Some(Node::new(label, id.as_str(), props)))
     }
 
     async fn get_edges(&self, q: EdgeQuery) -> grust::Result<Vec<Edge>> {
@@ -311,15 +345,41 @@ impl GraphStore for AgeStore {
                 "age adapter: unanchored edge query".into(),
             ));
         };
-        let tos = self
-            .column(
-                &format!("MATCH (a:{NODE_LABEL} {{id: $id}})-[:{EDGE_LABEL}]->(b) RETURN b.id"),
+        if q.label.as_ref().is_some_and(|l| l.as_str() == EDGE_LABEL) {
+            // The SNAP shape on the `V` id index, unchanged (see the Bolt
+            // adapter).
+            let tos = self
+                .column(
+                    &format!("MATCH (a:{NODE_LABEL} {{id: $id}})-[:{EDGE_LABEL}]->(b) RETURN b.id"),
+                    serde_json::json!({ "id": from.as_str() }),
+                )
+                .await?;
+            return Ok(tos
+                .into_iter()
+                .map(|to| Edge::new(EDGE_LABEL, from.as_str(), to, Props::new()))
+                .collect());
+        }
+        let rel = q
+            .label
+            .as_ref()
+            .map(|l| format!(":{}", l.as_str()))
+            .unwrap_or_default();
+        let rows = self
+            .cypher(
+                &format!("MATCH (a {{id: $id}})-[r{rel}]->(b) RETURN type(r), b.id"),
                 serde_json::json!({ "id": from.as_str() }),
+                &["t", "b"],
             )
             .await?;
-        Ok(tos
+        Ok(rows
             .into_iter()
-            .map(|to| Edge::new(EDGE_LABEL, from.as_str(), to, Props::new()))
+            .filter_map(|row| {
+                let label = row.first()?.clone();
+                let to = row.get(1)?.clone();
+                q.to.as_ref()
+                    .is_none_or(|t| t.as_str() == to)
+                    .then(|| Edge::new(label, from.as_str(), to, Props::new()))
+            })
             .collect())
     }
 
