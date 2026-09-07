@@ -43,7 +43,7 @@ Staged on the grust box at `grust:~/handoff-laptop/`:
 
 | host | RAM | role |
 |---|---|---|
-| successor (this host) | 42–64 GB | coordinator; site admission; the soc-LiveJournal1 tier for the container-backed backends (client ~23–26 GB + 6 GiB container); any embedded-store tier above web-Google (Turso MVCC cit-Patents reached 26 GB and the cap; LanceDB wiki-Talk needed 42.5 GB); LSQB admissions |
+| successor (this host) | 42 GB (c5n.4xlarge) | coordinator; site admission; the soc-LiveJournal1 tier for the container-backed backends (client ~23–26 GB + 6 GiB container); any embedded-store tier above web-Google (Turso MVCC cit-Patents reached 26 GB and the cap; LanceDB wiki-Talk needed 42.5 GB); LSQB admissions |
 | eigen | 31 GB | the LSQB SF0.3 matrix and native Neo4j SF0.3 lane inside the tenancy windows (02:30–03:45, 12:30–13:30, 14:30–15:45 UTC); cit-Patents rows done |
 | grust | 31 GB | idle; embedded stores through web-Google done and published; available for reruns (no LSQB unless told) |
 | lakecat | 15 GiB | scenario work (A5, A6, A8 adapters, Helix SDK fix); clean-host slices; nothing above cit-Patents |
@@ -96,4 +96,11 @@ Staged on the grust box at `grust:~/handoff-laptop/`:
    hold soc-LiveJournal1; §28. Not started.
 4. Ladybug via the Arrow bulk path (§16.1) and the Helix SDK casing fix
    (§9.3 item 6), both adapter work in `grust`.
+4a. LanceDB's 42.5 GB client on wiki-Talk: `grust-lancedb` loads in
+   batches of 500 rows, each an append to two in-process tables, so a
+   5 M-edge graph is ~20,000 fragments per edge table whose manifests
+   and metadata LanceDB keeps in the process. Raise the bulk-load batch
+   size (tens of thousands of rows) and compact after the load, then
+   rerun wiki-Talk under a guard to measure it; the laptop's published
+   row stands until then. Hypothesis, not yet profiled.
 5. A9–A11 (M3 stack integrity) remain unimplemented.
