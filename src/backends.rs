@@ -431,7 +431,7 @@ async fn connect_neo4j_bolt(kind: BackendKind) -> grust::Result<crate::neo4j::Ne
 }
 
 #[cfg(feature = "age")]
-async fn connect_age() -> grust::Result<Arc<dyn AdminStore>> {
+async fn connect_age() -> grust::Result<Arc<crate::age::AgeStore>> {
     let pool: usize = env_or("AG_AGE_POOL", "16")
         .parse()
         .expect("AG_AGE_POOL must be a connection count");
@@ -484,6 +484,8 @@ pub struct Backend {
     pub neo4j: Option<crate::neo4j::Neo4jStore>,
     #[cfg(feature = "neo4j")]
     pub neo4j_http: Option<crate::neo4j_http::Neo4jHttpStore>,
+    #[cfg(feature = "age")]
+    pub age: Option<Arc<crate::age::AgeStore>>,
 }
 
 impl Backend {
@@ -503,6 +505,8 @@ impl Backend {
             neo4j: None,
             #[cfg(feature = "neo4j")]
             neo4j_http: None,
+            #[cfg(feature = "age")]
+            age: None,
         }
     }
 
@@ -581,7 +585,12 @@ impl Backend {
                 Ok(b)
             }
             #[cfg(feature = "age")]
-            BackendKind::Age => Self::prepared(kind, connect_age().await?, tag).await,
+            BackendKind::Age => {
+                let store = connect_age().await?;
+                let mut b = Self::prepared(kind, store.clone(), tag).await?;
+                b.age = Some(store);
+                Ok(b)
+            }
             #[cfg(feature = "lancedb")]
             BackendKind::LanceDb => {
                 mkdir()?;
@@ -618,6 +627,44 @@ impl Backend {
             },
         })
         .await
+    }
+
+    /// Delete one vertex with every edge incident to it, through the store's
+    /// own delete path: `GraphMutationStore::delete_node` on the Grust
+    /// stores, one `DETACH DELETE` statement on the Cypher engines. A store
+    /// with no delete path is `Unsupported`, never a pass.
+    pub async fn delete_node(&self, id: &NodeId) -> grust::Result<()> {
+        use grust::GraphMutationStore;
+        if let Some(memory) = &self.memory {
+            return memory.delete_node(id).await;
+        }
+        if let Some(turso) = &self.turso {
+            return turso.delete_node(id).await;
+        }
+        #[cfg(feature = "postgres")]
+        if let Some(postgres) = &self.postgres {
+            return postgres.delete_node(id).await;
+        }
+        #[cfg(feature = "neo4j")]
+        if let Some(neo4j) = &self.neo4j {
+            return neo4j.delete_node(id).await;
+        }
+        #[cfg(feature = "neo4j")]
+        if let Some(neo4j_http) = &self.neo4j_http {
+            return neo4j_http.delete_node(id).await;
+        }
+        #[cfg(feature = "falkor")]
+        if let Some(falkor) = &self.falkor {
+            return falkor.delete_node(id.as_str());
+        }
+        #[cfg(feature = "age")]
+        if let Some(age) = &self.age {
+            return age.delete_node(id).await;
+        }
+        Err(grust::GrustError::Unsupported(format!(
+            "{} has no delete path in this harness",
+            self.kind.name()
+        )))
     }
 
     /// Open an additional connection to the same durable database (Turso

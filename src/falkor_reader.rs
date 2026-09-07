@@ -148,6 +148,16 @@ impl FalkorReader {
         }
     }
 
+    /// Delete one vertex, whatever its label, with every edge incident to
+    /// it, through `GRAPH.QUERY`: one statement, one transaction.
+    pub fn delete_node(&self, id: &str) -> grust::Result<()> {
+        self.query(
+            "GRAPH.QUERY",
+            &format!("MATCH (n {{id: '{}'}}) DETACH DELETE n", escape(id)),
+        )
+        .map(|_| ())
+    }
+
     /// Every row of a read-only query through `GRAPH.RO_QUERY`.
     pub fn rows(&self, cypher: &str) -> grust::Result<ResultSet> {
         let value = self.query("GRAPH.RO_QUERY", cypher)?;

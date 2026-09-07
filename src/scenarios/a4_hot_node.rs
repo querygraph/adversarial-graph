@@ -17,7 +17,7 @@ use super::Ctx;
 use crate::dataset::EDGE_LABEL;
 use crate::report::{Latency, ScenarioResult, histogram, record};
 
-fn is_conflict(err: &GrustError) -> bool {
+pub(crate) fn is_conflict(err: &GrustError) -> bool {
     let m = err.to_string().to_ascii_lowercase();
     m.contains("conflict") || m.contains("busy") || m.contains("locked") || m.contains("snapshot")
 }

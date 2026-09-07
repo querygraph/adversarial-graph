@@ -157,6 +157,18 @@ impl AgeStore {
             .collect())
     }
 
+    /// Delete one vertex, whatever its label, with every edge incident to
+    /// it, through `cypher()`: one statement, one PostgreSQL transaction.
+    pub async fn delete_node(&self, id: &NodeId) -> grust::Result<()> {
+        self.cypher(
+            "MATCH (n {id: $id}) DETACH DELETE n",
+            serde_json::json!({ "id": id.as_str() }),
+            &["a"],
+        )
+        .await
+        .map(|_| ())
+    }
+
     /// First column of a single-column Cypher result.
     async fn column(&self, body: &str, params: serde_json::Value) -> grust::Result<Vec<String>> {
         Ok(self

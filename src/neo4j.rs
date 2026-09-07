@@ -95,6 +95,13 @@ impl Neo4jStore {
         self.driver.run(q).await.map_err(backend)
     }
 
+    /// Delete one vertex, whatever its label, with every edge incident to
+    /// it: the store's own `DETACH DELETE`, one statement, one transaction.
+    pub async fn delete_node(&self, id: &NodeId) -> grust::Result<()> {
+        self.run(query("MATCH (n {id: $id}) DETACH DELETE n").param("id", id.as_str()))
+            .await
+    }
+
     /// Every row of a read query, cells normalized for comparison.
     pub async fn rows(&self, cypher: &str) -> grust::Result<ResultSet> {
         let mut stream = self.driver.execute(query(cypher)).await.map_err(backend)?;

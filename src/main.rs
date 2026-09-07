@@ -10,6 +10,7 @@ mod age;
 mod backends;
 mod dataset;
 mod differential;
+mod isolation;
 #[cfg(feature = "falkor")]
 mod falkor_reader;
 #[cfg(feature = "neo4j")]

@@ -63,6 +63,17 @@ impl Neo4jHttpStore {
     }
 
     /// Every row of a read query, cells normalized for comparison.
+    /// Delete one vertex, whatever its label, with every edge incident to
+    /// it, through the Query API: one statement, one transaction.
+    pub async fn delete_node(&self, id: &NodeId) -> grust::Result<()> {
+        self.query(
+            "MATCH (n {id: $id}) DETACH DELETE n".to_string(),
+            json!({ "id": id.as_str() }),
+        )
+        .await
+        .map(|_| ())
+    }
+
     pub async fn rows(&self, cypher: &str) -> grust::Result<ResultSet> {
         let body = json!({ "statement": cypher, "parameters": {} });
         let response = self

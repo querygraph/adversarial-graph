@@ -3,6 +3,8 @@ pub mod a1_fanout;
 pub mod a2_deep_paths;
 pub mod a3_policy_bounds;
 pub mod a4_hot_node;
+pub mod a5_recursive_deletes;
+pub mod a6_isolation;
 pub mod a7_guarded_replay;
 pub mod a8_differential;
 
@@ -28,7 +30,7 @@ pub struct Ctx<'a> {
 }
 
 pub fn all() -> &'static [&'static str] {
-    &["A1", "A2", "A3", "A4", "A7", "A8", "A12"]
+    &["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A12"]
 }
 
 /// Whether a scenario is defined over the dataset's shape: the M1 families
@@ -51,6 +53,8 @@ pub async fn run(id: &str, ctx: &Ctx<'_>) -> ScenarioResult {
         "A2" => a2_deep_paths::run(ctx).await,
         "A3" => a3_policy_bounds::run(ctx).await,
         "A4" => a4_hot_node::run(ctx).await,
+        "A5" => a5_recursive_deletes::run(ctx).await,
+        "A6" => a6_isolation::run(ctx).await,
         "A7" => a7_guarded_replay::run(ctx).await,
         "A12" => a12_cold_start::run(ctx).await,
         "A8" => a8_differential::run(ctx).await,
