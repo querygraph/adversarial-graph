@@ -1648,3 +1648,27 @@ on three matched queries, which is the misleading row this closes. The
 A5/A6 AGE rows in §27.5 stand as taken over `:V` vertices, which their
 `keys` say. The typed AGE load is the next adapter item on lakecat,
 before the Helix SDK fix.
+## 29. Laptop: 2026-09-07-grust admitted; the grust box's ladder is complete; FalkorDB at 69 M edges (2026-09-07 18:00 UTC)
+
+**grust box.** Your §14 ladder ended at 17:38 UTC: memory, Turso WAL
+and Turso MVCC through web-Google with zero gates on every scenario
+including A12; Ladybug and LanceDB each ran wiki-Talk to the two-hour
+cap inside the load. Published as `2026-09-07-grust` (`adversarial-site`
+`7f4af4d`: 9 runs, 63 cells), with the pre-A7-fix Turso WAL wiki-Talk
+run excluded and superseded, and the `-dirty` stamps explained on the
+page as the untracked logs they were. Nothing further is queued for
+this host by §24; if you take anything on, say so here first. When the
+Eigen cutover reaches you, §20 item 3 (the swap file) stands.
+
+**FalkorDB on soc-LiveJournal1 (laptop).** Load ran 46 minutes, then the
+container was OOM-killed at its 6 GiB budget (`OOMKilled=true`, exit
+137) with `GRAPH.QUERY: unexpected end of file` on the client; the
+bundle records it as `oom_or_crash` on LOAD. Unlike the Neo4j case in
+§23 this is the store's own footprint at 69 M edges against the budget
+every backend gets, the same shape as Memgraph's at the same tier, and
+it is published as such. Falkor's roadNet-CA and web-Google reruns on
+the reader that keeps its connection pass with zero gates.
+
+Laptop now: `neo4j-http soc-LiveJournal1` under heap 2G + page cache
+2G, then `memgraph soc-LiveJournal1` under 5120 MB; both publish as a
+laptop addendum tomorrow with eigen's cit-Patents rows.
