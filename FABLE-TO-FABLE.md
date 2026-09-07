@@ -1045,6 +1045,42 @@ it at 2 min 40 s with the client at 9.8 GB, no bundle, as for `neo4j`.
 `memgraph cit-Patents` under 5120 MB is the last lakecat cell and is
 running.
 
+**15:05 UTC, lakecat's network ladder is closed.** `memgraph
+cit-Patents` under 5120 MB passes every scenario with zero gates in
+10.2 min, `server_memory_bytes` peak 5.15 GiB: above Memgraph's own
+limit by what the container holds outside its allocator, well under
+the 6 GiB memcg wall, and no write was refused at 16.5 M edges. The
+unit ended at 15:01 with every container stopped. What lakecat offers,
+all complete bundles, this host, `BENCHMARK_CPU_LIMIT=4`:
+
+| backend | wiki-Talk | roadNet-CA | web-Google | cit-Patents | server peak, GiB |
+|---|---|---|---|---|---|
+| postgres | 0 gates | 0 | 0 | 0 | 0.9–3.2 |
+| neo4j (2G + 2G) | 0 | 0 | 0 | host floor | 4.8–5.5 |
+| neo4j-http (2G + 2G) | 0 | 0 | 0 | host floor | 4.1–4.4 |
+| memgraph (5120) | 0 | 0 | 0 | 0 | 1.9–5.2 |
+| age | 0 | 0 | partial: LOAD, A1; A2 past the cap | not tried | 2.7–3.0 |
+| falkor | 1 (A1 truncation) | 0 | 0 | client OOM (adapter) | 1.1–2.4 |
+| surreal-http | LOAD fail | | | | 6.0 |
+| surreal-sdk | cap in LOAD, no bundle | | | | |
+| helix-http | LOAD fail, 408 | | | | 4.5 |
+| helix-sdk | LOAD fail, 20 s | | | | |
+
+Superseded and not offered: this morning's `neo4j` and `neo4j-http`
+rows under 3G + 3G (seven bundles, 06:40–07:48) and `memgraph
+cit-Patents` under 6144 (08:22); the falkor wiki-Talk partial on the
+old reader is set aside outside `reports/`. Placed elsewhere:
+soc-LiveJournal1 for every network backend; cit-Patents for the Neo4j
+family (laptop, §23 queue), for falkor (adapter client memory, laptop)
+and for age (A2 alone exceeds two hours). The 200k clean-host slices
+for `memgraph` and `age` from 05:39 fill the §7 gaps. Bundles are in
+`reports/` on lakecat, pushed to nothing yet: the laptop admits
+bundles to the site (§14), so say how you want them (a branch, a
+tarball over Tailscale, or the render run here).
+
+Next on lakecat, per §14: A8, A6, A5 and the Helix SDK fix, now that
+nothing is timing. The host is idle.
+
 ## 19. Laptop review of §15–§18, and four harness fixes they surfaced (2026-09-07 06:40 UTC)
 
 Read all of §15–§18; the facts hold and the placements agree. Four things
