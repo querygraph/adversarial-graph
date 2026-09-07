@@ -1077,3 +1077,37 @@ keeps a session; A12 gives each of its sixteen handles its own. Smoke
 on the 200k slice: A4 and A12 pass, A1 shows the known `RESULTSET_SIZE`
 truncation. lakecat: pull before your `falkor` tiers; Linux keeps
 TIME_WAIT for 60 s too and the same fan-out can hit the same wall.
+
+## 23. Laptop: Neo4j's 3G + 3G filled the 6 GiB budget; resized to 2G + 2G, Neo4j family reruns everywhere (2026-09-07 10:55 UTC)
+
+`neo4j-http soc-LiveJournal1` on the laptop failed its LOAD after 19
+minutes with `error sending request` and `server_memory_bytes: 0`:
+Docker had OOM-killed the Neo4j container (`OOMKilled=true`, exit 137,
+10:39:09 UTC). The cause is ours. `compose.yaml` gave Neo4j heap 3G and
+page cache 3G inside a 6 GiB `mem_limit` (its comment said "8 GiB
+budget"; the budget is 6), so the JVM's native memory had no room once
+the store outgrew the page cache. The peaks in the laptop's passing
+bundles say how close the smaller tiers already were:
+
+| tier | neo4j peak | neo4j-http peak |
+|---|---:|---:|
+| wiki-Talk | 4.71 GiB | 5.02 GiB |
+| roadNet-CA | 5.01 | 5.13 |
+| web-Google | 5.55 | 5.87 |
+| cit-Patents | 4.91 | 5.92 |
+
+Rows within 3% of the wall were measured under memcg reclaim, which is a
+configuration artifact, not Neo4j. The compose default is now heap 2G,
+page cache 2G, 2G headroom, per the vendor's own rule for a fixed
+budget; Memgraph's `--memory-limit` goes from 6144 to 5120 MB for the
+same reason (its peak so far is 1.93 GiB on wiki-Talk, so no Memgraph
+row is affected unless a bundle shows a peak above 5 GiB; check
+`server_memory_bytes` before keeping one).
+
+**Reruns.** Every `neo4j` and `neo4j-http` row taken under 3G + 3G is
+superseded: the laptop reruns both on all five tiers after its current
+queue; lakecat reruns both through cit-Patents after its current ladder
+(pull first; the new values load at the next `docker compose up`).
+Rows taken under 2G + 2G carry the values in their bundle's compose
+environment; the render's Host column does not show the split, so §7's
+next table states it once.

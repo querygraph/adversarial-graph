@@ -71,18 +71,22 @@ services:
   # External comparison targets (M3). Memory tuning is applied from the
   # vendor's own recommendation for the container budget and recorded in the
   # run bundle; see ADVERSARIAL-GRAPH.md §3.6.
-  # Neo4j Community over Bolt. Memory follows the vendor's own split
-  # (server.memory.heap.* + server.memory.pagecache.size) sized for the 8 GiB
-  # container budget; the transaction memory cap is the documented guard
-  # against unbounded MATCH results. Values are recorded in each run bundle.
+  # Neo4j Community over Bolt. Memory follows the vendor's own rule for a
+  # fixed container budget: heap + page cache must leave room for the JVM's
+  # native memory and the OS. In the 6 GiB budget that is 2G + 2G with 2G of
+  # headroom; the earlier 3G + 3G summed to the whole budget and Docker
+  # OOM-killed the container the first time the store outgrew the page cache
+  # (soc-LiveJournal1, 69 M edges). The transaction memory cap is the
+  # documented guard against unbounded MATCH results. Values are recorded in
+  # each run bundle.
   neo4j:
     <<: *limits
     image: "${NEO4J_IMAGE:-neo4j:5.26-community}"
     environment:
       NEO4J_AUTH: neo4j/adversarial
-      NEO4J_server_memory_heap_initial__size: "${NEO4J_HEAP:-3G}"
-      NEO4J_server_memory_heap_max__size: "${NEO4J_HEAP:-3G}"
-      NEO4J_server_memory_pagecache_size: "${NEO4J_PAGECACHE:-3G}"
+      NEO4J_server_memory_heap_initial__size: "${NEO4J_HEAP:-2G}"
+      NEO4J_server_memory_heap_max__size: "${NEO4J_HEAP:-2G}"
+      NEO4J_server_memory_pagecache_size: "${NEO4J_PAGECACHE:-2G}"
       NEO4J_db_memory_transaction_total_max: "${NEO4J_TXN_MAX:-1G}"
       NEO4J_dbms_security_procedures_unrestricted: ""
     healthcheck:
@@ -114,6 +118,8 @@ services:
   memgraph:
     <<: *limits
     image: "${MEMGRAPH_IMAGE:-memgraph/memgraph:3.12.0}"
-    command: ["--memory-limit=${MEMGRAPH_MEMORY_MB:-6144}", "--log-level=WARNING"]
+    # Memgraph's own limit sits under the container budget so the process's
+    # overhead never pushes the container past it.
+    command: ["--memory-limit=${MEMGRAPH_MEMORY_MB:-5120}", "--log-level=WARNING"]
     ports: ["17688:7687"]
     profiles: ["external"]

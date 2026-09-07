@@ -69,7 +69,7 @@ Notes for this host:
   `run-ladder.sh` waited forever in `wait_ready`. `compose.yaml` now pins the
   multi-arch index digest (same build, both platforms).
 - Neo4j needs the `external` compose profile (the script passes it) and
-  `NEO4J_HEAP`/`NEO4J_PAGECACHE` default 3G each inside the 6 GiB cap.
+  `NEO4J_HEAP`/`NEO4J_PAGECACHE` default 2G each inside the 6 GiB cap (3G each summed to the whole cap and was OOM-killed on soc-LiveJournal1).
 - FalkorDB: `FALKOR_RESULTSET_SIZE=-1` selects the tuned profile; the default
   image truncates every result at 10,000 rows silently and fails the
   `wrong_answer` gate on wiki-Talk (recorded in ADVERSARIAL-GRAPH.md §7).
