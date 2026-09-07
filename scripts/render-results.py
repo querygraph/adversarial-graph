@@ -21,13 +21,18 @@ from collections import OrderedDict
 
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument("--since", default="", help="use only run bundles whose stamp is >= this value")
+parser.add_argument("--reports", default="", help="run directory (default: reports/ in the harness checkout)")
+parser.add_argument("--exclude", default="", help="comma-separated run stamps to leave out (superseded bundles)")
 parser.add_argument("--html-rows", metavar="PUBLICATION", default="",
                     help="print the site's per-dataset <table> rows for this dated publication instead of writing RESULTS.md")
 args = parser.parse_args()
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-reports = sorted(p for p in glob.glob(os.path.join(root, "reports", "*", "report.json"))
-                 if os.path.basename(os.path.dirname(p)) >= args.since)
+reports_dir = os.path.abspath(args.reports) if args.reports else os.path.join(root, "reports")
+excluded = {r for r in args.exclude.split(",") if r}
+reports = sorted(p for p in glob.glob(os.path.join(reports_dir, "*", "report.json"))
+                 if os.path.basename(os.path.dirname(p)) >= args.since
+                 and os.path.basename(os.path.dirname(p)) not in excluded)
 if not reports:
     sys.exit("no reports/*/report.json found")
 
@@ -133,5 +138,7 @@ if args.html_rows:
     print(f"<!-- {len(rows)} cells from {len(reports)} runs, hard-gate total {gates_total}, "
           f"{superseded_fail} superseded failing cell(s) kept in Notes -->", file=sys.stderr)
     sys.exit(0)
+if args.reports:
+    print("\n".join(out)); sys.exit(0)
 open(os.path.join(root, "RESULTS.md"), "w").write("\n".join(out) + "\n")
 print(f"wrote RESULTS.md: {len(rows)} cells, gates={gates_total}")
