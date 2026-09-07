@@ -2005,3 +2005,79 @@ matrix when the grust box finishes; then the compact reference (§28),
 LanceDB's bulk batching (4a), the Helix SDK casing fix, and A9-A11. eigen and
 lakecat are idle: nothing left in the queue fits a 31 GB or 15 GiB host that
 is not already running somewhere.
+
+## 37. What the SF0.3 matrix actually shows at the 6 GiB budget, and what a declared cell is allowed to say (2026-09-07 23:15 UTC)
+
+The matrix ran on the grust box from 21:04 to 23:06 UTC at grust
+`d45569d` and produced every one of its twenty-four cells: twenty
+component reports and four declarations. The declaration mechanism of
+§36 did what it was built for — under the old launcher this run would
+have stopped at the first Turso cell, as §32's did.
+
+**The whole SF0.3 picture at 8 CPUs and 6 GiB per container:**
+
+| backend | baseline and adversarial |
+|---|---|
+| memory | pass |
+| turso | declared: the cell's container exceeded its memory limit |
+| postgres | declared: the cell's container exceeded its memory limit |
+| falkor | declared terminated: `backend.quiescence-unproven` after an unacknowledged query exit |
+| ladybug, surreal, lancedb, pggraph, postgres-pgq, helix | `unsupported`: `performance.materialization-disallowed`, the larger-scale admission policy |
+| sail | `unavailable`: no qualified service |
+| cocoindex | `not_applicable` |
+
+So **one backend produces measurements at SF0.3 under this budget**. That
+is the honest headline, and it is not a ranking of anything: six of the
+twelve are policy refusals by design at downloaded scales, one has no
+service configured, and one is not a query backend.
+
+**The label was wrong and is fixed.** §36 named the declared outcome
+`backend.memory-exceeded`. In the PostgreSQL cell that is false:
+PostgreSQL runs in its own container under its own separate 6 GiB
+(`resource_components: 2`), and the container the kernel took away held
+only the harness's runner, which had built a 1.05 GB resident index and
+died on the first warm-up query. Attributing that to PostgreSQL states a
+Grust limitation as a vendor's, which AGENTS.md forbids in either
+direction. The reason code is now `cell.memory-exceeded` (grust
+`7d8c6c5`, site `360fcf4`) and the declaration says what it is: the
+harness's envelope for this plan at this scale, never a memory demand
+measured of the backend. **A declared cell may not be read as a backend
+result.**
+
+**A bug of mine, and what it cost.** The declared-matrix check in the
+launcher required validity as well as structure, so the run died after
+the baseline suite — FalkorDB's declared quiescence termination makes
+that matrix `valid: false` — and the adversarial matrix was never
+merged, though all twenty-four cells were already on disk. Fixed in
+grust `5253132`: the check is structural (not complete, accounted for)
+and the run fails through `matrix_failed` as it always did. The
+adversarial matrix was then merged from the evidence already taken; no
+cell was rerun.
+
+**What a declaration does not tell you is what the cell would need.**
+`benchmarks/lsqb/measure-cell-budget.sh BACKEND[,...] SCALE [GiB ...]`
+answers that: one diagnostic cell per backend per budget, smallest
+first, stopping at the first budget where the cell finishes. It rides on
+a new `DIAGNOSTIC_BACKENDS` selector that forces discovery mode, so no
+such run can issue a receipt, and none of it is a comparison between
+backends. It is queued on eigen behind the LanceDB control probe
+(`~/eigen-budget-ladder.sh`, log `~/eigen-budget-ladder.log`) for
+`turso,postgres` at SF0.3 across 6, 8, 12, 16, 20 and 24 GiB.
+
+**The budget itself is a protocol constant, not a technical necessity.**
+8 CPUs and 6 GiB is what every published cohort was measured under, it
+is applied identically to every backend, and it is recorded in every
+report with `resource_limit_scope=per-container`. Its original ceiling
+was the laptop's 20 GiB Docker Desktop VM, which no longer exists. It
+can be raised — but only as a declared new cohort, never as a quiet
+edit, because the existing series is only comparable within one budget.
+The site hardcodes `6442450944` in three verifiers (SDK, Sail, native),
+which would have to become per-cohort values first. **This run is a
+diagnostic, not a publication candidate**: it carries the old reason
+code, since its host's checkout was pinned while it ran.
+
+**Open, in order**: the budget ladder's numbers, then the choice between
+keeping 6 GiB with declarations, implementing §32's memory-bounded route
+so the plan degrades inside the budget, or re-running the cohort at a
+declared larger budget. That choice belongs to the user, with the
+ladder's numbers in hand.
