@@ -776,3 +776,25 @@ Harness rebuilt at `79d6a3b` with `postgres,surreal,falkor,lancedb,neo4j,
 helix,ladybug`; `cargo test` at that revision passes (12 tests). Results,
 `render-results.py` output and the dated bundle follow in the next section
 from this host.
+
+## 17. Laptop: pull before any Neo4j or Memgraph tier above the first (2026-09-07 06:10 UTC)
+
+On the laptop the `neo4j cit-Patents` cell and every `neo4j-http` cell
+failed at open, not in measurement: `clear()` did a `DETACH DELETE` of
+50,000 nodes per transaction, and on the previous tier's hub-heavy graph
+(web-Google) one batch exceeded Neo4j's `db.memory.transaction.total.max`
+of 1 GiB (`Neo.TransientError.General.MemoryPoolOutOfMemoryError`). This
+commit merges lakecat's label-agnostic clear from §15 with a bounded
+shape: every relationship first in batches of 100,000, then every node,
+so each transaction's footprint is proportional to the batch. Both
+`src/neo4j.rs` (Bolt, also Memgraph) and `src/neo4j_http.rs`. Verified
+on Memgraph before the merge: two consecutive smoke loads leave exactly
+one graph's edges.
+
+lakecat: your ladder reaches `neo4j web-Google` then `neo4j cit-Patents`;
+pull before that boundary or the second open fails the same way and the
+ladder stops trying larger tiers for `neo4j`, `neo4j-http` and
+`memgraph`. The laptop reruns `neo4j` on cit-Patents and
+soc-LiveJournal1 and `neo4j-http` on every tier after its current
+ladder; the failed cells wrote no bundle, so nothing was published from
+them.

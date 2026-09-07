@@ -292,21 +292,22 @@ impl GraphAdminStore for Neo4jStore {
     }
 
     async fn clear(&self) -> grust::Result<()> {
-        // Batched detach-delete of every node, whatever its label, so a typed
-        // graph left by an earlier run never leaks into this one; batched so a
-        // large prior graph never exhausts the transaction memory cap.
-        loop {
-            let deleted = self
-                .column(
-                    query(&format!(
-                        "MATCH (n) WITH n LIMIT 50000 DETACH DELETE n RETURN count(*) AS c"
-                    )),
-                    "c",
-                )
-                .await?;
-            let n: i64 = deleted.first().and_then(|c| c.parse().ok()).unwrap_or(0);
-            if n == 0 {
-                break;
+        // Every relationship first, then every node, whatever their labels
+        // and types, in bounded batches: a typed graph left by an earlier
+        // run never leaks into this one, and each transaction's footprint
+        // stays proportional to the batch. A 50k-node DETACH DELETE from a
+        // hub-heavy graph (web-Google, at the cit-Patents cell) exceeded
+        // Neo4j's 1 GiB transaction memory cap.
+        for stmt in [
+            "MATCH ()-[r]->() WITH r LIMIT 100000 DELETE r RETURN count(*) AS c",
+            "MATCH (n) WITH n LIMIT 100000 DETACH DELETE n RETURN count(*) AS c",
+        ] {
+            loop {
+                let deleted = self.column(query(stmt), "c").await?;
+                let n: i64 = deleted.first().and_then(|c| c.parse().ok()).unwrap_or(0);
+                if n == 0 {
+                    break;
+                }
             }
         }
         Ok(())

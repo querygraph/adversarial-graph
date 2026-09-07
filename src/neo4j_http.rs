@@ -299,18 +299,19 @@ impl GraphAdminStore for Neo4jHttpStore {
     }
 
     async fn clear(&self) -> grust::Result<()> {
-        loop {
-            let deleted = self
-                .column(
-                    format!(
-                        "MATCH (n) WITH n LIMIT 50000 DETACH DELETE n RETURN count(*)"
-                    ),
-                    json!({}),
-                )
-                .await?;
-            let n: i64 = deleted.first().and_then(|c| c.parse().ok()).unwrap_or(0);
-            if n == 0 {
-                break;
+        // Relationships first, then nodes, whatever their labels, in
+        // bounded batches (see `neo4j.rs`): a 50k-node DETACH DELETE from
+        // a hub-heavy graph exceeded the 1 GiB transaction memory cap.
+        for stmt in [
+            "MATCH ()-[r]->() WITH r LIMIT 100000 DELETE r RETURN count(*)",
+            "MATCH (n) WITH n LIMIT 100000 DETACH DELETE n RETURN count(*)",
+        ] {
+            loop {
+                let deleted = self.column(stmt.to_string(), json!({})).await?;
+                let n: i64 = deleted.first().and_then(|c| c.parse().ok()).unwrap_or(0);
+                if n == 0 {
+                    break;
+                }
             }
         }
         Ok(())
