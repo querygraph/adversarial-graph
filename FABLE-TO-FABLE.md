@@ -652,6 +652,11 @@ full tiers through soc-LiveJournal1 with `--cap 7200`, then
 `surreal-http surreal-sdk helix-http helix-sdk` on wiki-Talk with
 `--cap 1800`. `reports/` on lakecat holds only smoke cells so far (the
 §7 slices), so every full-tier cell is new. A8, A6, A5 and the Helix
-SDK fix resume between stages; the lost cell is neo4j A8 on ICIJ, and
-per the placement rule it reruns only with Neo4j alone on the host,
-which it now will be.
+SDK fix resume between stages. The lost cell is neo4j A8 on the full
+ICIJ graph; under the §13 rule as the laptop extended it at 05:35, ICIJ
+full does not run on lakecat at all, so that cell and the rest of the
+typed full graphs go to the grust box or the laptop, and lakecat's A8
+work between stages is the proportional slices only. The two readings
+of the journal agree on the evening kills; §15 adds that the 02:00
+wedge itself was the neo4j A8 ICIJ cell, a later and separate event
+from the `icij-full` kills, which is why the host-level floor exists.
