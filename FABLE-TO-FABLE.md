@@ -1757,3 +1757,60 @@ attempt failed only the host CPU preflight, run seconds after the client
 image build; it is relaunched alone at 19:25 UTC (`~/eigen-native.sh`,
 log `~/eigen-native.log`) with the preflight retried every three minutes
 and the same window rule, on the amd64 server image of §30.
+
+## 33. quegee is the taskmaster from here; the laptop retires (2026-09-07 19:09 UTC)
+
+**quegee** (c5n.4xlarge: 16 vCPU, 40 GB, 985 GB, Debian 13, private
+172.31.9.50, public 3.128.168.142, `ssh quegee`) is the coordinator of
+the adversarial graph benchmarks from this section on. The session that
+starts there is the taskmaster the laptop session was: it owns
+`FABLE-TO-FABLE.md`'s plan, site admission, the largest-memory cells,
+and the other hosts' assignments. The laptop session ends tonight and
+writes nothing after this section except the hand-over of its last
+cell below.
+
+**What is on quegee now** (done by the laptop over ssh, 19:05–19:09 UTC):
+
+- The host bootstrap (`~/conf/debian/new-debian-who-dis.sh`, the
+  committed version with the ghostty terminfo): Docker 29 + Compose v5,
+  Rust, git, rsync, Claude Code. Tailscale is not joined (the user's
+  `sudo tailscale up`); the public and private addresses work.
+- A GitHub key of its own (`~/.ssh/quegee`, on the account as
+  `quegee`) for the three private repositories; `~/.ssh/config`
+  points `github.com` at it.
+- The user's host key `~/.ssh/gagarin.pem` (mode 0400) and
+  `~/.ssh/config` entries `lakecat`, `grust`, `eigen` over the
+  private network, all verified reachable. quegee supervises the other
+  three hosts; nothing on them needs the laptop.
+- `~/src/adversarial-graph` at `main`, the 2.3 GB datasets in place,
+  and `reports-hosts/{lakecat,grust,eigen,laptop}` (every bundle the
+  laptop had pulled or produced, the laptop's own under `laptop/`);
+  `scripts/bootstrap-host.sh` running detached (log
+  `~/bootstrap-host.log`): jq, node, `adversarial-site`, `grust`, the
+  harness and LSQB builds, the Docker images, the site's verifier. When
+  it prints `BOOTSTRAP_DONE`, the host is ready.
+- `HANDOFF-SUCCESSOR.md` is the brief: read it first, then §24–§32.
+
+**First jobs for quegee's session, in order.**
+
+1. Read the laptop's last cell hand-over (§34, written when it ends):
+   `neo4j-http soc-LiveJournal1` from the laptop, and
+   `memgraph soc-LiveJournal1` to run here
+   (`AG_RSS_LIMIT_GB=32 scripts/run-full-tiers.sh --datasets
+   soc-LiveJournal1 memgraph`; the client is ~23 GB beside the 6 GiB
+   container, and this host has no swap). Publish both with the
+   laptop's final bundles as `2026-09-07-laptop-2` or as this host's
+   first publication, by the §26 procedure.
+2. eigen's native Neo4j SF0.3 lane (`eigen:~/eigen-native.log`,
+   `EIGEN_NATIVE_DONE`): admit it to the graph ledger when its audit
+   passes; the site's `NATIVE_SERVER` pin gains the amd64 image
+   (§30).
+3. The SF0.3 matrix decision of §32, then its rerun on eigen inside
+   the tenancy windows.
+4. lakecat's §26 reruns to admit (it offers them again), then the rest
+   of `HANDOFF-SUCCESSOR.md`'s list.
+
+**Rules unchanged**: AGENTS.md neutrality in everything committed;
+commit, then fetch and rebase, then push; append sections with the
+next free number and never edit another host's; guards record host
+outcomes, never store findings; per-run provenance in every bundle.

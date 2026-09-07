@@ -1,14 +1,15 @@
-# Hand-off from the laptop session to its EC2 successor (2026-09-07)
+# Hand-off from the laptop session to quegee, its EC2 successor (2026-09-07)
 
 The laptop that ran the taskmaster session for the adversarial graph
 benchmarks travels from 2026-09-07 ~22:00 UTC and is no longer a host.
-A new EC2 instance takes its role: coordinator of the four-host program,
+**quegee** (c5n.4xlarge, 16 vCPU, 40 GB, `ssh quegee`) takes its role:
+coordinator of the four-host program,
 site admission, the contended-baseline rows' replacement, and the
 largest-memory cells. Read this, then `FABLE-TO-FABLE.md` §9 onward
 (§24–§30 are the current state), then `AGENTS.md` (neutrality at every
 level; no strategy talk about beating any vendor in anything committed).
 
-## Bootstrap
+## Bootstrap (done on quegee by the laptop; kept for the next host)
 
 `scripts/bootstrap-host.sh` after the host's own Debian bootstrap (Docker
 29 + Compose v5, as on `lakecat`, `grust`, `eigen`). It needs a GitHub key
@@ -18,16 +19,17 @@ to the account as the eigen box's was (`~/.ssh/eigen`, title `eigen`).
 Datasets: 2.3 GB from GDC/SNAP mirrors via `scripts/fetch-datasets.sh`,
 or `rsync` from `grust:~/src/adversarial-graph/datasets/`.
 
-Reaching the other hosts needs the user's key (`~/.ssh/gagarin.pem`, user
-`admin`, hosts `lakecat` 3.133.81.104, `grust` 18.117.218.138, `eigen`
-18.216.201.246, all also on the Tailscale net as `*.tail693a26.ts.net`):
-the user decides whether to place it on this host. Without it, the other
-hosts push their bundles to a branch instead of the coordinator pulling
-them.
+Reaching the other hosts: the user's key `~/.ssh/gagarin.pem` is on
+quegee (mode 0400) with `~/.ssh/config` entries `lakecat`, `grust`,
+`eigen` over the private network (172.31.34.193, 172.31.35.136,
+172.31.41.165; public 3.133.81.104, 18.117.218.138, 18.216.201.246).
+quegee pulls their bundles with `rsync` into `reports-hosts/<host>/`.
 
 ## What the laptop held that nothing else did
 
-Staged on the grust box at `grust:~/handoff-laptop/`:
+On quegee under `~/src/adversarial-graph/reports-hosts/` (`laptop/`,
+`lakecat/`, `grust/`, `eigen/`), and staged on the grust box at
+`grust:~/handoff-laptop/`:
 
 - `reports-laptop/`: every laptop run bundle (the contended baseline;
   the published ones are in `adversarial-site` `public/evidence/strain/
@@ -43,7 +45,7 @@ Staged on the grust box at `grust:~/handoff-laptop/`:
 
 | host | RAM | role |
 |---|---|---|
-| successor (this host) | 42 GB (c5n.4xlarge) | coordinator; site admission; the soc-LiveJournal1 tier for the container-backed backends (client ~23–26 GB + 6 GiB container); any embedded-store tier above web-Google (Turso MVCC cit-Patents reached 26 GB and the cap; LanceDB wiki-Talk needed 42.5 GB); LSQB admissions |
+| quegee (this host) | 40 GB (c5n.4xlarge) | coordinator; site admission; the soc-LiveJournal1 tier for the container-backed backends (client ~23–26 GB + 6 GiB container); any embedded-store tier above web-Google (Turso MVCC cit-Patents reached 26 GB and the cap; LanceDB wiki-Talk needed 42.5 GB); LSQB admissions |
 | eigen | 31 GB | the LSQB SF0.3 matrix and native Neo4j SF0.3 lane inside the tenancy windows (02:30–03:45, 12:30–13:30, 14:30–15:45 UTC); cit-Patents rows done |
 | grust | 31 GB | idle; embedded stores through web-Google done and published; available for reruns (no LSQB unless told) |
 | lakecat | 15 GiB | scenario work (A5, A6, A8 adapters, Helix SDK fix); clean-host slices; nothing above cit-Patents |
