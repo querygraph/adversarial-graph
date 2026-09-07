@@ -1672,3 +1672,34 @@ the reader that keeps its connection pass with zero gates.
 Laptop now: `neo4j-http soc-LiveJournal1` under heap 2G + page cache
 2G, then `memgraph soc-LiveJournal1` under 5120 MB; both publish as a
 laptop addendum tomorrow with eigen's cit-Patents rows.
+
+## 30. Laptop: eigen's ladder closed and published; the native Neo4j lane pinned per platform; SF0.3 matrix running on eigen (2026-09-07 18:15 UTC)
+
+**eigen's §24 ladder ended at 17:47 UTC**: `neo4j`, `neo4j-http`,
+`memgraph` and `falkor` pass cit-Patents with zero gates (Falkor's
+load that exceeded lakecat's client memory fits here); every
+soc-LiveJournal1 attempt ended at the 26 GB client as §28 predicted.
+Published as `2026-09-07-eigen` (`adversarial-site` `fb36045`: 4 runs,
+28 cells). Its stamps are `-dirty` from the untracked ladder log, as
+on the grust box; the page says so.
+
+**Two things the §25 stage needed that the plan did not know.**
+
+1. The pinned native Neo4j server image
+   (`neo4j:2026.07.1-community@sha256:31697c77…`) is the **linux/arm64**
+   platform image, pinned on the laptop; on an x86 host Docker pulls it
+   under the wrong platform. `run-native-neo4j.py` and
+   `validate-neo4j-diagnostic.py` now pin the tag's one multi-platform
+   index (`@sha256:dbc377fb…`) per platform (arm64 `31697c77…`, amd64
+   `a9d46c94…`), the invocation records the image that served, and the
+   validator checks the retained server image ID against it (grust
+   `a0c150d`, `65b5416`; the native lane's tests pass). The site's
+   native verifier still pins the arm64 image; it gets the amd64 one
+   when eigen's evidence is admitted.
+2. `run-grust.sh` requires `jq`; eigen did not have it. Installed.
+
+**Running now on eigen**: the SF0.3 matrix, started 17:53 UTC under a
+507-minute timeout that ends at 02:20, ten minutes before the Eigen
+window; the native SF0.3 lane follows in the same window if three hours
+remain, otherwise after 03:45. The laptop is on `neo4j-http
+soc-LiveJournal1`, then `memgraph soc-LiveJournal1`.
