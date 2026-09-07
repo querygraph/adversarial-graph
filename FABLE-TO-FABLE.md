@@ -1796,7 +1796,7 @@ cell below.
 1. Read the laptop's last cell hand-over (§34, written when it ends):
    `neo4j-http soc-LiveJournal1` from the laptop, and
    `memgraph soc-LiveJournal1` to run here
-   (`AG_RSS_LIMIT_GB=32 scripts/run-full-tiers.sh --datasets
+   (`AG_RSS_LIMIT_GB=30 AG_MEM_AVAILABLE_MIN_GB=2 scripts/run-full-tiers.sh --datasets
    soc-LiveJournal1 memgraph`; the client is ~23 GB beside the 6 GiB
    container, and this host has no swap). Publish both with the
    laptop's final bundles as `2026-09-07-laptop-2` or as this host's

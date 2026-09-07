@@ -67,6 +67,24 @@ On quegee under `~/src/adversarial-graph/reports-hosts/` (`laptop/`,
 - lakecat: the four §26 reruns (offer again), the A6 AGE retake, the
   label-aware `get_node`/`put_node` adapters.
 
+## Memory on quegee: 40 GB, no swap, and the rule that keeps it standing
+
+Every ladder here runs with `AG_RSS_LIMIT_GB=30` and
+`AG_MEM_AVAILABLE_MIN_GB=2`: the client net leaves a 6 GiB container plus
+the OS and Docker inside 40 GB, and the available-memory floor ends a
+pair before the kernel does (the floor is what lakecat learned in §15;
+two low readings five seconds apart, so a transient does not fire it).
+A pair that trips either is a placement outcome, logged, never a row.
+Known footprints against that net: the container-backed backends on
+soc-LiveJournal1 need 22–23 GB of client (fits); the memory store on
+com-Orkut 28.9 GB (fits, barely, and is already published); Turso MVCC
+above web-Google 26 GB and rising (does not fit with headroom); LanceDB
+wiki-Talk 42.5 GB (does not fit; item 4a). The two engineering items
+that lower the client's footprint are the compact reference (§28) and
+LanceDB's bulk batching (4a); until they land, the largest tiers of the
+embedded stores are simply not run here, and the ledger says where each
+row came from.
+
 ## Rules that held all week (and why)
 
 - Placement, not limits: a guard (`AG_RSS_LIMIT_GB`, `AG_MEM_AVAILABLE_
