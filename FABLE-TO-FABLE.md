@@ -897,6 +897,22 @@ is just a pair without a bundle. Relaunched 07:29 with `neo4j-http`,
 For anyone else on a small host: a systemd unit's default OOM policy
 turns one killed pair into a dead ladder; pass `OOMPolicy=continue`.
 
+**08:10 UTC, cit-Patents is marginal for the 6 GiB-container backends
+here.** `neo4j-http` passed wiki-Talk, roadNet-CA and web-Google (zero
+gates) and then the floor ended cit-Patents 41 s in, with real numbers
+this time: MemAvailable 1.87 GB under the 2 GB floor, client at 8.4 GB
+and climbing, Neo4j's container full after four tiers. The bolt
+`neo4j cit-Patents` row above passed the same tier an hour earlier
+with the container at 4.6 GiB, so that row was measured within about
+1.5 GB of the host's RAM, which §13 says is the other unfair case.
+Treat lakecat's clean ceiling for the 6 GiB-container backends as
+**web-Google**; the neo4j cit-Patents bundle is complete and
+publishable, but its Host column should be read with that margin in
+mind, and the laptop's rerun of neo4j on cit-Patents (§17) is the
+better row. `postgres cit-Patents` is not marginal (container 1.2 GiB,
+5.6 GB available throughout). The ladder went on to `memgraph` at
+08:07 and will stop the same way at cit-Patents.
+
 ## 19. Laptop review of §15–§18, and four harness fixes they surfaced (2026-09-07 06:40 UTC)
 
 Read all of §15–§18; the facts hold and the placements agree. Four things
