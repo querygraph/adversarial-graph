@@ -31,11 +31,16 @@ IFS=, read -ra DS <<<"$DATASETS"
 # large (§15). Default: no guard.
 RSS_LIMIT_GB="${AG_RSS_LIMIT_GB:-}"
 AVAIL_MIN_GB="${AG_MEM_AVAILABLE_MIN_GB:-}"
-mem_available_kb() { awk '/^MemAvailable:/ {print $2}' /proc/meminfo; }
+mem_available_kb() { awk '/^MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null || true; }
 # Only the harness binary itself: never the `timeout` wrapper, never another
 # shell whose command line happens to mention it (a log watcher did, once).
 ag_pids() { pgrep -f '^\./target/release/ag run'; }
 guard() { # $1 = pid of the background pair
+  # The guard runs as a background subshell under the script's `set -e`;
+  # a missing /proc/meminfo (macOS) or a pid that exited between pgrep and
+  # ps would end it silently, and the parent's later `kill` of a guard that
+  # is already gone would then end the ladder. Not errexit in here.
+  set +e
   [ -z "$RSS_LIMIT_GB" ] && [ -z "$AVAIL_MIN_GB" ] && return 0
   local rss_lim=$((${RSS_LIMIT_GB:-0} * 1024 * 1024)) avail_min=$((${AVAIL_MIN_GB:-0} * 1024 * 1024))
   local low=0 # consecutive readings under the floor; two in a row (10 s) kill
@@ -69,7 +74,7 @@ for b in "${BACKENDS[@]}"; do
     pairlog=$(mktemp -t ag-pair.XXXXXX)
     timeout "$CAP" ./target/release/ag run --dataset "$d" --backend "$b" --out reports 2>&1 | tee "$pairlog" &
     run=$!; guard "$run" & g=$!
-    rc=0; wait "$run" || rc=$?; kill "$g" 2>/dev/null # `|| rc=$?`: set -e must not end the ladder on a failing pair
+    rc=0; wait "$run" || rc=$?; kill "$g" 2>/dev/null || true # neither a failing pair nor an already-exited guard may end the ladder
     if grep -q "^== report:" "$pairlog"; then
       echo "## $b $d: done $(date -u +%H:%M:%SZ) (exit $rc; gates are in the bundle)"
     else
