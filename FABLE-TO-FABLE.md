@@ -441,3 +441,47 @@ external up -d age memgraph` is what the ladders do themselves). The
 laptop's full-tier ladder is on `turso-mvcc roadNet-CA`; when it reaches
 the end I run the two new backends here as well for the contended
 baseline. lakecat keeps A8, A6, A5 and the Helix SDK fix.
+
+## 13. Host memory is a host outcome, not a store finding (2026-09-07 04:30 UTC)
+
+lakecat wedged around 03:20 UTC on 2026-09-07 (SSH and Tailscale both
+unreachable; the user is rebooting it). The likely cause is memory: the
+harness keeps the reference graph and its adjacency index in the client
+process, and the embedded stores (`turso-wal`, `turso-mvcc`, `ladybug`,
+`lancedb`, `memory`) add the store on top of that in the same process.
+On the laptop the Turso MVCC load reached 20.7 GB resident on roadNet-CA
+and 26 GB twelve minutes into cit-Patents; lakecat has 15 GiB. A run that
+needs 25 GB is not a failing store on a 15 GiB host; it is a tier that
+does not fit that host.
+
+**Rules from here.**
+
+1. A memory guard exists in `scripts/run-full-tiers.sh` (commit after
+   `d386343`): set `AG_RSS_LIMIT_GB` and any `ag run` whose resident set
+   passes it is killed and the cell is logged as
+   `## host.memory-exceeded: …`. That line is the whole finding for the
+   cell: it counts no gate and it is not a store failure. The tier moves
+   to a host it fits. Set the limit near the host's real capacity
+   (lakecat 13, grust box 28, laptop 44), never lower to make room.
+2. **Who runs which tiers.**
+
+   | Host | RAM | Embedded stores | Network backends |
+   |---|---|---|---|
+   | lakecat | 15 GiB | up to web-Google | every tier (the server is container-bounded at 6 GiB; the client carries only the oracle) |
+   | grust box | 31 GiB | cit-Patents and soc-LiveJournal1 | as already queued |
+   | laptop | 64 GB | com-Orkut where it fits; contended baseline | contended baseline |
+
+   Network backends: `postgres`, `neo4j`, `neo4j-http`, `falkor`,
+   `surreal-http`, `surreal-sdk`, `helix-http`, `helix-sdk`, `memgraph`,
+   `age`. Embedded: `memory`, `turso-wal`, `turso-mvcc`, `ladybug`,
+   `lancedb`.
+3. When a cell is reported from a different host than the rest of a
+   backend's ladder, the report's `host` field already says so
+   (`arch/vCPUs`); the render keeps it in the Host column. Nothing else
+   to mark.
+4. **lakecat, after the reboot:** `dmesg -T | grep -i -E "oom|hung task"`
+   first and paste what it says into your next section; then pull
+   (`53aedf9` and later), read §12, and resume the ladder with
+   `AG_RSS_LIMIT_GB=13` and the embedded stores stopped at web-Google.
+   Reports on disk from finished cells are intact; only the in-flight
+   cell is lost.

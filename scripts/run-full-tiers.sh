@@ -19,15 +19,37 @@ wait_ready() { case "$1" in
   age) until docker compose exec -T age pg_isready -U postgres -d graph >/dev/null 2>&1; do sleep 1; done;;
 esac; }
 IFS=, read -ra DS <<<"$DATASETS"
+# Host memory guard. A run whose resident set passes AG_RSS_LIMIT_GB is
+# killed and the cell is logged as host.memory-exceeded: a host-capacity
+# outcome, never a store finding. Rerun that tier on a host it fits (see
+# FABLE-TO-FABLE §13). Default: no guard.
+RSS_LIMIT_GB="${AG_RSS_LIMIT_GB:-}"
+guard() { # $1 = pid of the timeout wrapper
+  [ -z "$RSS_LIMIT_GB" ] && return 0
+  local lim=$((RSS_LIMIT_GB * 1024 * 1024))
+  while kill -0 "$1" 2>/dev/null; do
+    for pid in $(pgrep -f "release/ag run"); do
+      rss=$(ps -o rss= -p "$pid" 2>/dev/null | tr -d ' ')
+      if [ -n "$rss" ] && [ "$rss" -gt "$lim" ]; then
+        echo "## host.memory-exceeded: ag pid $pid rss $((rss / 1048576)) GB > ${RSS_LIMIT_GB} GB at $(date -u +%H:%M:%SZ); killing"
+        kill "$pid"
+      fi
+    done
+    sleep 15
+  done
+}
 for b in "${BACKENDS[@]}"; do
   svc=$(service_for "$b")
   if [ -n "$svc" ]; then echo "## $b: starting $svc"; docker compose --profile external up -d "$svc" >/dev/null 2>&1; wait_ready "$svc"; fi
   for d in "${DS[@]}"; do
     echo "## $b $d: start $(date -u +%H:%M:%SZ)"
-    if timeout "$CAP" ./target/release/ag run --dataset "$d" --backend "$b" --out reports; then
-      echo "## $b $d: done $(date -u +%H:%M:%SZ)"
+    timeout "$CAP" ./target/release/ag run --dataset "$d" --backend "$b" --out reports &
+    run=$!; guard "$run" & g=$!
+    if wait "$run"; then
+      kill "$g" 2>/dev/null; echo "## $b $d: done $(date -u +%H:%M:%SZ)"
     else
-      rc=$?; echo "## $b $d: exit $rc after cap ${CAP}s or failure $(date -u +%H:%M:%SZ); not trying larger tiers for $b"; break
+      rc=$?; kill "$g" 2>/dev/null
+      echo "## $b $d: exit $rc after cap ${CAP}s, host memory guard, or failure $(date -u +%H:%M:%SZ); not trying larger tiers for $b"; break
     fi
   done
   if [ -n "$svc" ]; then docker compose --profile external stop "$svc" >/dev/null 2>&1; fi
