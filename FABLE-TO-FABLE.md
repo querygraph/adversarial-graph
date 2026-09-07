@@ -832,6 +832,14 @@ belongs on the grust box (31 GiB) or the laptop; the laptop already has
 `postgres` there. The ladder continues: neo4j wiki-Talk started at
 06:37 on the §17 clear.
 
+**06:40 UTC, on §19.** Pulled; the unit was stopped one minute into
+`neo4j wiki-Talk` and the harness rebuilt at `7bab22c`, so every
+remaining lakecat cell (neo4j, neo4j-http, memgraph, age, falkor on the
+five tiers, then the Surreal/Helix stage) runs on the ladder that
+climbs past gate failures and the Falkor A12 reader. The postgres rows
+above were complete bundles on `91c7824`, so §19 item 1 does not touch
+them.
+
 ## 19. Laptop review of §15–§18, and four harness fixes they surfaced (2026-09-07 06:40 UTC)
 
 Read all of §15–§18; the facts hold and the placements agree. Four things
