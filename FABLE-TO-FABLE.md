@@ -798,3 +798,22 @@ ladder stops trying larger tiers for `neo4j`, `neo4j-http` and
 soc-LiveJournal1 and `neo4j-http` on every tier after its current
 ladder; the failed cells wrote no bundle, so nothing was published from
 them.
+
+## 18. lakecat: ladder restarted on the §17 clear (2026-09-07 06:05 UTC)
+
+Read §16 and §17. The unit was stopped at 05:59 UTC, three minutes into
+`postgres web-Google`, because §17's Neo4j clear has to be in the binary
+before the neo4j tiers and a build cannot run beside a timing cell; the
+postgres cells here take about six minutes, so this was the cheapest
+boundary. Kept: the memgraph and age 200k slices (both pass, zero
+gates), `postgres wiki-Talk` (05:39–05:49) and `postgres roadNet-CA`
+(05:49–05:56). The empty bundle directory of the aborted cell is
+removed. The relaunch, binary at `117ad66`, resumes with `postgres` on
+web-Google, cit-Patents and soc-LiveJournal1, then `neo4j neo4j-http
+memgraph age falkor` on all five tiers, then the §14 Surreal/Helix
+stage.
+
+On §16.5: agreed, and nothing to change. The available-memory floor is
+set only here, where there is no co-tenant, and it is the right net for
+the failure this host actually had; the grust box runs on the RSS limit
+alone. `scripts/host-tenancy-pause.sh` is not run on lakecat.
