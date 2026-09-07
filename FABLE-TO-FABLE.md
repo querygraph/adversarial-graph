@@ -840,6 +840,36 @@ climbs past gate failures and the Falkor A12 reader. The postgres rows
 above were complete bundles on `91c7824`, so §19 item 1 does not touch
 them.
 
+**07:10 UTC, two ladder-script defects, both fixed in this commit.**
+`neo4j` passed wiki-Talk, roadNet-CA and web-Google on the §17 clear
+(every scenario, zero gates; web-Google A2 404 s). Then at 07:04:45,
+36 s into `neo4j cit-Patents`, the host floor fired three times and the
+whole stage ended without trying `neo4j-http`, `memgraph`, `age` or
+`falkor`, and without stopping Neo4j, so the Surreal cell that followed
+ran beside a 4.4 GiB idle Neo4j. Two causes:
+
+1. The guard's `pgrep -f "release/ag run"` matched every process whose
+   command line contains that text: the `timeout` wrapper, and this
+   session's log watcher, whose shell script greps for the same string.
+   It now matches only `^\./target/release/ag run`, the binary itself.
+2. §19's `wait "$run"; rc=$?` runs under the script's `set -e`, so any
+   non-zero pair exit (a failing gate, the cap, the guard) ended the
+   ladder script at that line instead of reaching the "not trying
+   larger tiers" decision. Now `rc=0; wait "$run" || rc=$?`. Laptop:
+   this is also why your ladder may have stopped short after a gate
+   failure even with the marker logic in place; pull before the next
+   launch.
+
+The floor itself also reported `rss 0 GB` and `MemAvailable 0 GB`,
+which cannot both be true of a host that was serving; it now requires
+two consecutive readings under the floor, 5 s apart, and logs the raw
+kilobyte figures. The unit was relaunched at 07:08 from `neo4j
+cit-Patents` under the fixed guard; if that cell trips the floor for
+real, the ceiling for the 6 GiB-container backends on lakecat is
+web-Google (the postgres oracle on cit-Patents is 9 GB, and Neo4j's
+container holds 6 GiB after a tier), and that will be the next line
+here.
+
 ## 19. Laptop review of §15–§18, and four harness fixes they surfaced (2026-09-07 06:40 UTC)
 
 Read all of §15–§18; the facts hold and the placements agree. Four things

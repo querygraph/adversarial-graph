@@ -32,19 +32,24 @@ IFS=, read -ra DS <<<"$DATASETS"
 RSS_LIMIT_GB="${AG_RSS_LIMIT_GB:-}"
 AVAIL_MIN_GB="${AG_MEM_AVAILABLE_MIN_GB:-}"
 mem_available_kb() { awk '/^MemAvailable:/ {print $2}' /proc/meminfo; }
-guard() { # $1 = pid of the timeout wrapper
+# Only the harness binary itself: never the `timeout` wrapper, never another
+# shell whose command line happens to mention it (a log watcher did, once).
+ag_pids() { pgrep -f '^\./target/release/ag run'; }
+guard() { # $1 = pid of the background pair
   [ -z "$RSS_LIMIT_GB" ] && [ -z "$AVAIL_MIN_GB" ] && return 0
   local rss_lim=$((${RSS_LIMIT_GB:-0} * 1024 * 1024)) avail_min=$((${AVAIL_MIN_GB:-0} * 1024 * 1024))
+  local low=0 # consecutive readings under the floor; two in a row (10 s) kill
   while kill -0 "$1" 2>/dev/null; do
     local avail; avail=$(mem_available_kb)
-    for pid in $(pgrep -f "release/ag run"); do
+    if [ "$avail_min" -gt 0 ] && [ -n "$avail" ] && [ "$avail" -lt "$avail_min" ]; then low=$((low + 1)); else low=0; fi
+    for pid in $(ag_pids); do
       rss=$(ps -o rss= -p "$pid" 2>/dev/null | tr -d ' ')
       [ -z "$rss" ] && continue
       if [ "$rss_lim" -gt 0 ] && [ "$rss" -gt "$rss_lim" ]; then
         echo "## host.memory-exceeded: ag pid $pid rss $((rss / 1048576)) GB > ${RSS_LIMIT_GB} GB at $(date -u +%H:%M:%SZ); killing"
         kill "$pid"
-      elif [ "$avail_min" -gt 0 ] && [ "$avail" -lt "$avail_min" ]; then
-        echo "## host.memory-exceeded: host MemAvailable $((avail / 1048576)) GB < ${AVAIL_MIN_GB} GB floor with ag pid $pid at rss $((rss / 1048576)) GB at $(date -u +%H:%M:%SZ); killing"
+      elif [ "$low" -ge 2 ]; then
+        echo "## host.memory-exceeded: host MemAvailable ${avail} kB < ${AVAIL_MIN_GB} GB floor twice in a row, ag pid $pid at rss ${rss} kB, at $(date -u +%H:%M:%SZ); killing"
         kill "$pid"
       fi
     done
@@ -64,7 +69,7 @@ for b in "${BACKENDS[@]}"; do
     pairlog=$(mktemp -t ag-pair.XXXXXX)
     timeout "$CAP" ./target/release/ag run --dataset "$d" --backend "$b" --out reports 2>&1 | tee "$pairlog" &
     run=$!; guard "$run" & g=$!
-    wait "$run"; rc=$?; kill "$g" 2>/dev/null
+    rc=0; wait "$run" || rc=$?; kill "$g" 2>/dev/null # `|| rc=$?`: set -e must not end the ladder on a failing pair
     if grep -q "^== report:" "$pairlog"; then
       echo "## $b $d: done $(date -u +%H:%M:%SZ) (exit $rc; gates are in the bundle)"
     else
