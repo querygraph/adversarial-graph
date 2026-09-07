@@ -755,13 +755,14 @@ impl Backend {
             if resident_proven(cypher) {
                 return run_indexed(memory.indexed_snapshot()?, cypher.to_string()).await;
             }
-            let graph = memory.graph();
-            let cypher = cypher.to_string();
+            let index = memory.indexed_snapshot()?;
+            let text = crate::differential::bounded_text(cypher);
             return tokio::task::spawn_blocking(move || {
-                grust_cypher::read::run_read_query(
-                    &graph,
-                    &cypher,
+                grust_cypher::run_bounded_read_query_indexed(
+                    &index,
+                    &text,
                     &grust_cypher::CypherParameters::new(),
+                    &crate::differential::in_process_policy(),
                 )
             })
             .await

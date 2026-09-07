@@ -156,13 +156,20 @@ impl GraphStore for Neo4jStore {
         let mut report = LoadReport::default();
         let plan = crate::typed_load::LoadPlan::of(graph);
         for label in plan.node_labels() {
-            self.run(query(&format!(
-                "CREATE INDEX {} IF NOT EXISTS FOR (n:{label}) ON (n.id)",
-                crate::typed_load::index_name(label)
-            )))
-            .await?;
+            let ddl = match self.dialect {
+                BoltDialect::Neo4j => format!(
+                    "CREATE INDEX {} IF NOT EXISTS FOR (n:{label}) ON (n.id)",
+                    crate::typed_load::index_name(label)
+                ),
+                BoltDialect::Memgraph => format!("CREATE INDEX ON :{label}(id)"),
+            };
+            self.run(query(&ddl)).await?;
         }
-        self.run(query("CALL db.awaitIndexes(600)")).await?;
+        if self.dialect == BoltDialect::Neo4j {
+            // Neo4j populates an index in the background; the edge batches
+            // must not start before it is online.
+            self.run(query("CALL db.awaitIndexes(600)")).await?;
+        }
         for (label, nodes) in plan.nodes_by_label() {
             for chunk in nodes.chunks(BATCH) {
                 let rows: Vec<BoltType> = chunk.iter().map(|n| bolt_props(&n.props)).collect();

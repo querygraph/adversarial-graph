@@ -247,11 +247,74 @@ pub enum Route {
     NativeCypher,
 }
 
+/// The budget every in-process execution runs under: a cooperative wall
+/// clock deadline and a cap on intermediate bytes, so a shape the executor
+/// cannot answer stops itself instead of running on after the harness has
+/// moved on, and no query can exhaust the host (the reference executor
+/// exhausted 12 GB on a nine-hop chain before the typed index took the
+/// proven counts). Every structural limit is lifted; only time and memory
+/// bound the run.
+pub const IN_PROCESS_BUDGET: std::time::Duration = std::time::Duration::from_secs(120);
+
+pub fn in_process_policy() -> grust_cypher::ReadQueryPolicy {
+    grust_cypher::ReadQueryPolicy {
+        max_query_bytes: 1 << 20,
+        max_parameter_bytes: 1 << 20,
+        max_graph_nodes: usize::MAX,
+        max_graph_edges: usize::MAX,
+        max_graph_bytes: usize::MAX,
+        max_candidate_work: usize::MAX,
+        max_intermediate_bytes: 2 << 30,
+        max_result_rows: BOUNDED_LIMIT,
+        max_output_bytes: usize::MAX,
+        max_range_items: grust_cypher::MAX_RANGE_ITEMS,
+        max_union_arms: 16,
+        max_path_length: 256,
+        max_execution_time: IN_PROCESS_BUDGET,
+        allow_graph_selection: false,
+        allow_catalog_procedures: false,
+        require_match: false,
+    }
+}
+
+const BOUNDED_LIMIT: usize = 1_000_000_000;
+
+/// The bounded read API requires a literal `LIMIT` on every arm. A pinned
+/// query without one gets the policy's ceiling appended, which changes no
+/// result: the store still receives the text as pinned.
+pub fn bounded_text(cypher: &str) -> String {
+    let mut out = String::with_capacity(cypher.len() + 32);
+    let mut arm = String::new();
+    let flush = |arm: &mut String, out: &mut String| {
+        let has_limit = arm
+            .split_whitespace()
+            .any(|word| word.eq_ignore_ascii_case("limit"));
+        out.push_str(arm.trim_end());
+        if !has_limit {
+            out.push_str(&format!("\nLIMIT {BOUNDED_LIMIT}"));
+        }
+        arm.clear();
+    };
+    for line in cypher.lines() {
+        let word = line.trim();
+        if word.eq_ignore_ascii_case("union") || word.eq_ignore_ascii_case("union all") {
+            flush(&mut arm, &mut out);
+            out.push('\n');
+            out.push_str(word);
+            out.push('\n');
+            continue;
+        }
+        arm.push_str(line);
+        arm.push('\n');
+    }
+    flush(&mut arm, &mut out);
+    out
+}
+
 /// The oracle's answer: the proven count plan over a typed index of the
 /// in-process graph where the indexed executor proves one (the LSQB
-/// shapes materialize nothing that way; the clause-by-clause reference
-/// executor exhausted 12 GB on a nine-hop chain at a 200,000-edge slice),
-/// and the reference executor over the graph for every other shape.
+/// shapes materialize nothing that way), and the reference executor over
+/// the graph for every other shape, under `in_process_policy`.
 pub fn oracle(
     graph: &grust::Graph,
     index: &grust::TypedGraphIndex,
@@ -259,10 +322,23 @@ pub fn oracle(
 ) -> grust::Result<(ResultSet, Route)> {
     let params = grust_cypher::CypherParameters::new();
     if resident_proven(cypher) {
+        // A proven count plan materializes nothing and answers in
+        // milliseconds; it runs as pinned, since an appended LIMIT would
+        // take it out of the proof.
         let table = grust_cypher::read::run_read_query_indexed(index, cypher, &params)?;
         return Ok((ResultSet::from_table(table), Route::ResidentIndexRustCount));
     }
-    let table = grust_cypher::read::run_read_query(graph, cypher, &params)?;
+    // The bounded indexed entrypoint falls back to the reference executor
+    // for an unproven shape and measures the graph once through the index
+    // instead of serializing it per query (10 s per query on a 200k slice).
+    let _ = graph;
+    let policy = in_process_policy();
+    let table = grust_cypher::run_bounded_read_query_indexed(
+        index,
+        &bounded_text(cypher),
+        &params,
+        &policy,
+    )?;
     Ok((ResultSet::from_table(table), Route::InProcessReference))
 }
 
@@ -303,6 +379,44 @@ pub fn sql_route(cypher: &str, dialect: &dyn SqlDialect) -> Route {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Diagnostic, not a test of behaviour: times the unbounded reference
+    /// executor against the bounded indexed path on the SNB slice.
+    /// `cargo test --release -- --ignored --nocapture oracle_probe`
+    #[test]
+    #[ignore = "needs datasets/ and a minute of CPU"]
+    fn oracle_probe() {
+        use std::sync::Arc;
+        use std::time::Instant;
+        let path = std::path::Path::new(
+            "datasets/social_network-sf0.1-CsvBasic-LongDateFormatter.tar.zst",
+        );
+        let (graph, stats, _) = crate::dataset::load_dataset(path, Some(200_000)).unwrap();
+        eprintln!("loaded {} nodes / {} edges", stats.nodes, stats.edges);
+        let graph = Arc::new(graph);
+        let index = grust::TypedGraphIndex::new(Arc::clone(&graph)).unwrap();
+        let params = grust_cypher::CypherParameters::new();
+        let policy = in_process_policy();
+        for spec in queries_for("ldbc-snb").iter().filter(|q| q.kind == "rows") {
+            let t = Instant::now();
+            let a = grust_cypher::read::run_read_query(&graph, &spec.cypher, &params)
+                .map(|t| t.rows.len());
+            eprintln!(
+                "{} unbounded reference: {:?} rows={a:?}",
+                spec.id,
+                t.elapsed()
+            );
+            let text = bounded_text(&spec.cypher);
+            let t = Instant::now();
+            let b = grust_cypher::run_bounded_read_query_indexed(&index, &text, &params, &policy)
+                .map(|t| t.rows.len());
+            eprintln!(
+                "{} bounded indexed:     {:?} rows={b:?}",
+                spec.id,
+                t.elapsed()
+            );
+        }
+    }
 
     #[test]
     fn the_query_file_covers_both_schemas() {
@@ -371,6 +485,18 @@ mod tests {
             }),
             Some("0 rows vs 1".into())
         );
+    }
+
+    #[test]
+    fn bounded_text_appends_a_limit_to_every_arm_that_lacks_one() {
+        let two_arms = "MATCH (p:Person)\nRETURN count(*) AS count\nUNION\nMATCH (p:Person)\nRETURN count(*) AS count";
+        let bounded = bounded_text(two_arms);
+        assert_eq!(bounded.matches("LIMIT 1000000000").count(), 2, "{bounded}");
+        assert!(bounded.contains("\nUNION\n"));
+        let limited = "MATCH (p:Person) RETURN p.id AS id ORDER BY id LIMIT 5";
+        assert_eq!(bounded_text(limited), limited);
+        let comment = "/* UNION in a comment */\nMATCH (n)\nRETURN count(n) AS count";
+        assert_eq!(bounded_text(comment).matches("LIMIT").count(), 1);
     }
 
     #[test]
