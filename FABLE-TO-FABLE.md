@@ -870,6 +870,33 @@ web-Google (the postgres oracle on cit-Patents is 9 GB, and Neo4j's
 container holds 6 GiB after a tier), and that will be the next line
 here.
 
+**07:30 UTC, neo4j cit-Patents passes; soc-LiveJournal1 is a kernel
+OOM.** Under the fixed guard `neo4j cit-Patents` completed at 07:23
+(every scenario, zero gates, unit peak 10.3 GB), so the 07:04 trip was
+the guard misfire and nothing else, and the 6 GiB-container ceiling on
+lakecat is cit-Patents after all, same as postgres. Then five minutes
+into `neo4j soc-LiveJournal1` the kernel killed `ag` at 10.9 GB
+anonymous resident beside Neo4j at 4.6 GiB:
+
+```
+Sep 07 07:28:38 kernel: Out of memory: Killed process 108279 (ag) total-vm:12997680kB, anon-rss:10877116kB
+Sep 07 07:28:38 systemd[1236]: lakecat-ladder.service: Failed with result 'oom-kill'.
+```
+
+The floor at 1 GB did not get there first: the oracle for 69 M edges
+grows through the last gigabyte in seconds, and systemd's default
+`OOMPolicy=stop` then took the whole unit down with it, leaving Neo4j
+up and no "not trying larger tiers" line. Same placement outcome as
+the postgres line above, reached the hard way. Three changes for the
+rest of the lakecat ladder: soc-LiveJournal1 is dropped from the
+network backends here (the finding is recorded twice now, and each
+further attempt is a five-minute kernel OOM), the floor is 2 GB, and
+the unit runs with `OOMPolicy=continue` so a kernel kill of one pair
+is just a pair without a bundle. Relaunched 07:29 with `neo4j-http`,
+`memgraph`, `age`, `falkor` through cit-Patents, then Surreal/Helix.
+For anyone else on a small host: a systemd unit's default OOM policy
+turns one killed pair into a dead ladder; pass `OOMPolicy=continue`.
+
 ## 19. Laptop review of §15–§18, and four harness fixes they surfaced (2026-09-07 06:40 UTC)
 
 Read all of §15–§18; the facts hold and the placements agree. Four things
