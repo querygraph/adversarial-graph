@@ -1402,3 +1402,141 @@ published.
 the untracked logs alone, which the manifest and page will say.
 
 **eigen:** the same for its rows tomorrow, under its own host block.
+
+## 27. lakecat: A8 rerun on the current harness; FalkorDB's multi-hop undercount is the store's; A6 and A5 landed (2026-09-07 16:20 UTC)
+
+Read §19–§26. The §26 reruns of the four refused bundles are running
+here now on a clean tree at `24fdea3` (the four were the memgraph and
+age 200k slices *and* `postgres wiki-Talk` and `postgres roadNet-CA`,
+not slices; all four are being retaken, then offered again).
+
+### 27.1 A8 on the proportional typed slices, every Cypher backend, harness `07600da`
+
+The recorded A8 failures from 01:00 UTC were on a binary older than the
+label-agnostic clear (§15/§17) and the Falkor label-case change. Rerun
+on both slices (`--smoke`, LDBC SNB SF0.1 at 200k edges, ICIJ at 200k):
+
+| backend | SNB SF0.1 | ICIJ | note |
+|---|---|---|---|
+| memory (oracle path) | pass | pass | |
+| turso-wal | pass | pass | |
+| postgres | pass | pass | |
+| neo4j | pass | pass | |
+| neo4j-http | pass | pass | the 24 mismatches at 01:36 were the leftover graph; gone with the §15 clear |
+| memgraph | pass | pass | |
+| falkor | **fail, 5** | **fail, 1** | below |
+| age | unsupported | unsupported | harness gap: `Backend::cypher` does not route to the AGE adapter, though AGE speaks Cypher through `cypher()`; A8 needs that wiring |
+
+Two shapes are `reference-unsupported` on the slice (`r2-posts-per-
+creator`, `r5-reply-fanin`: the reference executor exceeds the 120 s
+budget) and one Falkor query times out (`a7-cartesian-count`); those are
+recorded as such, not as passes.
+
+### 27.2 FalkorDB: the load is complete, the answers are short
+
+`q1`, `q6`, `q9`, `a1-reversed-chain` and `c3-intermediary-chain` are
+all multi-hop patterns on which Falkor returns fewer rows than the
+oracle, Neo4j and Memgraph (which agree with each other and the oracle
+on every query). Checked in the store after the same load:
+
+- **Every label and relationship count in Falkor equals the oracle's**
+  (10 labels, 14 relationship types, 51,945 nodes, 200,000 edges, to the
+  unit), so nothing was dropped by the harness's `UNWIND … MATCH … CREATE`
+  batches.
+- Falkor's own degree arithmetic disagrees with its own enumeration.
+  Over `(a:Person)-[:KNOWS]->(b:Person)`, `WITH b, count(*) AS d RETURN
+  sum(d*d)` gives 14,999 and `sum(d*(d-1))` gives 13,094 (both equal to
+  Memgraph). Enumerating `(a:Person)-[:KNOWS]->(b:Person)<-[:KNOWS]-(c:Person)`
+  on the same store returns 9,489 rows; with `WHERE a <> c`, 9,314
+  (Memgraph: 13,094). No parallel `KNOWS` edges exist (checked), so the
+  two-hop enumeration is missing about a third of the rows that the
+  one-hop degrees prove exist.
+- The same on the undirected form (`53,262` vs Memgraph `63,662`), and
+  a 31-row shortfall on the directed five-hop head of `q1` (`23,767` vs
+  `23,798`); `q1` itself is 85 vs 207. `REPLY_OF` with `{kind: 'Post'}`
+  inline maps or `WHERE` gives the same 10,049 on both engines, so it is
+  not the property filter.
+- `RETURN 'é' = 'é'` is `false` on Falkor (true on the others): the
+  `\uXXXX` escape in a string literal is not decoded. A conformance
+  finding, separate from the row shortfall.
+- `RESULTSET_SIZE` is 10,000 on this container (the A1 truncation of
+  §7); the enumerations above are aggregates and well under it, so it
+  is not the cause here.
+
+These five A8 rows are `wrong_answer` gates on FalkorDB v4.20.4, on its
+documented native openCypher path, with the load verified complete. I
+did not go further into which plan step drops rows; that is the
+vendor's question, and the two queries above are the reproduction.
+
+### 27.3 A6 isolation under mixed load: landed (`24fdea3`)
+
+`src/scenarios/a6_isolation.rs` and the checker `src/isolation.rs`
+(nine unit tests). Four shared `Person` vertices; 8 clients (4 in
+smoke) on their own handles, released together; a register phase (read
+`a6_version`, write it back +1 with the client's id) and a list-append
+phase (read `a6_log`, write it back with `c{client}-{seq}` appended);
+40 operations per client per phase (10 in smoke). The write is a
+compare-and-set through Turso's guarded commit with an `Exact`
+expectation on the node as read, or the portable whole-node upsert
+everywhere else, and `write_mode` in the bundle says which. The checker
+reads only the history and the final state: lost updates (two accepted
+writes from one version, or a final version short of the accepted
+count), lost appends, intermediate reads (an observed element that
+never became durable), divergent orders (an observed list that is not a
+prefix of the final one) and non-monotonic reads. Each is an
+`isolation_anomaly`; a typed conflict is not. A serial probe runs first
+and reports `unsupported` if the path cannot read a vertex by id, if
+the CAS rejects the node as just read, or (added at 16:20 after the AGE
+row below) if a written property is not read back.
+
+| backend | write mode | register acc/conf | append acc/conf | anomalies | outcome |
+|---|---|---:|---:|---|---|
+| memory | upsert, last-writer-wins | 40/0 | 40/0 | 8 lost appends, 1 intermediate read | fail |
+| turso-wal | guarded CAS | 6/34 | 12/28 | none | pass |
+| turso-mvcc | guarded CAS | 34/6 | 33/7 | none | pass |
+| postgres | upsert, last-writer-wins | 40/0 | 40/0 | 7 lost updates, 7 lost appends | fail |
+| age | upsert | 40/0 | 40/0 | (40 + 40, but every read saw version 0: the adapter's `get_node` returns no properties; an artifact, rerunning with the probe fix) | to be retaken |
+| falkor | | | | `FalkorGraphStore` has no read path for a vertex by id | unsupported |
+| neo4j, neo4j-http, memgraph | | | | the adapters' `get_node` matches `:V` only and returns no properties | unsupported |
+
+Read as designed: without a conditional write, two clients' read-modify-
+write loses data on every store, and the MVCC journal accepts 34 of 40
+where WAL accepts 6, the same CAS on the two journal modes. The four
+`unsupported` rows are the harness's, and they name the next adapter
+work: a label-aware `get_node` that returns properties, and a
+label-preserving `put_node`, in `src/neo4j.rs`, `src/neo4j_http.rs` and
+`src/age.rs`; a vertex read in the Grust Falkor store. Until then A6
+cannot say anything about those four engines, and it says so.
+
+### 27.4 A5 recursive deletes: landed (`24fdea3`)
+
+`src/scenarios/a5_recursive_deletes.rs`. Over the loaded SNB slice the
+largest reply trees (3, 1 in smoke; `Message{kind: Post}` with its
+`REPLY_OF` descendants) are deleted root first, one vertex per call,
+through `Backend::delete_node`, new in this commit: `GraphMutationStore
+::delete_node` on the Grust memory, Turso and Postgres stores and one
+`MATCH (n {id: $id}) DETACH DELETE n` on the Bolt, HTTP, AGE and Falkor
+adapters. Readers on their own handles poll the tree meanwhile and
+record replies seen present after their parent's delete returned. Read-
+back: a tree vertex still present is `lost_write`; a creator or liker
+that vanished, an edge still pointing at a deleted vertex, or a
+survivor's out-degree that disagrees with the oracle is `wrong_answer`.
+
+| backend | tree | deletes | orphan observations (reads) | read-back | outcome |
+|---|---|---:|---:|---|---|
+| memory | 21 | 21 | 0 (2) | clean | pass |
+| turso-wal | 21 | 21 | 970 (3,571) | clean | pass |
+| turso-mvcc | 21 | 21 | 122 | clean | pass |
+| postgres | 21 | 21 | 49 | clean | pass |
+| age | 21 | 21 | 109 | clean | pass |
+| falkor, neo4j, neo4j-http, memgraph | | | | as A6: no vertex read by id | unsupported |
+
+The orphan column is the non-atomic window as each store exposes it to
+a concurrent reader; on memory the 21 deletes finish before a reader
+gets its second read. `sx-stackoverflow` in the spec has no typed
+loader yet; A5 runs where `REPLY_OF` trees exist.
+
+**Next on lakecat**, in order: the §26 reruns (running), the A6 age
+retake, the label-aware `get_node`/`put_node` in the three adapters so
+A5, A6 and A8 (age) reach the Neo4j family and AGE, then the Helix SDK
+fix.

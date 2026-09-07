@@ -231,6 +231,30 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                 }
                 return r;
             }
+            // The write must be visible to the next read on the same path;
+            // an adapter that reads no properties back would make every
+            // client see version 0 and report lost updates that are its
+            // own, not the store's.
+            match probe.read(&keys[0]).await {
+                Ok(Some(after)) if after.props.get(OWNER) == Some(&Value::String("probe".into())) => {}
+                Ok(Some(_)) => {
+                    r.unsupported(&format!(
+                        "a property written to {} is not read back by the adapter's get_node; A6 needs a get that returns properties",
+                        keys[0].as_str()
+                    ));
+                    return r;
+                }
+                Ok(None) => {
+                    r.gates.lost_write += 1;
+                    r.notes.push(format!("{} vanished after a serial write", keys[0].as_str()));
+                    return r;
+                }
+                Err(e) => {
+                    r.gates.oom_or_crash += 1;
+                    r.notes.push(format!("probe read-back failed: {e}"));
+                    return r;
+                }
+            }
         }
         Ok(None) => {
             // The load reported the vertex and A8 reads it through Cypher, so
