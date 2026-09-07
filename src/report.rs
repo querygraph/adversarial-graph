@@ -145,6 +145,10 @@ pub struct Report {
     /// Git revision of the harness that produced this report (`-dirty` when
     /// the tree had uncommitted changes), stamped at build time.
     pub harness_revision: &'static str,
+    /// The paths that made the build tree differ from `harness_revision`
+    /// (tracked changes, or untracked files under the build's inputs);
+    /// empty for a clean build.
+    pub harness_dirty_paths: Vec<String>,
     /// `grust-graph` facade version from Cargo.lock.
     pub grust_version: &'static str,
     /// Where `grust-core` (and with it every adapter sharing its `GraphStore`)
@@ -181,6 +185,11 @@ impl Report {
             generated_at: chrono::Utc::now().to_rfc3339(),
             harness_version: env!("CARGO_PKG_VERSION"),
             harness_revision: env!("AG_GIT_REV"),
+            harness_dirty_paths: env!("AG_GIT_DIRTY_PATHS")
+                .split(',')
+                .filter(|p| !p.is_empty())
+                .map(str::to_string)
+                .collect(),
             grust_version: env!("AG_GRUST_GRAPH_VERSION"),
             grust_source: env!("AG_GRUST_CORE_SOURCE"),
             host,

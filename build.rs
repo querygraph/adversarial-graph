@@ -29,14 +29,46 @@ fn record_git_revision() {
             .filter(|out| out.status.success())
             .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
     };
-    let revision = match git(&["rev-parse", "HEAD"]) {
-        Some(head) => match git(&["status", "--porcelain"]) {
-            Some(status) if status.is_empty() => head,
-            _ => format!("{head}-dirty"),
+    // Dirty means the build could differ from the commit: any tracked change,
+    // or an untracked file where the build reads (sources, scripts, the
+    // manifests, the compose file). Untracked logs and report directories
+    // in the checkout never touch the binary and do not count. The paths
+    // that made a build dirty travel with it, so a report says what differed.
+    let (revision, dirty_paths) = match git(&["rev-parse", "HEAD"]) {
+        Some(head) => match git(&["status", "--porcelain", "--untracked-files=all"]) {
+            Some(status) => {
+                let relevant: Vec<String> = status
+                    .lines()
+                    .filter_map(|line| {
+                        let (code, path) = line.split_at(2.min(line.len()));
+                        let path = path.trim().rsplit(" -> ").next().unwrap_or("").to_string();
+                        let untracked = code.starts_with("??");
+                        let build_input = path.starts_with("src/")
+                            || path.starts_with("scripts/")
+                            || path.starts_with("scenarios/")
+                            || matches!(
+                                path.as_str(),
+                                "Cargo.toml"
+                                    | "Cargo.lock"
+                                    | "build.rs"
+                                    | "compose.yaml"
+                                    | "datasets/MANIFEST.json"
+                            );
+                        (!untracked || build_input).then_some(path)
+                    })
+                    .collect();
+                if relevant.is_empty() {
+                    (head, String::new())
+                } else {
+                    (format!("{head}-dirty"), relevant.join(","))
+                }
+            }
+            None => (format!("{head}-dirty"), String::new()),
         },
-        None => "unknown".to_string(),
+        None => ("unknown".to_string(), String::new()),
     };
     println!("cargo:rustc-env=AG_GIT_REV={revision}");
+    println!("cargo:rustc-env=AG_GIT_DIRTY_PATHS={dirty_paths}");
 }
 
 /// Stamp the binary with the Grust it was built against, read from
