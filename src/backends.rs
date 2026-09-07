@@ -850,6 +850,19 @@ impl Backend {
         if let Some(store) = &self.neo4j_http {
             return store.rows(cypher).await;
         }
+        #[cfg(feature = "age")]
+        if let Some(store) = &self.age {
+            // The read path is there, but the AGE adapter's bulk load still
+            // writes the untyped shape (`:V` with an id, `:E`), so a query
+            // over labels and relationship types has nothing to match: not
+            // comparable until the adapter has a typed load.
+            if crate::differential::mentions_labels(cypher) {
+                return Err(grust::GrustError::Unsupported(
+                    "age adapter: typed graphs load as :V/:E; label queries are not comparable until the AGE load is typed".into(),
+                ));
+            }
+            return store.rows(cypher).await;
+        }
         Err(grust::GrustError::Unsupported(format!(
             "{} has no Cypher read path in this harness",
             self.kind.name()

@@ -199,6 +199,19 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     let attempted = specs.len() - reference_unsupported;
     if attempted > 0 && refused == attempted {
         r.unsupported("backend does not accept Cypher");
+    } else if refused > 0 {
+        // A cell with refused queries is not comparable as a whole: the
+        // matched ones stay in the records, the outcome says what was
+        // missing rather than reading as a pass over the remainder.
+        let sample = records
+            .iter()
+            .find(|q| q.outcome == "refused")
+            .and_then(|q| q.detail.clone())
+            .unwrap_or_default();
+        r.unsupported(&format!(
+            "{refused} of {attempted} queries refused by the store: {}",
+            sample.chars().take(160).collect::<String>()
+        ));
     }
     r.observe("queries", &records);
     r.observe("query_count", specs.len());

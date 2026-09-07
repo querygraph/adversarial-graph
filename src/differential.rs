@@ -524,3 +524,28 @@ mod tests {
         );
     }
 }
+
+/// Whether a query names a label or relationship type other than the
+/// untyped `V`/`E`: `(:Person)`, `[:KNOWS]`, `n:Message`.
+pub fn mentions_labels(cypher: &str) -> bool {
+    let bytes = cypher.as_bytes();
+    let mut i = 0;
+    while let Some(off) = cypher[i..].find(':') {
+        let at = i + off;
+        let rest = &cypher[at + 1..];
+        let name: String = rest
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == '`')
+            .collect();
+        let name = name.trim_matches('`');
+        let before = bytes[..at].iter().rev().find(|b| !b.is_ascii_whitespace()).copied();
+        // A label follows `(`, `[`, or an identifier; a map key or a
+        // parameter does not.
+        let label_position = matches!(before, Some(b'(') | Some(b'[')) || before.is_some_and(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b')');
+        if label_position && !name.is_empty() && name != crate::dataset::NODE_LABEL && name != crate::dataset::EDGE_LABEL && !name.chars().all(|c| c.is_ascii_digit()) {
+            return true;
+        }
+        i = at + 1;
+    }
+    false
+}

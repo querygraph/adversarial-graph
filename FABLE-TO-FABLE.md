@@ -1629,3 +1629,22 @@ slices once the laptop says how it wants dev bundles.
 **Still open on lakecat:** A8 on AGE (route `Backend::cypher` to the
 AGE adapter with column names taken from the `RETURN` clause), the
 Cypher conditional-write path for A6, the Helix SDK fix.
+
+### 27.6 A8 on AGE: the read path is wired, the load is not typed yet (17:00 UTC)
+
+`Backend::cypher` now reaches the AGE adapter (`AgeStore::rows`: the
+result arity AGE's `cypher()` needs is taken from the aliases of the
+query's final `RETURN`, which every pinned A8 query has). The first run
+then said the true thing about the adapter: its bulk load still writes
+every vertex as `:V` with only an `id` and every edge as `:E`, so all
+23 label-bearing queries answered 0 and the three that mention no
+label matched. That is the harness, not AGE, so a label-bearing query
+on AGE is refused with the reason until the adapter has a typed load
+(per-label `UNWIND` batches with properties and an id index per label,
+as the Bolt and Falkor loads do). And an A8 cell with refused queries
+is now `unsupported` as a whole, naming how many and why, instead of a
+pass over whatever remained: the first AGE rerun read "pass, 0 gates"
+on three matched queries, which is the misleading row this closes. The
+A5/A6 AGE rows in §27.5 stand as taken over `:V` vertices, which their
+`keys` say. The typed AGE load is the next adapter item on lakecat,
+before the Helix SDK fix.

@@ -32,6 +32,7 @@ use grust::{
 use tokio_postgres::types::{Format, IsNull, ToSql, Type, to_sql_checked};
 use tokio_postgres::{Client, NoTls};
 
+use crate::differential::{Cell, ResultSet};
 use crate::dataset::{EDGE_LABEL, NODE_LABEL};
 
 const BATCH: usize = 5_000;
@@ -77,6 +78,77 @@ fn backend(err: tokio_postgres::Error) -> GrustError {
 
 /// The text form of an agtype scalar back to a plain string: strings come
 /// back JSON-quoted (`"123"`), integers bare (`123`).
+/// The aliases of the query's last `RETURN`, in order: the name after the
+/// last top-level ` AS ` of each item, backticks removed. Items without an
+/// alias yield an empty list, and the caller refuses the query.
+fn return_aliases(cypher: &str) -> Vec<String> {
+    let Some(pos) = cypher.rfind("RETURN") else {
+        return Vec::new();
+    };
+    let tail = &cypher[pos + "RETURN".len()..];
+    let tail = tail.strip_prefix(" DISTINCT").unwrap_or(tail);
+    // Cut ORDER BY / SKIP / LIMIT off the end, at the top level only.
+    let mut depth = 0i32;
+    let mut in_tick = false;
+    let mut end = tail.len();
+    let bytes = tail.as_bytes();
+    for (i, &b) in bytes.iter().enumerate() {
+        match b {
+            b'`' => in_tick = !in_tick,
+            b'(' | b'[' | b'{' if !in_tick => depth += 1,
+            b')' | b']' | b'}' if !in_tick => depth -= 1,
+            _ => {}
+        }
+        if depth == 0
+            && !in_tick
+            && (tail[i..].starts_with("ORDER BY")
+                || tail[i..].starts_with("LIMIT")
+                || tail[i..].starts_with("SKIP"))
+        {
+            end = i;
+            break;
+        }
+    }
+    let items = &tail[..end];
+    let mut out = Vec::new();
+    let (mut depth, mut in_tick, mut start) = (0i32, false, 0usize);
+    let bytes = items.as_bytes();
+    let mut pieces = Vec::new();
+    for (i, &b) in bytes.iter().enumerate() {
+        match b {
+            b'`' => in_tick = !in_tick,
+            b'(' | b'[' | b'{' if !in_tick => depth += 1,
+            b')' | b']' | b'}' if !in_tick => depth -= 1,
+            b',' if depth == 0 && !in_tick => {
+                pieces.push(&items[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    pieces.push(&items[start..]);
+    for piece in pieces {
+        let piece = piece.trim();
+        let Some(idx) = piece.rfind(" AS ").or_else(|| piece.rfind(" as ")) else {
+            return Vec::new();
+        };
+        out.push(piece[idx + 4..].trim().trim_matches('`').to_string());
+    }
+    out
+}
+
+/// One agtype cell, as text: JSON where it parses (numbers, booleans,
+/// lists, quoted strings), the bare text otherwise, an empty cell as null.
+fn cell_from_agtype_text(text: &str) -> Cell {
+    if text.is_empty() || text == "null" {
+        return Cell::Null;
+    }
+    match serde_json::from_str::<serde_json::Value>(text) {
+        Ok(value) => Cell::from_json(&value),
+        Err(_) => Cell::Str(text.to_string()),
+    }
+}
+
 fn unquote(text: &str) -> String {
     text.strip_prefix('"')
         .and_then(|t| t.strip_suffix('"'))
@@ -155,6 +227,30 @@ impl AgeStore {
                     .collect()
             })
             .collect())
+    }
+
+    /// Every row of a read query for the differential family. AGE's
+    /// `cypher()` needs the result arity declared in SQL, so the columns
+    /// are the aliases of the query's final `RETURN` (every pinned A8 query
+    /// aliases every item); cells come back as agtype text and are read as
+    /// JSON where they parse, strings otherwise.
+    pub async fn rows(&self, cypher: &str) -> grust::Result<ResultSet> {
+        let columns = return_aliases(cypher);
+        if columns.is_empty() {
+            return Err(GrustError::Unsupported(
+                "age adapter: the query's RETURN items must be aliased".into(),
+            ));
+        }
+        let names: Vec<String> = (0..columns.len()).map(|i| format!("c{i}")).collect();
+        let names: Vec<&str> = names.iter().map(String::as_str).collect();
+        let rows = self.cypher(cypher, serde_json::json!({}), &names).await?;
+        Ok(ResultSet {
+            columns,
+            rows: rows
+                .into_iter()
+                .map(|row| row.iter().map(|text| cell_from_agtype_text(text)).collect())
+                .collect(),
+        })
     }
 
     /// Delete one vertex, whatever its label, with every edge incident to
