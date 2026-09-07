@@ -660,3 +660,105 @@ work between stages is the proportional slices only. The two readings
 of the journal agree on the evening kills; §15 adds that the 02:00
 wedge itself was the neo4j A8 ICIJ cell, a later and separate event
 from the `icij-full` kills, which is why the host-level floor exists.
+## 16. grust box: bracket of the embedded loads, and this host's tenancy (2026-09-07 05:50 UTC)
+
+Written by the session on the grust box. §14's ladder is running; this
+section is the part that does not need it, because two results are already
+decided and one of them is an adapter question the EC2 session owns.
+
+### 16.1 `put_graph` does not reach Ladybug's Arrow bulk path
+
+Every Ladybug row this host has produced records `load_path:
+grust-portable-api`. §12 item 4 and HANDOFF-GRUST both named this as the
+thing the first tier would settle, and it is settled: the harness's
+`put_graph` goes through the portable API, element by element, and the bulk
+load added in `342c202` is not on the path the ladder takes. The LOAD curve
+below is what that costs.
+
+### 16.2 Ladybug's load cost against slice size, wiki-Talk
+
+One `(backend, limit)` per run, 30-minute cap, harness `e616d72`, this host
+(8 vCPU, load 0.15 from the disclosed crawler tenant, `host_steal_us` 0):
+
+| edges | LOAD wall | edges/s | A1 | A4 |
+|---:|---:|---:|---:|---:|
+| 200,000 | 23.9 s | 8,354 | 181 s | 138 s |
+| 500,000 | 194.9 s | 2,566 | 205 s | 137 s |
+| 1,000,000 | 705.2 s | 1,418 | 467 s | 142 s |
+| 2,000,000 | over the 1,800 s cap | | | |
+
+Five times the edges costs twenty-nine times the load wall, and throughput
+falls about six-fold across the range. A4 is flat; A1 grows.
+
+LanceDB is a separate shape: it loaded the 200,000-edge slice in 16.1 s
+(12,387 edges/s, in line with the 200k rows already in `RESULTS.md`) and
+then passed the 1,800 s cap inside the scenarios without emitting one, so
+its cell has a LOAD observation and no scenario rows.
+
+Both LOAD figures agree with the existing 200k rows, so neither is a
+regression; the departure is with scale, not with this host.
+
+### 16.3 Two corrections to what this host said earlier
+
+- An earlier reading here compared the ledger's LOAD-only milliseconds
+  against whole-run wall times and inferred a 20–50x departure from linear
+  at 200k. That comparison was wrong twice over: the ledger's 200k rows are
+  `--smoke` runs, which both truncate to 200,000 edges and shallow the
+  scenarios (`a1_fanout` uses k=1 rather than k=2), and a whole-run wall
+  time is not a LOAD time. The table above is LOAD rows against LOAD rows.
+- The `lancedb` and `ladybug` wiki-Talk cells this host produced at
+  2026-09-06 22:44 and 2026-09-07 00:44 (both `over-cap`, 7,200 s) were
+  measured on the pre-`53aedf9` harness, before A12 entered
+  `scenarios::all()` and before the A2/A3/A4/A7 changes. They are superseded
+  by the §14 ladder now running and are not offered for publication; they
+  stay in this host's notes.
+
+A capped run emits no rows at all: the harness writes `results.jsonl` at the
+end, so an `over-cap` cell's evidence is the notes line and the work
+directory, not a row. Worth stating wherever such a cell is published.
+
+### 16.4 This host's tenancy, and what the ladder does about it
+
+The crawler is ~0.1 core and is disclosed on every row. Two other jobs on
+this host are large enough to change a measurement rather than tint it: the
+Eigen Times v2 export at 15:00 UTC (~18 min, ~20 GB resident) and the Eigen
+Hacks rebuild at 13:00 UTC (~9 min).
+
+`scripts/host-tenancy-pause.sh` (added here) stops every `ag run`, and the
+`timeout` wrapping it, while either service is active, resumes afterwards,
+and writes each span to `reports/host-pauses.txt`. The §14 ladder was
+started at 05:44 UTC, in the clear seven hours before the 13:00 job, so
+scheduling does most of the work and the guard is the net.
+
+Two consequences that belong with any row from this host:
+
+- A paused pair's wall time includes the pause and is an upper bound; its
+  CPU columns are unaffected.
+- GNU `timeout`'s alarm is real time, so a pause still consumes the cap;
+  stopping the wrapper only keeps the kill from landing mid-pause. A pair
+  that both paused and reached the cap is rerun, not reported, so that
+  tenancy is never recorded as a store finding.
+
+The guard is specific to this host and can be dropped if the tenancy ends.
+
+### 16.5 Note on the ladder script
+
+Local commit `b959bd9` added a `scripts/run-full-tiers.sh` before the pushed
+one existed; per §12 item 4 it was dropped in the rebase and the pushed
+version is in use, with `--cap` given on the command line. The pushed
+version's `AG_RSS_LIMIT_GB` guard reads the `ag` process's own resident set
+rather than host memory, so the tenant's 20 GB export cannot raise a
+`host.memory-exceeded` cell.
+
+### 16.6 Running now
+
+```
+AG_RSS_LIMIT_GB=28 scripts/run-full-tiers.sh --cap 7200 \
+  --datasets wiki-Talk,roadNet-CA,web-Google \
+  memory turso-wal turso-mvcc ladybug lancedb
+```
+
+Harness rebuilt at `79d6a3b` with `postgres,surreal,falkor,lancedb,neo4j,
+helix,ladybug`; `cargo test` at that revision passes (12 tests). Results,
+`render-results.py` output and the dated bundle follow in the next section
+from this host.
