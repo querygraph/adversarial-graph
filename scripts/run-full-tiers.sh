@@ -5,6 +5,7 @@
 # stopped. Only the container a backend needs is up while it runs.
 #
 #   scripts/run-full-tiers.sh [--cap SECONDS] [--datasets a,b,c] [backend ...]
+#   AG_RSS_LIMIT_GB=13 AG_MEM_AVAILABLE_MIN_GB=1 …   host memory guard (§13, §15)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 CAP=7200; DATASETS="wiki-Talk,roadNet-CA,web-Google,cit-Patents,soc-LiveJournal1,com-Orkut"
@@ -19,23 +20,35 @@ wait_ready() { case "$1" in
   age) until docker compose exec -T age pg_isready -U postgres -d graph >/dev/null 2>&1; do sleep 1; done;;
 esac; }
 IFS=, read -ra DS <<<"$DATASETS"
-# Host memory guard. A run whose resident set passes AG_RSS_LIMIT_GB is
-# killed and the cell is logged as host.memory-exceeded: a host-capacity
-# outcome, never a store finding. Rerun that tier on a host it fits (see
-# FABLE-TO-FABLE §13). Default: no guard.
+# Host memory guard. A run whose resident set passes AG_RSS_LIMIT_GB, or
+# that leaves the host with less than AG_MEM_AVAILABLE_MIN_GB of available
+# memory (the harness plus the store's container plus everything else
+# resident), is killed and the cell is logged as host.memory-exceeded: a
+# host-capacity outcome, never a store finding. Rerun that tier on a host it
+# fits (see FABLE-TO-FABLE §13). The available-memory floor is what catches
+# the failure mode the RSS limit cannot: a 6 GB client next to a 6 GiB
+# container on a 15 GiB host thrashes without any single process being
+# large (§15). Default: no guard.
 RSS_LIMIT_GB="${AG_RSS_LIMIT_GB:-}"
+AVAIL_MIN_GB="${AG_MEM_AVAILABLE_MIN_GB:-}"
+mem_available_kb() { awk '/^MemAvailable:/ {print $2}' /proc/meminfo; }
 guard() { # $1 = pid of the timeout wrapper
-  [ -z "$RSS_LIMIT_GB" ] && return 0
-  local lim=$((RSS_LIMIT_GB * 1024 * 1024))
+  [ -z "$RSS_LIMIT_GB" ] && [ -z "$AVAIL_MIN_GB" ] && return 0
+  local rss_lim=$((${RSS_LIMIT_GB:-0} * 1024 * 1024)) avail_min=$((${AVAIL_MIN_GB:-0} * 1024 * 1024))
   while kill -0 "$1" 2>/dev/null; do
+    local avail; avail=$(mem_available_kb)
     for pid in $(pgrep -f "release/ag run"); do
       rss=$(ps -o rss= -p "$pid" 2>/dev/null | tr -d ' ')
-      if [ -n "$rss" ] && [ "$rss" -gt "$lim" ]; then
+      [ -z "$rss" ] && continue
+      if [ "$rss_lim" -gt 0 ] && [ "$rss" -gt "$rss_lim" ]; then
         echo "## host.memory-exceeded: ag pid $pid rss $((rss / 1048576)) GB > ${RSS_LIMIT_GB} GB at $(date -u +%H:%M:%SZ); killing"
+        kill "$pid"
+      elif [ "$avail_min" -gt 0 ] && [ "$avail" -lt "$avail_min" ]; then
+        echo "## host.memory-exceeded: host MemAvailable $((avail / 1048576)) GB < ${AVAIL_MIN_GB} GB floor with ag pid $pid at rss $((rss / 1048576)) GB at $(date -u +%H:%M:%SZ); killing"
         kill "$pid"
       fi
     done
-    sleep 15
+    sleep 5
   done
 }
 for b in "${BACKENDS[@]}"; do

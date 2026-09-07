@@ -569,3 +569,89 @@ A2, A4 and A12 with zero gates.
 Rough wall-clock: lakecat a day to a day and a half, the grust box a
 day, the laptop a day plus SF0.3; in parallel, about two days to close
 the set.
+
+## 15. lakecat after the reboot: what the kernel says, and the ladder relaunched (2026-09-07 05:45 UTC)
+
+Pulled to `79d6a3b` and rebased the A8 commit on top (`e8f926d`); the
+Neo4j "clear every node, whatever its label" change that was sitting
+uncommitted here is in this commit too. Read §12–§14. Kernel log first,
+as §13 rule 4 asks.
+
+**What `journalctl -k -b -1` says.** Two different events, and the one
+that took the host down is not the one the RSS guard is built for.
+
+1. Four global OOM kills on the evening of the 6th, all of `ag` at about
+   12 GB anonymous resident, every one of them the `memory` backend
+   loading the full ICIJ offshore-leaks graph (the transient unit
+   `icij-full.service` and three retries from the session shell):
+
+   ```
+   Sep 06 22:06:16 kernel: Out of memory: Killed process 290925 (ag) total-vm:12435800kB, anon-rss:12027488kB
+   Sep 06 22:33:15 kernel: Out of memory: Killed process 291675 (ag) total-vm:12487408kB, anon-rss:12078688kB   (task_memcg=…/icij-full.service)
+   Sep 06 22:57:34 kernel: Out of memory: Killed process 297813 (ag) total-vm:12423208kB, anon-rss:12100052kB
+   Sep 06 23:09:59 kernel: Out of memory: Killed process 297987 (ag) total-vm:12403768kB, anon-rss:12079328kB
+   Sep 06 23:55:44 kernel: Out of memory: Killed process 313710 (rustc) total-vm:5852404kB, anon-rss:3989396kB
+   ```
+
+   The process table at 22:06 shows `ag` at 11.5 GB, then `claude` at
+   0.4 GB, and 2.7 GB of shmem (container tmpfs and Postgres shared
+   buffers); nothing else above 50 MB. This is exactly the §13 case: an
+   embedded store plus the oracle for a graph that does not fit 15 GiB.
+   The fifth kill is a `rustc` at 4 GB, a build running next to a run,
+   which the standing rule already forbids.
+
+2. **The wedge.** No OOM kill at all. The last finished bundle is
+   `reports-dev/20260907T015649Z` (falkor, A8 on icij-offshore-leaks,
+   client peak 5.8 GB); the next bundle directory `20260907T015853Z` is
+   empty. Neo4j's container started at 01:58:33 for the neo4j A8 ICIJ
+   cell, and by 02:00:43 dockerd logged its health check timing out.
+   From then until the reboot at 05:14 the journal is nothing but
+   `systemd-journald: Under memory pressure, flushing caches`, networkd
+   DHCP timeouts, `dbus` auth timeouts of 1,636 s, tailscaled reporting
+   subscribers 2 h 22 min late, and sshd dropping the client at 03:26.
+   The `ag` client for A8 on ICIJ needs about 6 GB (four cells in a row
+   say 5.8–6.1 GB); Neo4j's container is 6 GiB (3 G heap + 3 G page
+   cache); `grust-pg-dev`, a Postgres container outside `compose.yaml`
+   with no memory limit, had been up since 07:54 on the 6th; plus
+   `claude`, docker, tailscale. That sums to the host. With no swap the
+   kernel spent three hours reclaiming file pages (the binaries) instead
+   of finding a process to kill, because every reclaim scan still found
+   a little to free ("all_unreclaimable? no"). Docker's own memcg limit
+   on Neo4j never fired either: the container was under its cap; it was
+   the host that was over.
+
+**Consequence for the guard.** `AG_RSS_LIMIT_GB` alone would not have
+caught either the wedge (client at 6 GB, under any sane limit) or
+prevented the kills (they were the kernel doing the guard's job). So
+the ladder script now takes a second, host-level floor:
+`AG_MEM_AVAILABLE_MIN_GB` kills the `ag run` when `/proc/meminfo`
+`MemAvailable` drops below it and logs the same
+`## host.memory-exceeded:` line with the available figure, so the
+outcome stays a host outcome. The guard loop polls every 5 s instead
+of 15 (at 02:00 the host went from healthy to unreachable in about two
+minutes). lakecat runs with `AG_RSS_LIMIT_GB=13 AG_MEM_AVAILABLE_MIN_GB=1`.
+Nothing changes for the other two hosts unless they set the second
+variable. `grust-pg-dev` stays stopped on lakecat during ladders; it is
+not part of the benchmark and it is unbounded.
+
+**Also fixed on this host.** `loginctl enable-linger admin` was off, so
+a dropped SSH session could have taken the user manager and its
+transient units with it; it is on now. And `compose.yaml` defaults to
+`BENCHMARK_CPU_LIMIT=8`, which Docker refuses on this 4-vCPU host, so
+the first launch died in its first `docker compose up`; the ladder runs
+with `BENCHMARK_CPU_LIMIT=4` exported, which is what the earlier
+lakecat sessions must have had in their shell. Worth a line in
+`README.md` for anyone on a small host; not changed in the script,
+because the limit is part of what makes the network numbers comparable
+across hosts and the value belongs with the host, not the repo.
+
+**What is running.** One transient unit, `lakecat-ladder`, in the §14
+order: the clean-host 200k slices for `memgraph` and `age`
+(`scripts/run-ladder.sh memgraph age`), then the network backends'
+full tiers through soc-LiveJournal1 with `--cap 7200`, then
+`surreal-http surreal-sdk helix-http helix-sdk` on wiki-Talk with
+`--cap 1800`. `reports/` on lakecat holds only smoke cells so far (the
+§7 slices), so every full-tier cell is new. A8, A6, A5 and the Helix
+SDK fix resume between stages; the lost cell is neo4j A8 on ICIJ, and
+per the placement rule it reruns only with Neo4j alone on the host,
+which it now will be.

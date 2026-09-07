@@ -292,13 +292,14 @@ impl GraphAdminStore for Neo4jStore {
     }
 
     async fn clear(&self) -> grust::Result<()> {
-        // Batched detach-delete so a large prior graph never exhausts the
-        // transaction memory cap.
+        // Batched detach-delete of every node, whatever its label, so a typed
+        // graph left by an earlier run never leaks into this one; batched so a
+        // large prior graph never exhausts the transaction memory cap.
         loop {
             let deleted = self
                 .column(
                     query(&format!(
-                        "MATCH (n:{NODE_LABEL}) WITH n LIMIT 50000 DETACH DELETE n RETURN count(*) AS c"
+                        "MATCH (n) WITH n LIMIT 50000 DETACH DELETE n RETURN count(*) AS c"
                     )),
                     "c",
                 )

@@ -303,7 +303,7 @@ impl GraphAdminStore for Neo4jHttpStore {
             let deleted = self
                 .column(
                     format!(
-                        "MATCH (n:{NODE_LABEL}) WITH n LIMIT 50000 DETACH DELETE n RETURN count(*)"
+                        "MATCH (n) WITH n LIMIT 50000 DETACH DELETE n RETURN count(*)"
                     ),
                     json!({}),
                 )
