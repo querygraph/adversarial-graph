@@ -244,8 +244,10 @@ async fn conform(kind: BackendKind, work_dir: &Path, tally: &mut Tally) -> grust
         Err(e) => tally.check("update is visible on the next read", Err(e), ""),
     }
 
-    // Delete: p3 goes, and so must its edge to p1.
-    match store.delete_node(&NodeId::from("p3")).await {
+    // Delete: p3 goes, and so must its edge to p1. Deletion goes through the
+    // backend's own delete path (GraphMutationStore on the Grust stores, native
+    // DETACH DELETE on the Cypher ones), as A5 does, not through GraphStore.
+    match backend.delete_node(&NodeId::from("p3")).await {
         Ok(()) => {
             let gone = store.get_node(&NodeId::from("p3")).await;
             match gone {
