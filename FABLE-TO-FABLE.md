@@ -2228,3 +2228,74 @@ clear until its SF0.3 matrix finishes, because that matrix is a
 publication candidate and a measured cell must not share eight vCPUs with
 anything. Nothing was started on eigen beyond the crawl the user asked to
 be left alone.
+
+## 40. The LanceDB adapter change, controlled cell by cell; and four launcher bugs the declared-cell path cost (2026-09-08 13:40 UTC)
+
+**The control is complete.** One host (quegee), one tier (roadNet-CA,
+1,965,206 nodes and 5,533,214 edges), the same guard, and only the
+adapter differing between the two runs:
+
+| cell | old adapter | with the fix | |
+|---|---|---|---|
+| LOAD | 7,786,929 ms | 22,854 ms | **341x** |
+| A1 | 49,431 ms | 9,268 ms | 5.3x |
+| A2 | 23,657,340 ms | 3,993,081 ms | 5.9x |
+| A4 | 2,206,497 ms | 510,569 ms | 4.3x |
+| A12 | 66,341 ms | 63,187 ms | 1.0x |
+
+Both runs pass every cell with zero gates, so this is the same work
+measured twice. The write path is what §38 measured; **the reads improve
+too**, which was not obvious and had to be tested: compaction changes
+the on-disk layout, and the worry was that it would cost the reader what
+it saved the writer. It does the opposite, and A12 -- the cold-start and
+open-loop stream cell, which does not scan fragments -- is unchanged,
+which is the shape you would expect if fragment count is the mechanism.
+
+The alarm this began with was wrong and worth recording. A 66-minute A2
+looked like a 179x regression against a published 22,271 ms. That
+published figure is a **200,000-edge slice**; the full tier is 27x
+larger, and the only prior full-tier attempt (the laptop's) spent
+3,728,182 ms on LOAD and never produced an A2 row at all. Comparing a
+full tier against a slice is how a fix gets mistaken for a regression.
+
+**Four launcher bugs, all mine, all in the declared-cell path.** Each
+was found only at the end of a two-hour matrix, because the unit tests
+covered the declaration record, the merge, the validator and the site
+verifier -- every component except the bash script that ties them
+together:
+
+1. the declared-matrix check required validity as well as structure, so
+   FalkorDB's declared quiescence termination aborted the run before the
+   second suite merged (`5253132`);
+2. the branch used `continue`, skipping the loop tail that writes the
+   service log, tears down the service and emits the `images.tsv` row --
+   20 rows for 24 cells, and the receipt was refused (`78a4295`);
+3. replacing that `continue` with a flag left the following
+   unconditional `die` reachable, so the first declared cell killed the
+   run the declaration exists to let continue (`00e49fe`);
+4. a suite with every cell declared reached the merge with zero
+   components and got only its usage message (`9d7c563`).
+
+`benchmarks/lsqb/grust-declared-check.sh` closes that gap: Turso at
+SF0.3 and 6 GiB reproduces a declared cell in ten minutes and asserts
+the cell is declared, its image row is written, and the merge produces
+an accounted matrix. It found bug 4 immediately. **Run it before any
+matrix.**
+
+**A fifth defect, and it was a contract error rather than a slip.** The
+declaration required exit status 137. A cgroup OOM does not always take
+the container's main process: on the 31 GB host the memory cell's
+observation worker was killed while the runner survived and exited 1,
+and Docker reported `OOMKilled: true` with `ExitCode: 1`. Docker's flag
+is the proof; the exit status is evidence to record, not a condition to
+require (grust `2a07aa7`, site `7a2f6f4`).
+
+**And a contamination of my own making.** That memory cell passes at
+6 GiB in two earlier runs. It was killed inside its own cgroup because
+the HN crawler had left 24 GB of page cache on the host and cgroup v2
+counts page cache against a container's limit. **Stopping a co-tenant
+process does not make a host quiet; its cache outlives it.** Every
+measured run on a host that also crawls must drop the page cache after
+pausing the crawler and before the first cell, as
+`~/grust-matrix-sf03-5.sh` now does. With a clean cache the memory cells
+produce components again.
