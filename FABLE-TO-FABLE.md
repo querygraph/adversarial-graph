@@ -2167,3 +2167,64 @@ no publication step among them):
 Waiting for the user, not for compute: admitting that matrix, publishing
 the LanceDB rows (which must name the laptop's superseded wiki-Talk row),
 and the budget and envelope decisions above.
+
+## 39. What the two resident-index cells need, measured; and the HN crawler fleet now shares these hosts (2026-09-08 01:35 UTC)
+
+**The budget ladder is complete for both cells at SF0.3:**
+
+| budget | turso | postgres |
+|---|---|---|
+| 6 GiB | `cell.memory-exceeded`, 544 s | `cell.memory-exceeded`, 1,003 s |
+| 8 GiB | `cell.memory-exceeded`, 597 s | **finished, 1,394 s** |
+| 12 GiB | **finished, 922 s** | — |
+
+So the two cells do not need the same thing: **PostgreSQL's finishes at
+8 GiB, Turso's needs 12**. The serialized resident index is 1.05 GB in
+both cases; the difference is the peak working set while it is built, and
+Turso's cell carries the store in-process where PostgreSQL's does not.
+
+The practical consequence for §37's picture: at 6 GiB the SF0.3 matrix
+measures **one** backend. At 8 GiB it would measure two, at 12 GiB three.
+That is the whole return on the budget question, and it is now a number
+rather than an argument. The three answers of §37 stand unchanged — keep
+6 GiB with declarations, implement §32's memory-bounded route, or re-run
+the cohort at a declared larger budget — and the choice is still the
+user's, because any of them changes what a published cohort means.
+
+**The Hacker News crawl fleet now shares these hosts.** The user's Eigen
+Times discussion crawl had been dead nineteen hours: it is a foreground
+process, it was running on the grust box, and grust rebooted at 06:34:40
+on 2026-09-07, 54 seconds after its last log line. The migration to eigen
+copied the 26 GB `data-hn` with mtimes preserved, which is why both hosts
+carry a log ending at the identical microsecond; eigen is the live copy
+and has written to it since (13:07 nightly output), grust's is frozen at
+the handover.
+
+It runs again, under systemd with `Restart=always` and `enabled`, so
+neither a crash nor a reboot can end it silently:
+
+| host | shard | pending threads | started |
+|---|---|---|---|
+| eigen | the full sweep, most discussed first | 1,500,893 | 01:20 |
+| quegee | 2023-2026 | 462,019 | 01:26 |
+| lakecat | 2006-2017 | 598,834 | 01:29 |
+| grust | 2018-2022 | staged | when its matrix exits |
+
+Sharded without touching `et`: a candidate carries its `YearMonth` and
+the root is partitioned by year, so each host gets a root holding only
+its band's `raw/articles` and `derived/discussions`. The discussions copy
+seeds each shard's `done` set. The tables are append-only
+`batch-<timestamp>.parquet`, so merging the shards back is a union, not
+an overwrite.
+
+**What this means for benchmark rows taken from here.** quegee and
+lakecat now run a crawler beside the LanceDB tier ladder. It is
+network-bound at roughly half a core with 600 ms request spacing, and
+every strain row records its host's one-minute load average, so the
+co-tenancy is visible in the evidence rather than hidden — but rows taken
+after 01:26 on quegee and 01:29 on lakecat share their host with it, and
+whoever publishes them should say so. The grust box is deliberately kept
+clear until its SF0.3 matrix finishes, because that matrix is a
+publication candidate and a measured cell must not share eight vCPUs with
+anything. Nothing was started on eigen beyond the crawl the user asked to
+be left alone.
