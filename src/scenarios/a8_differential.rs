@@ -38,6 +38,10 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         return r;
     };
     let specs = queries_for(schema);
+    if specs.is_empty() {
+        r.unsupported("no reference queries are configured for this schema");
+        return r;
+    }
     // The oracle's typed index over the in-process graph, built once,
     // outside every query's timing.
     let graph = Arc::new(ctx.graph.clone());
@@ -221,8 +225,60 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     r.observe("errors", errors);
     r.observe("timeouts", timeouts);
     r.observe("reference_unsupported", reference_unsupported);
+    account_query_outcomes(&mut r, errors, timeouts, reference_unsupported);
     if matched > 0 {
         r.latency = Some(Latency::from_histogram(&h));
     }
     r
+}
+
+fn account_query_outcomes(
+    r: &mut ScenarioResult,
+    errors: usize,
+    timeouts: usize,
+    reference_unsupported: usize,
+) {
+    r.gates.oom_or_crash += errors as u64;
+    r.gates.hang_or_timeout_without_refusal += timeouts as u64;
+    if reference_unsupported > 0 {
+        r.unsupported(&format!(
+            "the reference could not validate {reference_unsupported} required queries; this scenario's comparison coverage is incomplete"
+        ));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::report::Outcome;
+
+    #[test]
+    fn incomplete_or_failed_comparisons_never_pass() {
+        for (errors, timeouts, missing_reference, expected) in [
+            (3, 0, 0, Outcome::Fail),
+            (0, 3, 0, Outcome::Fail),
+            (0, 0, 3, Outcome::Unsupported),
+            (0, 0, 1, Outcome::Unsupported),
+            (1, 0, 1, Outcome::Fail),
+            (0, 0, 0, Outcome::Pass),
+        ] {
+            let mut r = ScenarioResult::new("A8", "fixture", "fixture");
+            account_query_outcomes(&mut r, errors, timeouts, missing_reference);
+            r.finish();
+            assert_eq!(r.outcome, expected);
+            assert_eq!(r.gates.total(), (errors + timeouts) as u64);
+        }
+    }
+
+    #[test]
+    fn refusal_and_wrong_answer_keep_both_evidence_and_failure_headline() {
+        let mut r = ScenarioResult::new("A8", "fixture", "fixture");
+        r.gates.wrong_answer = 1;
+        r.unsupported("one query refused");
+        account_query_outcomes(&mut r, 0, 0, 0);
+        r.finish();
+        assert_eq!(r.outcome, Outcome::Fail);
+        assert_eq!(r.gates.wrong_answer, 1);
+        assert!(r.notes.iter().any(|note| note == "one query refused"));
+    }
 }

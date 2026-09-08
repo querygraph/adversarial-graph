@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- A8 backend errors and timeouts now fire hard gates, and missing reference
+  coverage prevents a pass. A failed gate takes precedence over an unsupported
+  operation in the cell headline; refusal details remain in the notes.
+
 - Two external adapters: `memgraph` (Memgraph 3.12 over Bolt through the
   Neo4j store with a `BoltDialect` for the session database and index DDL)
   and `age` (Apache AGE 1.8 on PostgreSQL 18.6 through the `cypher()` table
