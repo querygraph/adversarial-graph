@@ -2487,3 +2487,63 @@ and adding a 16 GiB cohort to a verifier family that hardcodes
 writable from cells that fit rather than ones on the boundary, which is
 what §41 asked for; the budget is a new cohort by construction and must
 be declared as one. Both are the user's decisions.
+
+## 44. Astra's review, read; what it changes about §40–§43 (2026-09-08 22:40 UTC)
+
+`astra-review-1.md` (untracked, in this checkout at the user's request)
+summarises a source review of `9ee4d47`/`29fd384` with two isolated
+implementation branches: `review/adapter-reliability` (`982288e`, this
+repository) and `perf/resident-index-build` (grust `93b6155`). Neither is
+merged. The user asked that it work in separation, and it did: no
+checkout, service or job of this session was touched.
+
+**One thing separation cannot give is a quiet host.** Astra's builds and
+PostgreSQL diagnostics ran on quegee from 18:43 to 21:03 UTC, inside the
+16 GiB matrix of §43 (17:07–21:47). The launcher's host preflight gates a
+cell's *start*, not its duration, so the cells measured in that window
+shared the machine. **§43's medians are co-tenanted upper bounds**, as
+every wall time on a shared host is; the receipt and the outcomes stand,
+the timings carry that caveat. Astra disclosed the overlap itself.
+
+**Findings that land on this session's work, and what was done:**
+
+- *The full-tier memory guard was host-wide* (finding 3): it matched every
+  `ag run` on the machine and could kill a run it did not own. It now
+  walks down from the pair it was handed. Fixed, `scripts/run-full-tiers.sh`.
+- *Zero-prefixed UTC fields entered Bash arithmetic as octal* (finding 6):
+  at 08:xx and 09:xx UTC the blackout logic died and took the ladder with
+  it. Fixed with `10#`.
+- *§40's page-cache explanation was stated as confirmed; it is a
+  hypothesis.* The memory cell passed once after a cache drop and failed
+  once after another (§41). What is established is that the cell is
+  marginal at 6 GiB; what the cache contributed is not. Astra is right,
+  and §40 should be read with §41.
+- *The budget-ladder numbers are per container, not per backend*:
+  PostgreSQL's "8 GiB" is its runner container; the server ran beside it
+  under its own default limit. §39's table should be read that way.
+- *A8 could pass with backend errors or timeouts* (finding 1, P1). Checked
+  against every published bundle: **no published A8 pass carries an error
+  or timeout**, so nothing on the site is affected. Astra's branch fixes
+  the classifier so gates always win the headline and absent reference
+  coverage is `unsupported`, with tests for each case. Read and found
+  correct; merging it is the user's call, since it moves the harness
+  revision.
+- *Requested work can vanish from a complete report* (finding 5): the two
+  `unknown backend age` runs of §35 were exactly this — empty reports
+  marked complete. Set aside by hand then; the harness should refuse.
+
+**The resident-index branch is not a memory solution**, by Astra's own
+measurement: 25% less allocator traffic, peak memory little changed, no
+CPU gain. SF0.3's setup peak needs the streamed-construction work the
+review describes, or §28's compact reference. Not started.
+
+**Astra's resource proposal agrees with §37–§43 and sharpens it**: keep
+the 6 GiB rows as capacity evidence; a capacity lane of cheap canaries
+across a declared ladder; a performance lane at one common envelope
+chosen from measured peaks — 16 GiB being a candidate that §43 has now
+checked rather than asserted; and never raise a limit silently during a
+cohort. Its priority order for what comes before any further long run —
+outcome classification, guard ownership and cancellation, offline
+launcher fixtures, adapter conformance, then profiling one setup cell —
+is the right one, and it puts the declared-cell shell fixtures this
+session paid eight defects to learn ahead of any more matrices.
