@@ -2556,3 +2556,61 @@ review document and its test log come with it under `docs/notes/` and
 `review-evidence/`. The harness revision has moved: **every host must
 rebuild before its next run**; quegee is rebuilt now, the others crawl and
 are rebuilt when next needed. No published row changes.
+
+## 45. The program: engineer, test, and run the rest, across four hosts, around eigen's refits (2026-09-08 23:10 UTC)
+
+The user's mandate: engineer and test the remaining adapter and harness
+work, address every finding in Astra's review, and run the remaining
+tiers on all four machines, planned around eigen's refit windows. The
+crawlers are paused per host only for a measurement window and restored
+by an `EXIT` trap; the page cache is dropped at each window's start,
+which is a co-tenancy necessity on these hosts and never an explanation
+for a result (§44).
+
+**What gates what.** The harness client's peak resident set, from
+published rows for the container-backed backends: 4.1 GB at web-Google
+(5.1 M edges), 14.5 GB at cit-Patents (16.5 M), 27.6 GB at
+soc-LiveJournal1 (69 M) — so **~47 GB for com-Orkut's 117 M**, more than
+any host has. com-Orkut for every backend but `memory` is gated on §28's
+compact reference, not on machine time. That is the first engineering
+item. LanceDB above web-Google, turso-mvcc above web-Google and every
+surreal/helix/ladybug full tier are gated on adapter load paths or the
+same client footprint.
+
+**Engineering, in order** (Astra's priority order, then adapters):
+
+1. Expected-cell manifest and no vanishing work (finding 5): validate
+   requested ids up front, persist the expected cells with explicit setup
+   outcomes, and never mark complete with a cell unaccounted for.
+2. A8 timeout cancellation (finding 1): owned worker with deadline,
+   reap and quiescence; a stuck-worker test.
+3. A12 arrival accounting (finding 4): absolute arrival deadlines, a
+   bounded queue, offered/admitted/dropped/completed/errored counts,
+   failures gated; a slow-service test.
+4. Launcher lifecycle (finding 6): readiness deadlines, cleanup on every
+   exit, blackout windows across midnight, Surreal/Helix readiness.
+5. A6 write lanes (finding 7): portable upsert and conditional-write
+   lanes kept apart; absent capability is `unsupported`.
+6. Provenance documentation (finding 8): README/AGENTS aligned with the
+   manifest's pin-and-patch reality.
+7. The compact reference (§28): CSR over interned ids for the reference
+   graph and oracle, measured against the peaks above.
+8. Adapters, in grust, A/B-measured, one repin: Surreal and Helix HTTP
+   batch size; LanceDB table-handle caching with freshness; the Helix
+   SDK casing fix; then the typed adapter-contract fixture Astra
+   describes, run across every enabled transport.
+
+Each lands with tests, and the harness rebuilds on every host before its
+next run.
+
+**Runs, on the current harness, as hosts free up:**
+
+| host | window | runs |
+|---|---|---|
+| grust (31 GB) | any | `age cit-Patents` now; adapter A/B probes |
+| quegee (40 GB) | any | lancedb cit-Patents under the 30 GB guard; turso-mvcc cit-Patents (26 GB at the laptop) |
+| lakecat (15 GiB) | any | surreal/helix/ladybug small full tiers once their adapters land |
+| eigen (31 GB) | 03:45–12:30, 15:45–02:30 UTC | ladders that fit a window: age web-Google reruns, falkor/memgraph/neo4j reruns on the merged harness where a row is missing |
+
+com-Orkut and soc-LiveJournal1 for the embedded stores wait for item 7.
+A guard trip is a placement outcome, never a row.
