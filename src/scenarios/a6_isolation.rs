@@ -285,6 +285,7 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             return r;
         }
     }
+    let write_mode = probe.mode();
     drop(probe);
 
     // Register phase.
@@ -315,7 +316,19 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     let register = check_register(&register_ops, &final_versions);
     let append = check_append(&append_ops, &final_lists);
     let anomalies = register.total() + append.total();
-    r.gates.isolation_anomaly += anomalies;
+    // Two write lanes, never one finding. Under a guarded commit (CAS) an
+    // anomaly is the engine's isolation defect and fires the gate. Under
+    // plain read-then-upsert the client never asked for atomicity, so a lost
+    // update is the contract working as declared, not an engine finding: the
+    // counts stay visible as observations and the cell is `unsupported` for
+    // the conditional-write capability this store's adapter does not offer.
+    if write_mode == "guarded-commit-cas" {
+        r.gates.isolation_anomaly += anomalies;
+    } else if anomalies > 0 {
+        r.unsupported(&format!(
+            "{anomalies} lost or reordered updates under plain read-then-upsert ({write_mode}); this adapter offers no conditional write, so the anomalies are the declared last-writer-wins contract, not an isolation finding"
+        ));
+    }
     for example in register.examples.iter().chain(&append.examples) {
         r.notes.push(example.clone());
     }
