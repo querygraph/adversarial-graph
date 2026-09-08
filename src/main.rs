@@ -1,6 +1,7 @@
 //! `ag` — GRAPH-ADVERSARIAL-v1 harness CLI.
 //!
 //!   ag run [--dataset NAME,...] [--backend NAME,...] [--scenario A1,...]
+//!   ag conformance --backends a,b   # typed multigraph read-back through each adapter; exit 1 on any FAIL
 //!          [--smoke] [--limit-edges N] [--out DIR]
 //!   ag datasets                  list the datasets in datasets/MANIFEST.json
 //!   ag backends                  list built-in backends
@@ -8,6 +9,7 @@
 #[cfg(feature = "age")]
 mod age;
 mod backends;
+mod conformance;
 mod dataset;
 mod differential;
 #[cfg(feature = "falkor")]
@@ -37,7 +39,7 @@ fn usage() -> ! {
         include_str!("main.rs")
             .lines()
             .skip(1)
-            .take(6)
+            .take(7)
             .map(|l| l.trim_start_matches("//!"))
             .collect::<Vec<_>>()
             .join("\n")
@@ -133,6 +135,10 @@ async fn main() {
             );
         }
         "run" => run(&root, &args).await,
+        "conformance" => {
+            let code = conformance::run(&root, &args.backends, &args.out).await;
+            std::process::exit(code);
+        }
         _ => usage(),
     }
 }
