@@ -145,6 +145,31 @@ async fn run(root: &Path, args: &Args) {
         .map(|d| (d.name.clone(), d.clone()))
         .collect();
     let stamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+    // Validate every requested id before any work: a run that quietly skips
+    // an unknown dataset or backend and then reports itself complete is how a
+    // cell disappears (§35's `unknown backend age` runs did exactly that).
+    let unknown_datasets: Vec<&String> = args
+        .datasets
+        .iter()
+        .filter(|d| !by_name.contains_key(d.as_str()))
+        .collect();
+    let unknown_backends: Vec<&String> = args
+        .backends
+        .iter()
+        .filter(|b| BackendKind::parse(b).is_none())
+        .collect();
+    if !unknown_datasets.is_empty() || !unknown_backends.is_empty() {
+        for d in &unknown_datasets {
+            eprintln!("unknown dataset {d}; see `ag datasets`");
+        }
+        for b in &unknown_backends {
+            eprintln!("unknown backend {b}; see `ag backends`");
+        }
+        eprintln!(
+            "refusing to run: every requested dataset and backend must exist before any cell is attempted"
+        );
+        std::process::exit(2);
+    }
     let out_dir = args.out.join(&stamp);
     std::fs::create_dir_all(&out_dir).expect("report dir");
     let work_dir = out_dir.join("work");
@@ -174,31 +199,6 @@ async fn run(root: &Path, args: &Args) {
         }
     };
 
-    // Validate every requested id before any work: a run that quietly skips
-    // an unknown dataset or backend and then reports itself complete is how a
-    // cell disappears (§35's `unknown backend age` runs did exactly that).
-    let unknown_datasets: Vec<&String> = args
-        .datasets
-        .iter()
-        .filter(|d| !by_name.contains_key(d.as_str()))
-        .collect();
-    let unknown_backends: Vec<&String> = args
-        .backends
-        .iter()
-        .filter(|b| BackendKind::parse(b).is_none())
-        .collect();
-    if !unknown_datasets.is_empty() || !unknown_backends.is_empty() {
-        for d in &unknown_datasets {
-            eprintln!("unknown dataset {d}; see `ag datasets`");
-        }
-        for b in &unknown_backends {
-            eprintln!("unknown backend {b}; see `ag backends`");
-        }
-        eprintln!(
-            "refusing to run: every requested dataset and backend must exist before any cell is attempted"
-        );
-        std::process::exit(2);
-    }
     let phase_rss = std::env::var_os("AG_PHASE_RSS").is_some();
     let rss_line = |phase: &str| {
         if phase_rss {
