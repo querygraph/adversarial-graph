@@ -2614,3 +2614,62 @@ next run.
 
 com-Orkut and soc-LiveJournal1 for the embedded stores wait for item 7.
 A guard trip is a placement outcome, never a row.
+
+## 46. LanceDB reaches cit-Patents; the footprint is the parsed graph, not the index; and a rule I broke (2026-09-08 23:30 UTC)
+
+**LanceDB's first cit-Patents bundle** (`20260908T222821Z`, quegee, crawler
+paused, page cache dropped, harness `244c534` clean): 3,774,768 nodes and
+16,518,948 edges, complete, zero gates.
+
+| cell | wall | peak client |
+|---|---|---|
+| LOAD | 153,065 ms | 12.1 GB |
+| A1 | 1,401,829 ms | 12.1 GB |
+| A2 | 480 ms | 12.1 GB |
+| A4 | 1,249,908 ms | 24.6 GB |
+| A12 | 66,332 ms | 24.6 GB |
+
+A tier the adapter could not reach at all before §38 (5 M edges took
+62 minutes and 42.5 GB). The 24.6 GB peak is A4's, not the load's, and it
+is what puts soc-LiveJournal1 (69 M edges) out of reach for LanceDB on any
+host here until the harness client shrinks.
+
+**The client footprint, decomposed** (`AG_PHASE_RSS=1`, lakecat,
+web-Google, 5.1 M edges, in-process memory store): after the parsed
+`Graph` **2.20 GB**; after the oracle's `GraphIndex` **2.43 GB** (+0.23);
+after the store's own load **7.64 GB** (+5.2, the memory store's copy).
+So §28's premise — that the reference index is the weight — is wrong by
+an order of magnitude. The weight is Grust's `Graph` itself at ~430 bytes
+per edge, which is exactly the ~47 GB at com-Orkut. The compact reference
+is therefore not a compact index: it is **never materialising the whole
+`Graph`** for the largest tiers — a compact parsed edge list (interned
+u32 ids) feeding the oracle directly and feeding the store in chunks —
+with the LOAD row disclosing the chunked path, above a size threshold
+only, so no published tier's load semantics change. The containerized
+decomposition (PostgreSQL) is pending from the same run.
+
+**A rule I broke, and what it cost.** I committed the branch's edits to
+`scripts/run-full-tiers.sh` in the live checkout while the LanceDB
+window was executing that file. Bash reads a script incrementally: the
+ladder re-entered its loop (a phantom second `lancedb cit-Patents` start
+at the very second the first finished), then died on `line 149: syntax
+error near unexpected token 'done'`. The first bundle had already
+completed intact; the duplicate was killed (exit 143) and its partial
+output set aside under `~/discarded-duplicate-run/`; the crawler was
+restored by the trap; no row is affected. The hand-off's rule — never
+rewrite a running bash script in place — now has a mechanism, not just a
+sentence: **branch work happens in the worktree `~/src/ag-work`; the
+live checkout stays on `main` and is only ever moved by `git pull
+--ff-only` between windows.**
+
+**A defect the incident exposed.** The pair ran through `| tee`, so the
+pid handed to the memory guard was tee's, and a guard that walks down
+from the pair it owns found no harness process at all; §44's scoping fix
+had made the guard correct and inert at once. The pair now writes its own
+log, echoed after it ends, and the guard is handed `timeout`, whose child
+is `ag` (`116f901`, on the branch).
+
+**In flight**: turso-mvcc cit-Patents on quegee; age cit-Patents on grust;
+on lakecat the branch's verification passes — findings batch, the adapter
+branch's compile, then `ag conformance` across the in-process adapters
+and PostgreSQL. eigen crawls until its 03:45 window.
