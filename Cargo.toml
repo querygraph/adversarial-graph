@@ -16,8 +16,8 @@ grust = { package = "grust-graph", version = "0.13.0", features = ["memory", "tu
 # (`publish = false`): pinned to one published Grust revision (the
 # `fable/strain-adapter-reads` branch head, on top of v0.13.1) so the harness
 # still never depends on a local Grust checkout.
-grust-helix = { git = "https://github.com/querygraph/grust", rev = "7429fc716815a069a0882e59cc43a31eddbe1829", optional = true }
-grust-ladybug = { git = "https://github.com/querygraph/grust", rev = "7429fc716815a069a0882e59cc43a31eddbe1829", optional = true }
+grust-helix = { git = "https://github.com/querygraph/grust", rev = "5253132105637988988568ec88eab088584b2345", optional = true }
+grust-ladybug = { git = "https://github.com/querygraph/grust", rev = "5253132105637988988568ec88eab088584b2345", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -59,11 +59,15 @@ full-backends = ["postgres", "postgres-pgq", "pggraph", "surreal", "falkor", "la
 # pinned to the same revision for the store changes measured in
 # ADVERSARIAL-GRAPH.md §7.2, ahead of their crates.io release.
 [patch.crates-io]
-grust-core = { git = "https://github.com/querygraph/grust", rev = "7429fc716815a069a0882e59cc43a31eddbe1829" }
-grust-memory = { git = "https://github.com/querygraph/grust", rev = "7429fc716815a069a0882e59cc43a31eddbe1829" }
-grust-turso = { git = "https://github.com/querygraph/grust", rev = "7429fc716815a069a0882e59cc43a31eddbe1829" }
-grust-cypher = { git = "https://github.com/querygraph/grust", rev = "7429fc716815a069a0882e59cc43a31eddbe1829" }
-grust-postgres-core = { git = "https://github.com/querygraph/grust", rev = "7429fc716815a069a0882e59cc43a31eddbe1829" }
+grust-core = { git = "https://github.com/querygraph/grust", rev = "5253132105637988988568ec88eab088584b2345" }
+grust-memory = { git = "https://github.com/querygraph/grust", rev = "5253132105637988988568ec88eab088584b2345" }
+grust-turso = { git = "https://github.com/querygraph/grust", rev = "5253132105637988988568ec88eab088584b2345" }
+grust-cypher = { git = "https://github.com/querygraph/grust", rev = "5253132105637988988568ec88eab088584b2345" }
+grust-postgres-core = { git = "https://github.com/querygraph/grust", rev = "5253132105637988988568ec88eab088584b2345" }
+# The LanceDB adapter is pinned here too: the published grust-graph would
+# otherwise resolve grust-lancedb from the registry, and one grust-core must
+# serve both sides (FABLE-TO-FABLE §38).
+grust-lancedb = { git = "https://github.com/querygraph/grust", rev = "5253132105637988988568ec88eab088584b2345" }
 
 [profile.release]
 debug = 0

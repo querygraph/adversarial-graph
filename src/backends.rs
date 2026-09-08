@@ -460,6 +460,10 @@ async fn connect_lancedb(
             .to_string(),
         table_prefix: "ag".to_string(),
         batch_size: 500,
+        // The bulk path writes whole-graph loads in large batches, opens each
+        // table once and compacts afterwards; the incremental path is
+        // unchanged (FABLE-TO-FABLE §38).
+        bulk_batch_size: 50_000,
     })
     .await
 }
