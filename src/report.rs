@@ -122,12 +122,12 @@ impl ScenarioResult {
         );
     }
     pub fn finish(&mut self) {
-        if self.outcome == Outcome::NotTested {
-            self.outcome = if self.gates.total() == 0 {
-                Outcome::Pass
-            } else {
-                Outcome::Fail
-            };
+        // A refusal in one operation cannot hide a failure in another.
+        // Keep the refusal's notes, but make the cell headline reflect gates.
+        if self.gates.total() > 0 {
+            self.outcome = Outcome::Fail;
+        } else if self.outcome == Outcome::NotTested {
+            self.outcome = Outcome::Pass;
         }
     }
     pub fn unsupported(&mut self, why: &str) {

@@ -1,0 +1,111 @@
+   Compiling adversarial-graph v0.1.0 (/tmp/adversarial-graph-review)
+warning: function `env_or` is never used
+   --> src/backends.rs:225:4
+    |
+225 | fn env_or(key: &str, default: &str) -> String {
+    |    ^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `slug` is never used
+   --> src/backends.rs:231:4
+    |
+231 | fn slug(tag: &str) -> String {
+    |    ^^^^
+
+warning: trait `AdminStore` is never used
+   --> src/backends.rs:472:11
+    |
+472 | pub trait AdminStore: GraphAdminStore + Send + Sync {}
+    |           ^^^^^^^^^^
+
+warning: field `tag` is never read
+   --> src/backends.rs:482:9
+    |
+476 | pub struct Backend {
+    |            ------- field in this struct
+...
+482 |     pub tag: String,
+    |         ^^^
+
+warning: associated function `prepared` is never used
+   --> src/backends.rs:518:14
+    |
+495 | impl Backend {
+    | ------------ associated function in this implementation
+...
+518 |     async fn prepared(
+    |              ^^^^^^^^
+
+warning: function `synthetic_star` is never used
+   --> src/dataset/mod.rs:160:8
+    |
+160 | pub fn synthetic_star(spokes: usize) -> Graph {
+    |        ^^^^^^^^^^^^^^
+
+warning: function `mentions_labels` is never used
+   --> src/differential.rs:530:8
+    |
+530 | pub fn mentions_labels(cypher: &str) -> bool {
+    |        ^^^^^^^^^^^^^^^
+
+warning: method `nodes_by_label` is never used
+  --> src/typed_load.rs:59:12
+   |
+23 | impl<'g> LoadPlan<'g> {
+   | --------------------- method in this implementation
+...
+59 |     pub fn nodes_by_label(&self) -> impl Iterator<Item = (&str, &[&'g Node])> {
+   |            ^^^^^^^^^^^^^^
+
+warning: function `value_from_json` is never used
+   --> src/typed_load.rs:129:8
+    |
+129 | pub fn value_from_json(value: &serde_json::Value) -> grust::Value {
+    |        ^^^^^^^^^^^^^^^
+
+warning: function `props_from_json` is never used
+   --> src/typed_load.rs:152:8
+    |
+152 | pub fn props_from_json(value: &serde_json::Value) -> grust::Props {
+    |        ^^^^^^^^^^^^^^^
+
+warning: function `label_from_list` is never used
+   --> src/typed_load.rs:165:8
+    |
+165 | pub fn label_from_list<'a>(labels: impl IntoIterator<Item = &'a str>) -> String {
+    |        ^^^^^^^^^^^^^^^
+
+warning: `adversarial-graph` (bin "ag" test) generated 11 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.49s
+     Running unittests src/main.rs (/home/admin/src/adversarial-graph/target/review-harness/debug/deps/ag-0f27fd51293c3c9c)
+
+running 25 tests
+test dataset::snb::tests::proportional_caps_share_the_limit_by_row_count ... ok
+test dataset::tests::formats_are_recognised_from_the_manifest_file_name ... ok
+test dataset::typed::tests::relationship_labels_are_upper_snake ... ok
+test dataset::typed::tests::values_are_typed_by_column_and_shape ... ok
+test differential::tests::oracle_probe ... ignored, needs datasets/ and a minute of CPU
+test differential::tests::bounded_text_appends_a_limit_to_every_arm_that_lacks_one ... ok
+test dataset::typed::tests::builder_applies_the_edge_list_rules_and_truncation ... ok
+test differential::tests::cells_compare_across_encodings_and_multisets_ignore_order ... ok
+test isolation::tests::a_typed_conflict_is_not_an_anomaly ... ok
+test isolation::tests::append_history_prefixes_are_clean ... ok
+test isolation::tests::final_shortfall_without_a_pair_is_still_lost ... ok
+test isolation::tests::overwritten_append_is_lost ... ok
+test isolation::tests::reading_a_lost_element_is_an_intermediate_read ... ok
+test isolation::tests::reordered_elements_are_a_divergent_order ... ok
+test differential::tests::routes_follow_the_planners ... ok
+test isolation::tests::serial_register_history_is_clean ... ok
+test isolation::tests::two_writes_from_one_version_lose_one ... ok
+test isolation::tests::version_going_backwards_is_non_monotonic ... ok
+test scenarios::a8_differential::tests::incomplete_or_failed_comparisons_never_pass ... ok
+test dataset::icij::tests::typed_nodes_and_relationships_from_csv_text ... ok
+test scenarios::a8_differential::tests::refusal_and_wrong_answer_keep_both_evidence_and_failure_headline ... ok
+test oracle::tests::label_filters_change_the_hub_and_the_layers ... ok
+test typed_load::tests::groups_nodes_by_label_and_edges_by_shape ... ok
+test differential::tests::the_query_file_covers_both_schemas ... ok
+test dataset::snb::tests::typed_nodes_edges_and_attributes ... ok
+
+test result: ok. 24 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
