@@ -103,7 +103,9 @@ struct ReaderReport {
 pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     let mut r = ScenarioResult::new("A5", ctx.backend.kind.name(), ctx.dataset);
     if schema_of(ctx.format) != Some("ldbc-snb") {
-        r.unsupported("A5 runs over LDBC SNB reply trees (the StackOverflow graph has no typed loader yet)");
+        r.unsupported(
+            "A5 runs over LDBC SNB reply trees (the StackOverflow graph has no typed loader yet)",
+        );
         return r;
     }
     let want = if ctx.smoke { 1 } else { 3 };
@@ -135,8 +137,14 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             return r;
         }
     }
-    r.observe("roots", trees.iter().map(|t| t.root.as_str()).collect::<Vec<_>>());
-    r.observe("tree_sizes", trees.iter().map(Tree::size).collect::<Vec<_>>());
+    r.observe(
+        "roots",
+        trees.iter().map(|t| t.root.as_str()).collect::<Vec<_>>(),
+    );
+    r.observe(
+        "tree_sizes",
+        trees.iter().map(Tree::size).collect::<Vec<_>>(),
+    );
 
     // Survivors to check afterwards: creators of and likers of every deleted
     // message, with the out-degree the oracle expects once the tree is gone.
@@ -184,7 +192,8 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         let store = match ctx.backend.extra_handle().await {
             Ok(s) => s,
             Err(e) => {
-                r.notes.push(format!("reader {i}: could not open a handle: {e}"));
+                r.notes
+                    .push(format!("reader {i}: could not open a handle: {e}"));
                 continue;
             }
         };
@@ -204,9 +213,9 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                 match store.get_node(id).await {
                     Ok(Some(_)) => {
                         report.present += 1;
-                        let parent_gone = parents
-                            .get(id)
-                            .is_some_and(|p| deleted_at.lock().expect("deleted_at").contains_key(p));
+                        let parent_gone = parents.get(id).is_some_and(|p| {
+                            deleted_at.lock().expect("deleted_at").contains_key(p)
+                        });
                         if parent_gone {
                             report.orphans += 1;
                         }
@@ -282,11 +291,14 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             Ok(Some(_)) => {
                 surviving_tree_vertices += 1;
                 if surviving_tree_vertices <= 4 {
-                    r.notes.push(format!("{} still present after its delete", id.as_str()));
+                    r.notes
+                        .push(format!("{} still present after its delete", id.as_str()));
                 }
             }
             Ok(None) => {}
-            Err(e) => r.notes.push(format!("{}: read-back failed: {e}", id.as_str())),
+            Err(e) => r
+                .notes
+                .push(format!("{}: read-back failed: {e}", id.as_str())),
         }
     }
     if surviving_tree_vertices > 0 {
@@ -302,12 +314,14 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             Ok(None) => {
                 vanished += 1;
                 if vanished <= 4 {
-                    r.notes.push(format!("{} (outside the tree) is gone", id.as_str()));
+                    r.notes
+                        .push(format!("{} (outside the tree) is gone", id.as_str()));
                 }
                 continue;
             }
             Err(e) => {
-                r.notes.push(format!("{}: survivor read failed: {e}", id.as_str()));
+                r.notes
+                    .push(format!("{}: survivor read failed: {e}", id.as_str()));
                 continue;
             }
         }
@@ -327,7 +341,8 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                 break;
             }
             Err(e) => {
-                r.notes.push(format!("{}: edge read failed: {e}", id.as_str()));
+                r.notes
+                    .push(format!("{}: edge read failed: {e}", id.as_str()));
                 continue;
             }
         };

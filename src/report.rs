@@ -99,6 +99,8 @@ pub struct ScenarioResult {
     pub latency: Option<Latency>,
     pub wall_ms: u128,
     pub notes: Vec<String>,
+    #[serde(skip)]
+    pub setup_failed: bool,
 }
 
 impl ScenarioResult {
@@ -113,6 +115,7 @@ impl ScenarioResult {
             latency: None,
             wall_ms: 0,
             notes: Vec::new(),
+            setup_failed: false,
         }
     }
     pub fn observe(&mut self, key: &str, value: impl Serialize) {
@@ -121,7 +124,20 @@ impl ScenarioResult {
             serde_json::to_value(value).unwrap_or(serde_json::Value::Null),
         );
     }
+    /// The cell could not be attempted: the dataset did not load or the
+    /// oracle could not be built. That is a harness or host outcome, not a
+    /// store finding, so it carries no gate -- but it must stay visible as
+    /// `not-tested`, never become a pass, and count against completeness.
+    pub fn setup_failed(&mut self, why: &str) {
+        self.outcome = Outcome::NotTested;
+        self.setup_failed = true;
+        self.notes.push(why.to_string());
+    }
+
     pub fn finish(&mut self) {
+        if self.setup_failed {
+            return;
+        }
         // A refusal in one operation cannot hide a failure in another.
         // Keep the refusal's notes, but make the cell headline reflect gates.
         if self.gates.total() > 0 {

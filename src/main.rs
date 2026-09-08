@@ -10,9 +10,9 @@ mod age;
 mod backends;
 mod dataset;
 mod differential;
-mod isolation;
 #[cfg(feature = "falkor")]
 mod falkor_reader;
+mod isolation;
 #[cfg(feature = "neo4j")]
 mod neo4j;
 #[cfg(feature = "neo4j")]
@@ -174,6 +174,48 @@ async fn run(root: &Path, args: &Args) {
         }
     };
 
+    // Validate every requested id before any work: a run that quietly skips
+    // an unknown dataset or backend and then reports itself complete is how a
+    // cell disappears (§35's `unknown backend age` runs did exactly that).
+    let unknown_datasets: Vec<&String> = args
+        .datasets
+        .iter()
+        .filter(|d| !by_name.contains_key(d.as_str()))
+        .collect();
+    let unknown_backends: Vec<&String> = args
+        .backends
+        .iter()
+        .filter(|b| BackendKind::parse(b).is_none())
+        .collect();
+    if !unknown_datasets.is_empty() || !unknown_backends.is_empty() {
+        for d in &unknown_datasets {
+            eprintln!("unknown dataset {d}; see `ag datasets`");
+        }
+        for b in &unknown_backends {
+            eprintln!("unknown backend {b}; see `ag backends`");
+        }
+        eprintln!(
+            "refusing to run: every requested dataset and backend must exist before any cell is attempted"
+        );
+        std::process::exit(2);
+    }
+    let phase_rss = std::env::var_os("AG_PHASE_RSS").is_some();
+    let rss_line = |phase: &str| {
+        if phase_rss {
+            if let Some(b) = probe::current_rss_bytes() {
+                eprintln!("   phase-rss {phase} {:.2} GB", b as f64 / 1024f64.powi(3));
+            }
+        }
+    };
+    // Every (dataset, backend) requested must have at least one row before the
+    // report may call itself complete.
+    let mut expected: Vec<(String, String)> = Vec::new();
+    for d in &args.datasets {
+        for b in &args.backends {
+            expected.push((d.clone(), b.clone()));
+        }
+    }
+
     for dataset_name in &args.datasets {
         let Some(entry) = by_name.get(dataset_name) else {
             eprintln!("unknown dataset {dataset_name}; see `ag datasets`");
@@ -189,9 +231,16 @@ async fn run(root: &Path, args: &Args) {
             Ok(v) => v,
             Err(e) => {
                 eprintln!("load failed: {e}");
+                for backend_name in &args.backends {
+                    let mut r = report::ScenarioResult::new("LOAD", backend_name, dataset_name);
+                    r.setup_failed(&format!("dataset did not load: {e}"));
+                    report.push(r.clone());
+                    persist(&mut report, &r);
+                }
                 continue;
             }
         };
+        rss_line("after-graph");
         eprintln!(
             "   {} nodes, {} edges in {:?}{}",
             stats.nodes,
@@ -231,9 +280,16 @@ async fn run(root: &Path, args: &Args) {
             Ok(o) => o,
             Err(e) => {
                 eprintln!("oracle failed: {e}");
+                for backend_name in &args.backends {
+                    let mut r = report::ScenarioResult::new("LOAD", backend_name, dataset_name);
+                    r.setup_failed(&format!("oracle could not be built: {e}"));
+                    report.push(r.clone());
+                    persist(&mut report, &r);
+                }
                 continue;
             }
         };
+        rss_line("after-oracle");
         for backend_name in &args.backends {
             let Some(kind) = BackendKind::parse(backend_name) else {
                 eprintln!("unknown backend {backend_name}; see `ag backends`");
@@ -287,6 +343,7 @@ async fn run(root: &Path, args: &Args) {
             }
             load_result.wall_ms = t.elapsed().as_millis();
             load_probe.finish(&mut load_result);
+            rss_line("after-store-load");
             load_result.finish();
             let load_failed = load_result.gates.total() > 0;
             eprintln!(
@@ -357,7 +414,27 @@ async fn run(root: &Path, args: &Args) {
     }
     report.finalize();
     let path = report_path.clone();
-    report.summary.insert("complete".into(), true.into());
+    // Complete means every requested cell is accounted for -- by a pass, a
+    // failure, a refusal or a recorded setup failure -- never by silence.
+    let missing: Vec<String> = expected
+        .iter()
+        .filter(|(d, b)| {
+            !report
+                .results
+                .iter()
+                .any(|r| &r.dataset == d && &r.backend == b)
+        })
+        .map(|(d, b)| format!("{d}/{b}"))
+        .collect();
+    report
+        .summary
+        .insert("expected_cells".into(), (expected.len() as u64).into());
+    report
+        .summary
+        .insert("missing_cells".into(), missing.clone().into());
+    report
+        .summary
+        .insert("complete".into(), missing.is_empty().into());
     std::fs::write(&path, serde_json::to_string_pretty(&report).expect("json"))
         .expect("write report");
     let _ = std::fs::remove_dir_all(&work_dir);

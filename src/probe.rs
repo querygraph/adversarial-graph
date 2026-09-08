@@ -150,3 +150,12 @@ impl Probe {
         }
     }
 }
+
+/// The process's resident set right now, from `/proc/self/status` (Linux),
+/// as opposed to `ru_maxrss`, which is a high-water mark. `None` elsewhere.
+pub fn current_rss_bytes() -> Option<u64> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    let line = status.lines().find(|l| l.starts_with("VmRSS:"))?;
+    let kb: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+    Some(kb * 1024)
+}

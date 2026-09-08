@@ -32,8 +32,8 @@ use grust::{
 use tokio_postgres::types::{Format, IsNull, ToSql, Type, to_sql_checked};
 use tokio_postgres::{Client, NoTls};
 
-use crate::differential::{Cell, ResultSet};
 use crate::dataset::{EDGE_LABEL, NODE_LABEL};
+use crate::differential::{Cell, ResultSet};
 
 const BATCH: usize = 5_000;
 
@@ -363,7 +363,10 @@ impl GraphStore for AgeStore {
             format!(" SET {}", sets.join(", "))
         };
         self.column(
-            &format!("MERGE (n:{} {{id: $id}}){set_clause} RETURN 1", node.label.as_str()),
+            &format!(
+                "MERGE (n:{} {{id: $id}}){set_clause} RETURN 1",
+                node.label.as_str()
+            ),
             serde_json::Value::Object(params),
         )
         .await?;
@@ -426,7 +429,11 @@ impl GraphStore for AgeStore {
         let Some(row) = rows.into_iter().next() else {
             return Ok(None);
         };
-        let label = row.first().filter(|l| !l.is_empty()).cloned().unwrap_or_else(|| NODE_LABEL.to_string());
+        let label = row
+            .first()
+            .filter(|l| !l.is_empty())
+            .cloned()
+            .unwrap_or_else(|| NODE_LABEL.to_string());
         let props = row
             .get(1)
             .and_then(|text| serde_json::from_str::<serde_json::Value>(text).ok())

@@ -169,7 +169,9 @@ pub fn check_append(ops: &[AppendOp], final_lists: &BTreeMap<String, Vec<String>
 
     // Every accepted append must survive.
     for op in ops.iter().filter(|op| op.outcome == WriteOutcome::Accepted) {
-        let Some(set) = final_sets.get(op.key.as_str()) else { continue };
+        let Some(set) = final_sets.get(op.key.as_str()) else {
+            continue;
+        };
         if !set.contains(op.element.as_str()) {
             out.lost_append += 1;
             out.example(format!(
@@ -181,8 +183,12 @@ pub fn check_append(ops: &[AppendOp], final_lists: &BTreeMap<String, Vec<String>
 
     // Every observed list must be a prefix of the final order.
     for op in ops {
-        let Some(observed) = &op.observed else { continue };
-        let Some(final_list) = final_lists.get(&op.key) else { continue };
+        let Some(observed) = &op.observed else {
+            continue;
+        };
+        let Some(final_list) = final_lists.get(&op.key) else {
+            continue;
+        };
         let set = &final_sets[op.key.as_str()];
         if let Some(missing) = observed.iter().find(|e| !set.contains(e.as_str())) {
             out.intermediate_read += 1;
@@ -221,7 +227,13 @@ mod tests {
         }
     }
 
-    fn app(client: usize, key: &str, observed: &[&str], element: &str, outcome: WriteOutcome) -> AppendOp {
+    fn app(
+        client: usize,
+        key: &str,
+        observed: &[&str],
+        element: &str,
+        outcome: WriteOutcome,
+    ) -> AppendOp {
         AppendOp {
             client,
             key: key.into(),
