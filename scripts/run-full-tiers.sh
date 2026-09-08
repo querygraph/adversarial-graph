@@ -32,9 +32,17 @@ IFS=, read -ra DS <<<"$DATASETS"
 RSS_LIMIT_GB="${AG_RSS_LIMIT_GB:-}"
 AVAIL_MIN_GB="${AG_MEM_AVAILABLE_MIN_GB:-}"
 mem_available_kb() { awk '/^MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null || true; }
-# Only the harness binary itself: never the `timeout` wrapper, never another
-# shell whose command line happens to mention it (a log watcher did, once).
-ag_pids() { pgrep -f '^\./target/release/ag run'; }
+# Only this ladder's own harness process: the `ag` descended from the pair
+# the guard was handed, never the `timeout` wrapper, never a log watcher whose
+# command line mentions it, and never another ladder's or a probe's `ag` on
+# the same host (a host-wide match could kill a run this guard does not own).
+ag_pids() { # $1 = pid of the background pair
+  local child
+  for child in $(pgrep -P "$1" 2>/dev/null); do
+    if ps -o args= -p "$child" 2>/dev/null | grep -q '^\./target/release/ag run'; then echo "$child"
+    else ag_pids "$child"; fi
+  done
+}
 guard() { # $1 = pid of the background pair
   # The guard runs as a background subshell under the script's `set -e`;
   # a missing /proc/meminfo (macOS) or a pid that exited between pgrep and
@@ -47,7 +55,7 @@ guard() { # $1 = pid of the background pair
   while kill -0 "$1" 2>/dev/null; do
     local avail; avail=$(mem_available_kb)
     if [ "$avail_min" -gt 0 ] && [ -n "$avail" ] && [ "$avail" -lt "$avail_min" ]; then low=$((low + 1)); else low=0; fi
-    for pid in $(ag_pids); do
+    for pid in $(ag_pids "$1"); do
       rss=$(ps -o rss= -p "$pid" 2>/dev/null | tr -d ' ')
       [ -z "$rss" ] && continue
       if [ "$rss_lim" -gt 0 ] && [ "$rss" -gt "$rss_lim" ]; then
@@ -72,7 +80,9 @@ wait_for_window() { # $1 = the backend's compose service, stopped while waiting
   local waited=""
   while true; do
     local now start_s cap_end blocked="" w
-    now=$(date -u +%s); start_s=$(( $(date -u +%H) * 3600 + $(date -u +%M) * 60 + $(date -u +%S) ))
+    # 10# forces decimal: at 08:xx or 09:xx UTC a bare "08" is invalid octal
+    # and the arithmetic -- and, under set -e, the ladder -- dies.
+    now=$(date -u +%s); start_s=$(( 10#$(date -u +%H) * 3600 + 10#$(date -u +%M) * 60 + 10#$(date -u +%S) ))
     cap_end=$(( start_s + CAP + 300 ))
     IFS=, read -ra WINDOWS <<<"$BLACKOUTS"
     for w in "${WINDOWS[@]}"; do
