@@ -262,7 +262,12 @@ impl GraphStore for Neo4jHttpStore {
         let labels: Vec<String> = row
             .first()
             .and_then(|v| v.as_array())
-            .map(|items| items.iter().filter_map(|l| l.as_str().map(String::from)).collect())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|l| l.as_str().map(String::from))
+                    .collect()
+            })
             .unwrap_or_default();
         let label = crate::typed_load::label_from_list(labels.iter().map(String::as_str));
         let props = row

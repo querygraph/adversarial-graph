@@ -94,8 +94,7 @@ impl Client {
 }
 
 fn classify(err: &GrustError) -> WriteOutcome {
-    if matches!(err, GrustError::GraphExpectationFailed(_))
-        || super::a4_hot_node::is_conflict(err)
+    if matches!(err, GrustError::GraphExpectationFailed(_)) || super::a4_hot_node::is_conflict(err)
     {
         WriteOutcome::Conflict
     } else {
@@ -183,7 +182,9 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         .map(|n| n.id.clone())
         .collect();
     if keys.len() < KEYS {
-        r.unsupported(&format!("fewer than {KEYS} {KEY_LABEL} vertices in the loaded slice"));
+        r.unsupported(&format!(
+            "fewer than {KEYS} {KEY_LABEL} vertices in the loaded slice"
+        ));
         return r;
     }
     let clients = if ctx.smoke { 4 } else { 8 };
@@ -213,9 +214,12 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     match probe.read(&keys[0]).await {
         Ok(Some(node)) => {
             let mut next = node.clone();
-            next.props.insert(VERSION.into(), Value::Int(version_of(&node)));
-            next.props.insert(OWNER.into(), Value::String("probe".into()));
-            next.props.insert(LOG.into(), Value::StringArray(log_of(&node)));
+            next.props
+                .insert(VERSION.into(), Value::Int(version_of(&node)));
+            next.props
+                .insert(OWNER.into(), Value::String("probe".into()));
+            next.props
+                .insert(LOG.into(), Value::StringArray(log_of(&node)));
             if let Err(e) = probe.write(&node, next, "probe").await {
                 if Backend::is_unsupported(&e) {
                     r.unsupported(&format!("backend cannot write a vertex property: {e}"));
@@ -236,7 +240,8 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             // client see version 0 and report lost updates that are its
             // own, not the store's.
             match probe.read(&keys[0]).await {
-                Ok(Some(after)) if after.props.get(OWNER) == Some(&Value::String("probe".into())) => {}
+                Ok(Some(after))
+                    if after.props.get(OWNER) == Some(&Value::String("probe".into())) => {}
                 Ok(Some(_)) => {
                     r.unsupported(&format!(
                         "a property written to {} is not read back by the adapter's get_node; A6 needs a get that returns properties",
@@ -246,7 +251,10 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                 }
                 Ok(None) => {
                     r.gates.lost_write += 1;
-                    r.notes.push(format!("{} vanished after a serial write", keys[0].as_str()));
+                    r.notes.push(format!(
+                        "{} vanished after a serial write",
+                        keys[0].as_str()
+                    ));
                     return r;
                 }
                 Err(e) => {
@@ -295,8 +303,12 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                 final_versions.insert(key.as_str().to_string(), version_of(&node));
                 final_lists.insert(key.as_str().to_string(), log_of(&node));
             }
-            Ok(None) => r.notes.push(format!("{}: missing at the final read", key.as_str())),
-            Err(e) => r.notes.push(format!("{}: final read failed: {e}", key.as_str())),
+            Ok(None) => r
+                .notes
+                .push(format!("{}: missing at the final read", key.as_str())),
+            Err(e) => r
+                .notes
+                .push(format!("{}: final read failed: {e}", key.as_str())),
         }
     }
 
@@ -338,7 +350,11 @@ async fn phase<Op, F>(
 ) -> (Vec<Op>, Tally, hdrhistogram::Histogram<u64>)
 where
     Op: Send + 'static,
-    F: Fn(usize, Client, Arc<Barrier>) -> tokio::task::JoinHandle<(Vec<Op>, Tally, hdrhistogram::Histogram<u64>)>,
+    F: Fn(
+        usize,
+        Client,
+        Arc<Barrier>,
+    ) -> tokio::task::JoinHandle<(Vec<Op>, Tally, hdrhistogram::Histogram<u64>)>,
 {
     let barrier = Arc::new(Barrier::new(clients));
     let mut tasks = Vec::with_capacity(clients);
@@ -347,7 +363,8 @@ where
             Ok(client) => tasks.push(body(c, client, barrier.clone())),
             Err(e) => {
                 r.gates.oom_or_crash += 1;
-                r.notes.push(format!("client {c}: could not open a handle: {e}"));
+                r.notes
+                    .push(format!("client {c}: could not open a handle: {e}"));
             }
         }
     }
@@ -403,7 +420,8 @@ async fn register_phase(
                 let version = version_of(&read);
                 let mut next = read.clone();
                 next.props.insert(VERSION.into(), Value::Int(version + 1));
-                next.props.insert(OWNER.into(), Value::String(format!("c{c}")));
+                next.props
+                    .insert(OWNER.into(), Value::String(format!("c{c}")));
                 let t = Instant::now();
                 let outcome = client.write(&read, next, &format!("r-{c}-{seq}")).await;
                 record(&mut h, t.elapsed());

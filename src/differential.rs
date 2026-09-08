@@ -538,11 +538,21 @@ pub fn mentions_labels(cypher: &str) -> bool {
             .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == '`')
             .collect();
         let name = name.trim_matches('`');
-        let before = bytes[..at].iter().rev().find(|b| !b.is_ascii_whitespace()).copied();
+        let before = bytes[..at]
+            .iter()
+            .rev()
+            .find(|b| !b.is_ascii_whitespace())
+            .copied();
         // A label follows `(`, `[`, or an identifier; a map key or a
         // parameter does not.
-        let label_position = matches!(before, Some(b'(') | Some(b'[')) || before.is_some_and(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b')');
-        if label_position && !name.is_empty() && name != crate::dataset::NODE_LABEL && name != crate::dataset::EDGE_LABEL && !name.chars().all(|c| c.is_ascii_digit()) {
+        let label_position = matches!(before, Some(b'(') | Some(b'['))
+            || before.is_some_and(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b')');
+        if label_position
+            && !name.is_empty()
+            && name != crate::dataset::NODE_LABEL
+            && name != crate::dataset::EDGE_LABEL
+            && !name.chars().all(|c| c.is_ascii_digit())
+        {
             return true;
         }
         i = at + 1;
