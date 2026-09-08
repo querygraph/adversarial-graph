@@ -2547,3 +2547,12 @@ outcome classification, guard ownership and cancellation, offline
 launcher fixtures, adapter conformance, then profiling one setup cell —
 is the right one, and it puts the declared-cell shell fixtures this
 session paid eight defects to learn ahead of any more matrices.
+
+**§44 addendum (22:55 UTC).** Astra's A8 fix is merged: `06983e4` merges
+`982288e` into `main` without conflict, and the harness suite passes with
+its two new tests (`incomplete_or_failed_comparisons_never_pass`,
+`refusal_and_wrong_answer_keep_both_evidence_and_failure_headline`). The
+review document and its test log come with it under `docs/notes/` and
+`review-evidence/`. The harness revision has moved: **every host must
+rebuild before its next run**; quegee is rebuilt now, the others crawl and
+are rebuilt when next needed. No published row changes.
