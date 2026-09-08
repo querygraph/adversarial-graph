@@ -74,10 +74,10 @@ pub fn fixture() -> Graph {
 pub fn boundary_fixture(n: usize) -> Graph {
     let mut b = Graph::builder();
     for i in 0..n {
-        b.node("V", format!("v{i}")).prop("i", i as i64).finish();
+        let _ = b.node("V", format!("v{i}")).prop("i", i as i64).finish();
     }
     for i in 0..n {
-        b.edge("E", format!("v{i}"), format!("v{}", (i + 1) % n))
+        let _ = b.edge("E", format!("v{i}"), format!("v{}", (i + 1) % n))
             .id(format!("e{i}"))
             .finish();
     }
