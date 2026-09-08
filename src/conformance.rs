@@ -25,40 +25,47 @@ pub fn fixture() -> Graph {
     let mut b = Graph::builder();
     // Two labels, a mix of value types, a null, a missing property, Unicode,
     // and an id that needs escaping in most query languages.
-    b.node("Person", "p1")
+    let _ = b
+        .node("Person", "p1")
         .prop("name", "Ada")
         .prop("age", 36i64)
         .prop("active", true)
         .finish();
-    b.node("Person", "p2")
+    let _ = b
+        .node("Person", "p2")
         .prop("name", "Bjørn Ünïcode ✓")
         .prop("score", 2.5f64)
         .finish();
-    b.node("Person", "p3")
+    let _ = b
+        .node("Person", "p3")
         .prop("name", "Cy")
         .prop("note", Value::Null)
         .finish();
-    b.node("Company", "c1")
+    let _ = b
+        .node("Company", "c1")
         .prop("name", "O'Reilly \"Quotes\" & Co")
         .finish();
-    b.node("Company", "it's/odd id")
+    let _ = b
+        .node("Company", "it's/odd id")
         .prop("name", "escaped")
         .finish();
     // An isolated vertex: no edges at all.
-    b.node("Person", "isolated").finish();
+    let _ = b.node("Person", "isolated").finish();
     // A self-loop, parallel edges with distinct ids, and cross-label edges.
-    b.edge("KNOWS", "p1", "p1").id("loop").finish();
-    b.edge("KNOWS", "p1", "p2")
+    let _ = b.edge("KNOWS", "p1", "p1").id("loop").finish();
+    let _ = b
+        .edge("KNOWS", "p1", "p2")
         .id("k12a")
         .prop("since", 2019i64)
         .finish();
-    b.edge("KNOWS", "p1", "p2")
+    let _ = b
+        .edge("KNOWS", "p1", "p2")
         .id("k12b")
         .prop("since", 2021i64)
         .finish();
-    b.edge("WORKS_AT", "p1", "c1").id("w1").finish();
-    b.edge("WORKS_AT", "p2", "it's/odd id").id("w2").finish();
-    b.edge("KNOWS", "p3", "p1").id("k31").finish();
+    let _ = b.edge("WORKS_AT", "p1", "c1").id("w1").finish();
+    let _ = b.edge("WORKS_AT", "p2", "it's/odd id").id("w2").finish();
+    let _ = b.edge("KNOWS", "p3", "p1").id("k31").finish();
     b.build()
 }
 

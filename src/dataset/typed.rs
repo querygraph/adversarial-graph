@@ -41,6 +41,22 @@ impl DatasetSchema {
         schema
     }
 
+    /// The SNAP shape from the loader's counts, as `of` would derive it
+    /// from the `Graph` the compact loader never builds.
+    pub fn untyped(stats: &super::LoadStats) -> Self {
+        let mut schema = Self {
+            node_labels: stats.node_labels.clone(),
+            relationship_labels: stats.relationship_labels.clone(),
+            dominant_relationship: None,
+        };
+        schema.dominant_relationship = schema
+            .relationship_labels
+            .iter()
+            .max_by(|a, b| a.1.cmp(b.1).then_with(|| b.0.cmp(a.0)))
+            .map(|(label, _)| label.clone());
+        schema
+    }
+
     /// One node label and one relationship type: the SNAP shape.
     pub fn is_untyped(&self) -> bool {
         self.node_labels.len() <= 1 && self.relationship_labels.len() <= 1

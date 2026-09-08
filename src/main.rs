@@ -9,6 +9,7 @@
 #[cfg(feature = "age")]
 mod age;
 mod backends;
+mod compact;
 mod conformance;
 mod dataset;
 mod differential;
@@ -231,9 +232,33 @@ async fn run(root: &Path, args: &Args) {
         let limit = args
             .limit_edges
             .or(if args.smoke { Some(200_000) } else { None });
-        eprintln!("== loading {dataset_name} ({})", path.display());
+        // The compact reference (§46): a SNAP tier whose parsed `Graph`
+        // would not fit the host is parsed into a CSR instead and fed to the
+        // store in chunks. Decided by the manifest's file size against
+        // AG_COMPACT_ABOVE_MB (default 200, so soc-LiveJournal1 and above),
+        // or forced either way with AG_COMPACT=1|0.
+        let compact = match std::env::var("AG_COMPACT").ok().as_deref() {
+            Some("1") => true,
+            Some("0") => false,
+            _ => {
+                let above_mb: u64 = std::env::var("AG_COMPACT_ABOVE_MB")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(200);
+                entry.bytes >= above_mb * 1024 * 1024
+            }
+        };
+        let chunk_edges: usize = std::env::var("AG_CHUNK_EDGES")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(5_000_000);
+        eprintln!(
+            "== loading {dataset_name} ({}){}",
+            path.display(),
+            if compact { " [compact reference]" } else { "" }
+        );
         let t = std::time::Instant::now();
-        let (graph, stats, schema) = match dataset::load_dataset(&path, limit) {
+        let (loaded, stats, schema) = match dataset::load_dataset(&path, limit, compact) {
             Ok(v) => v,
             Err(e) => {
                 eprintln!("load failed: {e}");
@@ -280,9 +305,19 @@ async fn run(root: &Path, args: &Args) {
             "manifest": entry,
             "load": stats,
             "schema": schema,
+            "reference": loaded.reference_name(),
             "skipped_scenarios": skipped
         }));
-        let oracle = match Oracle::with_schema(&graph, schema) {
+        let (graph, compact_graph) = match &loaded {
+            dataset::LoadedGraph::Full(g) => (Some(g), None),
+            dataset::LoadedGraph::Compact(c) => (None, Some(c)),
+        };
+        let oracle = match (graph, compact_graph) {
+            (_, Some(c)) => Ok(Oracle::compact(c, schema)),
+            (Some(g), None) => Oracle::with_schema(g, schema),
+            (None, None) => unreachable!("a loaded dataset is full or compact"),
+        };
+        let oracle = match oracle {
             Ok(o) => o,
             Err(e) => {
                 eprintln!("oracle failed: {e}");
@@ -321,7 +356,20 @@ async fn run(root: &Path, args: &Args) {
             let t = std::time::Instant::now();
             let load_probe = probe::Probe::start(kind.container());
             let mut load_result = report::ScenarioResult::new("LOAD", kind.name(), dataset_name);
-            match backend.load(&graph).await {
+            let loaded_report = match (graph, compact_graph) {
+                (Some(g), _) => backend.load(g).await,
+                (None, Some(c)) => match backend.load_compact(c, chunk_edges).await {
+                    Ok((rep, chunks)) => {
+                        load_result.observe("reference", "compact");
+                        load_result.observe("load_chunks", chunks);
+                        load_result.observe("chunk_edges", chunk_edges);
+                        Ok(rep)
+                    }
+                    Err(e) => Err(e),
+                },
+                (None, None) => unreachable!(),
+            };
+            match loaded_report {
                 Ok(rep) => {
                     eprintln!(
                         "   loaded {} nodes / {} edges in {:?}",
@@ -381,7 +429,8 @@ async fn run(root: &Path, args: &Args) {
                 let ctx = Ctx {
                     dataset: dataset_name,
                     format: &format,
-                    graph: &graph,
+                    graph,
+                    compact: compact_graph,
                     oracle: &oracle,
                     backend: &backend,
                     smoke: args.smoke,

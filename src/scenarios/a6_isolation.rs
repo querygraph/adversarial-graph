@@ -174,7 +174,7 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         return r;
     }
     let keys: Vec<NodeId> = ctx
-        .graph
+        .typed_graph()
         .nodes
         .iter()
         .filter(|n| n.label.as_str() == KEY_LABEL)

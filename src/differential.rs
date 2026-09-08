@@ -391,7 +391,10 @@ mod tests {
         let path = std::path::Path::new(
             "datasets/social_network-sf0.1-CsvBasic-LongDateFormatter.tar.zst",
         );
-        let (graph, stats, _) = crate::dataset::load_dataset(path, Some(200_000)).unwrap();
+        let (loaded, stats, _) = crate::dataset::load_dataset(path, Some(200_000), false).unwrap();
+        let crate::dataset::LoadedGraph::Full(graph) = loaded else {
+            unreachable!("not compact")
+        };
         eprintln!("loaded {} nodes / {} edges", stats.nodes, stats.edges);
         let graph = Arc::new(graph);
         let index = grust::TypedGraphIndex::new(Arc::clone(&graph)).unwrap();

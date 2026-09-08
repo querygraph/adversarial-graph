@@ -19,7 +19,11 @@ pub struct Ctx<'a> {
     pub dataset: &'a str,
     /// The loader's format (`snap-edge-list`, `ldbc-snb-csvbasic`, …).
     pub format: &'a str,
-    pub graph: &'a grust::Graph,
+    /// The parsed graph, absent under the compact reference (SNAP tiers
+    /// above the host's `Graph` budget); the typed families require it.
+    pub graph: Option<&'a grust::Graph>,
+    /// The compact reference when `graph` is absent.
+    pub compact: Option<&'a crate::compact::CompactGraph>,
     pub oracle: &'a Oracle<'a>,
     pub backend: &'a Backend,
     pub smoke: bool,
@@ -27,6 +31,39 @@ pub struct Ctx<'a> {
     /// process: later families that read the hub add it to the oracle
     /// degree instead of counting accepted writes as wrong answers.
     pub hub_writes: &'a AtomicUsize,
+}
+
+impl Ctx<'_> {
+    /// The parsed graph for a typed family, which only runs on typed
+    /// datasets and those always materialize (`dataset::load_dataset`).
+    pub fn typed_graph(&self) -> &grust::Graph {
+        self.graph
+            .expect("typed families run over materialized typed datasets")
+    }
+
+    /// A `Graph` for the reference executor's policy checks: the memory
+    /// store's whole graph, or under the compact reference a prefix of at
+    /// most `max_edges` edges with the vertices they touch (the policy
+    /// refusals are decided on the query, not the data). The second
+    /// element names which, for the row.
+    pub fn policy_graph(
+        &self,
+        memory: &grust::MemoryGraphStore,
+        max_edges: usize,
+    ) -> (grust::Graph, String) {
+        match self.compact {
+            Some(compact) => {
+                let g = compact.prefix_subgraph(max_edges);
+                let name = format!(
+                    "prefix-subgraph({} nodes, {} edges)",
+                    g.nodes.len(),
+                    g.edges.len()
+                );
+                (g, name)
+            }
+            None => (memory.graph(), "memory-store".to_string()),
+        }
+    }
 }
 
 pub fn all() -> &'static [&'static str] {

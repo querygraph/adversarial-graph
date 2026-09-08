@@ -109,7 +109,10 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         return r;
     }
     let want = if ctx.smoke { 1 } else { 3 };
-    let trees: Vec<Tree> = reply_trees(ctx.graph).into_iter().take(want).collect();
+    let trees: Vec<Tree> = reply_trees(ctx.typed_graph())
+        .into_iter()
+        .take(want)
+        .collect();
     if trees.is_empty() {
         r.unsupported("no post with replies in the loaded slice");
         return r;
@@ -149,7 +152,7 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     // Survivors to check afterwards: creators of and likers of every deleted
     // message, with the out-degree the oracle expects once the tree is gone.
     let mut survivors: BTreeMap<NodeId, usize> = BTreeMap::new();
-    for edge in &ctx.graph.edges {
+    for edge in &ctx.typed_graph().edges {
         let candidate = if edge.label.as_str() == HAS_CREATOR && deleted.contains(&edge.from) {
             Some(&edge.to)
         } else if edge.label.as_str() == LIKES && deleted.contains(&edge.to) {
@@ -163,7 +166,7 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             survivors.entry(id.clone()).or_insert(0);
         }
     }
-    for edge in &ctx.graph.edges {
+    for edge in &ctx.typed_graph().edges {
         if let Some(expected) = survivors.get_mut(&edge.from)
             && !deleted.contains(&edge.to)
         {

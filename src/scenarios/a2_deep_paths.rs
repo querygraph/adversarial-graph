@@ -10,12 +10,16 @@ use grust::{CypherParameters, ReadQueryPolicy, run_bounded_read_query};
 use super::Ctx;
 use crate::report::{Latency, ScenarioResult, histogram, record};
 
+/// Edges of the prefix subgraph the policy half reads under the compact
+/// reference (see `Ctx::policy_graph`).
+pub const POLICY_GRAPH_EDGES: usize = 1_000_000;
+
 pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     let mut r = ScenarioResult::new("A2", ctx.backend.kind.name(), ctx.dataset);
     let depth = if ctx.smoke { 8 } else { 50 };
     // Start from the lowest-id vertex: deterministic and, on road graphs,
     // usually far from a hub.
-    let start = ctx.graph.nodes[0].id.clone();
+    let start = ctx.oracle.first_vertex();
     let (expected_reached, expected_deepest) = ctx.oracle.bfs_depth(&start, depth);
     r.observe("start", start.as_str());
     r.observe("depth", depth);
@@ -57,7 +61,8 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     // refused quickly by the bounded reference executor. Only the memory
     // backend can hand the executor a materialized graph.
     if let Some(memory) = &ctx.backend.memory {
-        let graph = memory.graph();
+        let (graph, policy_graph) = ctx.policy_graph(memory, POLICY_GRAPH_EDGES);
+        r.observe("policy_graph", policy_graph);
         let policy = ReadQueryPolicy::default();
         let query = format!(
             "MATCH (a:V {{id: '{}'}})-[:E*1..200]->(b:V) RETURN count(b)",

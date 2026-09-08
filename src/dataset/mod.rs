@@ -60,27 +60,55 @@ impl DatasetFormat {
     }
 }
 
+/// What a loader produced: the parsed `Graph`, or the compact reference
+/// for a SNAP tier whose `Graph` would not fit the host (`crate::compact`).
+pub enum LoadedGraph {
+    Full(Graph),
+    Compact(crate::compact::CompactGraph),
+}
+
+impl LoadedGraph {
+    pub fn reference_name(&self) -> &'static str {
+        match self {
+            Self::Full(_) => "materialized",
+            Self::Compact(_) => "compact",
+        }
+    }
+}
+
 /// Load a dataset by its manifest file name, dispatching on the format.
+/// `compact` asks for the compact reference; only the SNAP loader has one,
+/// the typed loaders always materialize.
 pub fn load_dataset(
     path: &Path,
     limit: Option<usize>,
-) -> std::io::Result<(Graph, LoadStats, DatasetSchema)> {
+    compact: bool,
+) -> std::io::Result<(LoadedGraph, LoadStats, DatasetSchema)> {
     let file = path
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or_default();
     match DatasetFormat::of(file) {
+        DatasetFormat::Snap if compact => {
+            let (graph, stats) = crate::compact::load_snap_compact(path, limit)?;
+            let schema = DatasetSchema::untyped(&stats);
+            Ok((LoadedGraph::Compact(graph), stats, schema))
+        }
         DatasetFormat::Snap => {
             let (graph, stats) = load_snap_edge_list(path, limit)?;
             let schema = DatasetSchema::of(&graph);
-            Ok((graph, stats, schema))
+            Ok((LoadedGraph::Full(graph), stats, schema))
         }
-        DatasetFormat::LdbcSnbCsvBasic => snb::load(path, limit),
-        DatasetFormat::IcijOffshoreLeaks => icij::load(path, limit),
+        DatasetFormat::LdbcSnbCsvBasic => {
+            snb::load(path, limit).map(|(g, s, d)| (LoadedGraph::Full(g), s, d))
+        }
+        DatasetFormat::IcijOffshoreLeaks => {
+            icij::load(path, limit).map(|(g, s, d)| (LoadedGraph::Full(g), s, d))
+        }
     }
 }
 
-fn open_maybe_gz(path: &Path) -> std::io::Result<Box<dyn Read>> {
+pub fn open_maybe_gz(path: &Path) -> std::io::Result<Box<dyn Read>> {
     let file = File::open(path)?;
     if path.extension().is_some_and(|e| e == "gz") {
         Ok(Box::new(GzDecoder::new(file)))

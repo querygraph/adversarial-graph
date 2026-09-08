@@ -246,6 +246,9 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         total_unsupported += unsupported;
         total_sent += sent;
     }
+    r.observe("total_sent", total_sent);
+    r.observe("total_errors", total_errors);
+    r.observe("total_unsupported", total_unsupported);
     r.latency = Some(Latency::from_histogram(&merged_service));
     // Unsupported only when every request the stream sent was refused --
     // not merely every error. A mix of refusals and answers is a partial

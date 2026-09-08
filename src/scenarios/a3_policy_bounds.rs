@@ -42,7 +42,8 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         );
         return r;
     };
-    let graph = memory.graph();
+    let (graph, policy_graph) = ctx.policy_graph(memory, super::a2_deep_paths::POLICY_GRAPH_EDGES);
+    r.observe("policy_graph", policy_graph);
     let policy = ReadQueryPolicy::default();
     let deadline = policy.max_execution_time * 3;
     let mut h = histogram();

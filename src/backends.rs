@@ -721,6 +721,30 @@ impl Backend {
         self.store.put_graph(graph).await
     }
 
+    /// Load the compact reference through the same `put_graph` path, as
+    /// transient `Graph`s of at most `chunk_edges` edges: every vertex
+    /// first (a store may require an edge's endpoints to exist), then the
+    /// edges in CSR order. Returns the summed report and the chunk count.
+    pub async fn load_compact(
+        &self,
+        graph: &crate::compact::CompactGraph,
+        chunk_edges: usize,
+    ) -> grust::Result<(grust::LoadReport, usize)> {
+        let mut report = grust::LoadReport::default();
+        let mut chunks = 0usize;
+        for chunk in graph.node_chunks(chunk_edges) {
+            let rep = self.load(&chunk).await?;
+            report.nodes += rep.nodes;
+            chunks += 1;
+        }
+        for chunk in graph.edge_chunks(chunk_edges) {
+            let rep = self.load(&chunk).await?;
+            report.edges += rep.edges;
+            chunks += 1;
+        }
+        Ok((report, chunks))
+    }
+
     /// Distinct vertices reached by exactly `k` out-hops from `start`
     /// (union of layers 1..=k, excluding `start`), computed with the
     /// portable traversal IR one hop at a time so the answer does not depend
