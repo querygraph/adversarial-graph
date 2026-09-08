@@ -12,13 +12,34 @@ CAP=7200; DATASETS="wiki-Talk,roadNet-CA,web-Google,cit-Patents,soc-LiveJournal1
 while [ $# -gt 0 ]; do case "$1" in --cap) CAP=$2; shift 2;; --datasets) DATASETS=$2; shift 2;; *) break;; esac; done
 BACKENDS=("$@"); [ ${#BACKENDS[@]} -eq 0 ] && BACKENDS=(memory turso-wal turso-mvcc postgres neo4j neo4j-http falkor lancedb)
 service_for() { case "$1" in postgres) echo postgres;; surreal-*) echo surreal;; falkor) echo falkor;; helix-*) echo helix;; neo4j*) echo neo4j;; memgraph) echo memgraph;; age) echo age;; *) echo "";; esac; }
-wait_ready() { case "$1" in
-  postgres) until docker compose exec -T postgres pg_isready -U postgres -d graph >/dev/null 2>&1; do sleep 1; done;;
-  falkor) until docker compose exec -T falkor redis-cli ping 2>/dev/null | grep -q PONG; do sleep 1; done;;
-  neo4j) until curl -sf -m 2 http://127.0.0.1:17474 >/dev/null; do sleep 2; done; sleep 5;;
-  memgraph) until echo 'RETURN 1;' | docker compose exec -T memgraph mgconsole >/dev/null 2>&1; do sleep 1; done;;
-  age) until docker compose exec -T age pg_isready -U postgres -d graph >/dev/null 2>&1; do sleep 1; done;;
+# A service that never becomes ready is a recorded failure of the pair, not
+# a ladder that waits forever: every probe runs under AG_READY_TIMEOUT
+# (default 600 s) and a miss is logged with the service and the deadline.
+READY_TIMEOUT="${AG_READY_TIMEOUT:-600}"
+ready_probe() { case "$1" in
+  postgres) docker compose exec -T postgres pg_isready -U postgres -d graph >/dev/null 2>&1;;
+  falkor) docker compose exec -T falkor redis-cli ping 2>/dev/null | grep -q PONG;;
+  neo4j) curl -sf -m 2 http://127.0.0.1:17474 >/dev/null;;
+  memgraph) echo 'RETURN 1;' | docker compose exec -T memgraph mgconsole >/dev/null 2>&1;;
+  age) docker compose exec -T age pg_isready -U postgres -d graph >/dev/null 2>&1;;
+  surreal) curl -sf -m 2 http://127.0.0.1:18000/health >/dev/null 2>&1;;
+  helix) curl -sf -m 2 http://127.0.0.1:16969/ >/dev/null 2>&1;;
+  *) return 0;;
 esac; }
+wait_ready() { # $1 = compose service; returns 1 and logs on deadline
+  local deadline=$(( $(date +%s) + READY_TIMEOUT ))
+  until ready_probe "$1"; do
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      echo "## $1: not ready after ${READY_TIMEOUT}s at $(date -u +%H:%M:%SZ); the pair is not started"; return 1
+    fi
+    sleep 1
+  done
+  [ "$1" = neo4j ] && sleep 5
+  return 0
+}
+# Whatever ends the ladder -- a cap, a guard, a signal, an error under
+# set -e -- the store containers it started are stopped.
+trap 'docker compose --profile external stop >/dev/null 2>&1 || true' EXIT
 IFS=, read -ra DS <<<"$DATASETS"
 # Host memory guard. A run whose resident set passes AG_RSS_LIMIT_GB, or
 # that leaves the host with less than AG_MEM_AVAILABLE_MIN_GB of available
@@ -89,13 +110,15 @@ wait_for_window() { # $1 = the backend's compose service, stopped while waiting
       local a b as bs
       a=${w%-*}; b=${w#*-}
       as=$(( 10#${a%:*} * 3600 + 10#${a#*:} * 60 )); bs=$(( 10#${b%:*} * 3600 + 10#${b#*:} * 60 ))
-      # A window later today that the pair would still be inside, or one we
-      # are in right now; windows are compared on the same day (they are
-      # short and never span midnight).
-      if { [ "$start_s" -ge "$as" ] && [ "$start_s" -lt "$bs" ]; } || { [ "$as" -ge "$start_s" ] && [ "$as" -lt "$cap_end" ]; }; then blocked="$w"; break; fi
+      # A window we are in right now, one later today that the pair's cap
+      # would still be running into, or -- when the cap crosses midnight --
+      # tomorrow's occurrence of the same window.
+      if { [ "$start_s" -ge "$as" ] && [ "$start_s" -lt "$bs" ]; } \
+         || { [ "$as" -ge "$start_s" ] && [ "$as" -lt "$cap_end" ]; } \
+         || { [ "$cap_end" -gt 86400 ] && [ $(( as + 86400 )) -lt "$cap_end" ]; }; then blocked="$w"; break; fi
     done
     if [ -z "$blocked" ]; then
-      if [ -n "$waited" ] && [ -n "${1:-}" ]; then docker compose --profile external up -d "$1" >/dev/null 2>&1; wait_ready "$1"; fi
+      if [ -n "$waited" ] && [ -n "${1:-}" ]; then docker compose --profile external up -d "$1" >/dev/null 2>&1; wait_ready "$1" || return 1; fi
       return 0
     fi
     if [ -z "$waited" ] && [ -n "${1:-}" ]; then docker compose --profile external stop "$1" >/dev/null 2>&1; fi
@@ -108,7 +131,10 @@ wait_for_window() { # $1 = the backend's compose service, stopped while waiting
 }
 for b in "${BACKENDS[@]}"; do
   svc=$(service_for "$b")
-  if [ -n "$svc" ]; then echo "## $b: starting $svc"; docker compose --profile external up -d "$svc" >/dev/null 2>&1; wait_ready "$svc"; fi
+  if [ -n "$svc" ]; then
+    echo "## $b: starting $svc"; docker compose --profile external up -d "$svc" >/dev/null 2>&1
+    if ! wait_ready "$svc"; then echo "## $b: skipped, service never became ready; no bundle"; docker compose --profile external stop "$svc" >/dev/null 2>&1 || true; continue; fi
+  fi
   for d in "${DS[@]}"; do
     wait_for_window "$svc"
     echo "## $b $d: start $(date -u +%H:%M:%SZ)"

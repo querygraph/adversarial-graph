@@ -21,7 +21,8 @@
 ## Working rules
 
 - The harness depends on published `grust-graph` crates and on Grust internal
-  adapters pinned to a release tag by a `git` dependency; never on a local
+  adapters pinned to one Grust commit by `rev`, every pin moved together and
+  the internal crates patched to the same commit; never on a local
   Grust checkout.
 - Results are generated (`scripts/render-results.py`), never hand-edited;
   site evidence is frozen by `scripts/bundle-site-evidence.py` and verified

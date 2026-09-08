@@ -17,6 +17,13 @@ use crate::differential::{oracle, queries_for, schema_of};
 use crate::report::{Latency, ScenarioResult, histogram, record};
 
 const QUERY_BUDGET: Duration = Duration::from_secs(120);
+/// How long a timed-out reference task is given to return before the cell
+/// ends as unable to prove quiescence.
+const REAP_GRACE: Duration = Duration::from_secs(10);
+const _: () = assert!(
+    QUERY_BUDGET.as_secs() == crate::differential::IN_PROCESS_BUDGET.as_secs(),
+    "the reference executor's cooperative deadline must equal the A8 query budget"
+);
 
 #[derive(serde::Serialize)]
 struct QueryRecord {
@@ -75,15 +82,36 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         // The oracle gets the same budget as the store: the reference executor
         // is not a measurement, but a shape it cannot answer in the budget is
         // not comparable either, and is recorded as such rather than waited on.
+        // The reference executor runs under its own cooperative deadline
+        // (`in_process_policy().max_execution_time`, equal to QUERY_BUDGET),
+        // so a timed-out task stops itself shortly after the outer timeout
+        // fires. It is nevertheless reaped here before the next query: a
+        // blocking task keeps its thread, the graph and the CPU until it
+        // returns, and a cell may not start its next observation with the
+        // last one still running. A task that will not return within the
+        // grace ends the cell -- quiescence cannot be proven.
         let oracle_answer = {
             let graph = Arc::clone(&graph);
             let index = Arc::clone(&index);
             let cypher = spec.cypher.clone();
-            tokio::time::timeout(
-                QUERY_BUDGET,
-                tokio::task::spawn_blocking(move || oracle(&graph, &index, &cypher)),
-            )
-            .await
+            let mut task = tokio::task::spawn_blocking(move || oracle(&graph, &index, &cypher));
+            match tokio::time::timeout(QUERY_BUDGET, &mut task).await {
+                Ok(joined) => Ok(joined),
+                Err(elapsed) => match tokio::time::timeout(REAP_GRACE, &mut task).await {
+                    Ok(_) => Err(elapsed),
+                    Err(_) => {
+                        r.gates.hang_or_timeout_without_refusal += 1;
+                        r.notes.push(format!(
+                                "the reference executor did not stop within {}s of its {}s budget on {}; the cell ends because quiescence cannot be proven",
+                                REAP_GRACE.as_secs(), QUERY_BUDGET.as_secs(), spec.id
+                            ));
+                        account_query_outcomes(&mut r, errors, timeouts + 1, reference_unsupported);
+                        r.observe("queries", records.len());
+                        r.finish();
+                        return r;
+                    }
+                },
+            }
         };
         let expected = match oracle_answer {
             Ok(Ok(Ok((table, _)))) => table.normalized(spec.ordered),

@@ -28,7 +28,7 @@ any hard gate fires.
 
 The harness depends on the published `grust-graph` 0.13.0 crates, plus
 Grust's two unpublished internal adapters (`grust-helix`, `grust-ladybug`)
-pinned to the same release tag by a `git` dependency; it never reads a Grust
+pinned to one Grust commit by `rev` (with the internal adapter crates patched to that same commit, so one `grust-core` serves both sides); it never reads a Grust
 checkout. Additional backends are feature-gated
 (`--features postgres,surreal,falkor,lancedb,helix,ladybug,neo4j,age`) and reach
 their services through the digest-pinned `compose.yaml`. Systems with both an

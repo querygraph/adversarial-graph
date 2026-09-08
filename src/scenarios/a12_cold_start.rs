@@ -101,6 +101,7 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     let mut merged_service = histogram();
     let mut total_errors = 0u64;
     let mut total_unsupported = 0u64;
+    let mut total_sent = 0u64;
     for rate in RATES {
         let interval = Duration::from_nanos(1_000_000_000 / rate);
         let semaphore = Arc::new(Semaphore::new(HANDLES));
@@ -109,10 +110,16 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Burst);
         let mut tasks = Vec::new();
         let mut sent = 0u64;
+        let mut offered = 0u64;
+        let mut dropped = 0u64;
         let mut in_flight_max = 0usize;
         while start.elapsed() < duration {
             ticker.tick().await;
-            let scheduled = Instant::now();
+            // The intended arrival is the schedule's, not the moment the
+            // producer got round to it: under saturation the two drift apart,
+            // and the drift is exactly the queueing this cell exists to see.
+            let scheduled = start + interval * (offered as u32);
+            offered += 1;
             let vertex = if sent % 50 == 0 {
                 hub.clone()
             } else {
@@ -123,7 +130,16 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             } else {
                 ctx.oracle.out_degree(&vertex)
             };
-            let permit = semaphore.clone().acquire_owned().await.expect("semaphore");
+            // Admission never blocks the producer. A request that finds no
+            // handle free is offered work the service could not admit, and is
+            // counted as dropped rather than silently deferring the schedule.
+            let permit = match semaphore.clone().try_acquire_owned() {
+                Ok(permit) => permit,
+                Err(_) => {
+                    dropped += 1;
+                    continue;
+                }
+            };
             let in_flight = HANDLES - semaphore.available_permits();
             in_flight_max = in_flight_max.max(in_flight);
             let store = handles[(sent as usize) % HANDLES].clone();
@@ -194,6 +210,8 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         let (s50, s99, s999, smax) = quantiles(&service);
         let (r50, r99, r999, rmax) = quantiles(&response);
         let prefix = format!("stream_{rate}rps");
+        r.observe(&format!("{prefix}_offered"), offered);
+        r.observe(&format!("{prefix}_dropped"), dropped);
         r.observe(&format!("{prefix}_sent"), sent);
         r.observe(
             &format!("{prefix}_achieved_rps"),
@@ -217,15 +235,22 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             ));
         }
         if errors > 0 {
+            // An errored request is a failed request. Refusals are separated
+            // below; everything else is the store failing under the stream.
+            r.gates.oom_or_crash += errors - unsupported.min(errors);
             r.notes.push(format!(
                 "{errors} errored requests in the {rate} rps stream"
             ));
         }
         total_errors += errors;
         total_unsupported += unsupported;
+        total_sent += sent;
     }
     r.latency = Some(Latency::from_histogram(&merged_service));
-    if total_errors > 0 && total_unsupported == total_errors {
+    // Unsupported only when every request the stream sent was refused --
+    // not merely every error. A mix of refusals and answers is a partial
+    // capability, and the answers stand.
+    if total_sent > 0 && total_unsupported == total_sent {
         // Every request was refused as unsupported: the stream measured
         // nothing, and that is not a pass.
         r.unsupported(
