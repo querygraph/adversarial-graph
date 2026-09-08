@@ -1,8 +1,8 @@
 //! `ag` — GRAPH-ADVERSARIAL-v1 harness CLI.
 //!
 //!   ag run [--dataset NAME,...] [--backend NAME,...] [--scenario A1,...]
-//!   ag conformance --backends a,b   # typed multigraph read-back through each adapter; exit 1 on any FAIL
 //!          [--smoke] [--limit-edges N] [--out DIR]
+//!   ag conformance --backend a,b     typed multigraph read-back through each adapter; exit 1 on any FAIL
 //!   ag datasets                  list the datasets in datasets/MANIFEST.json
 //!   ag backends                  list built-in backends
 
@@ -74,9 +74,15 @@ fn parse_args() -> Args {
     while let Some(flag) = argv.next() {
         let mut value = || argv.next().unwrap_or_else(|| usage());
         match flag.as_str() {
-            "--dataset" => args.datasets = value().split(',').map(String::from).collect(),
-            "--backend" => args.backends = value().split(',').map(String::from).collect(),
-            "--scenario" => args.scenarios = value().split(',').map(String::from).collect(),
+            "--dataset" | "--datasets" => {
+                args.datasets = value().split(',').map(String::from).collect()
+            }
+            "--backend" | "--backends" => {
+                args.backends = value().split(',').map(String::from).collect()
+            }
+            "--scenario" | "--scenarios" => {
+                args.scenarios = value().split(',').map(String::from).collect()
+            }
             "--limit-edges" => args.limit_edges = value().parse().ok(),
             "--out" => args.out = PathBuf::from(value()),
             "--smoke" => args.smoke = true,
@@ -252,11 +258,7 @@ async fn run(root: &Path, args: &Args) {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(5_000_000);
-        eprintln!(
-            "== loading {dataset_name} ({}){}",
-            path.display(),
-            if compact { " [compact reference]" } else { "" }
-        );
+        eprintln!("== loading {dataset_name} ({})", path.display());
         let t = std::time::Instant::now();
         let (loaded, stats, schema) = match dataset::load_dataset(&path, limit, compact) {
             Ok(v) => v,
@@ -273,10 +275,11 @@ async fn run(root: &Path, args: &Args) {
         };
         rss_line("after-graph");
         eprintln!(
-            "   {} nodes, {} edges in {:?}{}",
+            "   {} nodes, {} edges in {:?} [{} reference]{}",
             stats.nodes,
             stats.edges,
             t.elapsed(),
+            loaded.reference_name(),
             if schema.is_untyped() {
                 String::new()
             } else {
