@@ -2425,3 +2425,65 @@ visible, and this audit is on record. The remaining engineering that
 would widen coverage is in the small-batch HTTP adapters (surreal and
 helix at 100 rows per request) and in caching LanceDB's table handle;
 both are improvements to measure, not defects to hide.
+
+## 43. The SF0.3 matrix at 16 GiB: every cell fits, and what that actually measures (2026-09-08 22:10 UTC)
+
+**Run**: quegee (c5n.4xlarge, 40 GB), 17:07–21:47 UTC, grust `29fd384`,
+`BENCHMARK_MEMORY_LIMIT_BYTES` = 16 GiB per container, HN shard paused
+and page cache dropped first. `out/matrix-sf0.3-w2r10-29fd384-quegee-16gib`.
+**24 components, no declaration, both matrices `complete: true`, receipt
+issued** (`49d8d948…`). The first SF0.3 matrix in which every cell wrote
+its own report.
+
+The receipt was issued by hand after the run, and the ledger should say
+so: the launcher's own attempt was refused for an empty `terminations/`
+directory (my eighth defect in this path; fixed in `d8f7ca0`), and since
+the validator pins the repository `HEAD` to the measured revision, the
+corrected tool was run from a copy against the repository detached at
+`29fd384`, clean, then `verify` was run and the checkout restored. The
+receipt records the revision that measured; the tool that blessed it is
+eight commits newer, as any operator's would be after a validator fix.
+The site's verifier re-validates independently in any case.
+
+**What 16 GiB bought.** The three cells that were declared or marginal
+at 6 GiB — memory, turso, postgres — all pass in both suites. Nothing
+else changed: the six `unsupported` cells are still policy refusals, sail
+still has no service, cocoindex is still not a query backend, and
+**FalkorDB still terminates with `backend.quiescence-unproven` in both
+suites** — so that is a cancellation-proof finding about FalkorDB at
+SF0.3, independent of memory, and it keeps `suite_valid` false in both.
+
+**What the three measured cells actually show.** Baseline medians, in
+seconds, q1 to q9:
+
+| backend | q1 | q2 | q3 | q4 | q5 | q6 | q7 | q8 | q9 |
+|---|---|---|---|---|---|---|---|---|---|
+| memory | 0.2 | 0.6 | 0.0 | 0.5 | 0.5 | 0.0 | 0.5 | 0.5 | 0.1 |
+| turso | 0.2 | 0.6 | 0.0 | 0.5 | 0.4 | 0.0 | 0.5 | 0.4 | 0.1 |
+| postgres | 0.2 | 0.7 | 0.0 | 0.5 | 0.4 | 0.0 | 0.5 | 0.4 | 0.1 |
+
+They are the same numbers, and they should be: all three run Grust's
+`count-factorized` plan over a resident index built from the store's
+contents outside the query boundary. The store supplies the rows once;
+the query is then the plan's, not the store's. **At SF0.3 the LSQB
+matrix measures Grust's resident-index plan three times, and the
+backends differ only in how fast they can be read into it.** That is
+worth knowing before anyone reads the three rows as a comparison of
+three stores. The one backend that answers natively at this scale is
+FalkorDB, and it does not finish.
+
+For contrast, the native Neo4j SF0.3 lane (§34, a separate cohort on a
+different host and protocol, not comparable as a series) has q1 at
+4.36 s, q4 at 6.60 s and q9 at 19.17 s against the same oracle: the
+resident-index plan answers the same counts one to two orders of
+magnitude faster than the engine executing the Cypher itself. That
+comparison is the actual content of the SF0.3 result, and it is a
+statement about a query plan, not about any vendor.
+
+**Site admission needs the user.** Admitting this cohort means writing
+the site's first SF0.3 outcome contract (`SCALE_SETUP_STATES['0.3']`)
+and adding a 16 GiB cohort to a verifier family that hardcodes
+6,442,450,944 in three places (SDK, Sail, native). The contract is now
+writable from cells that fit rather than ones on the boundary, which is
+what §41 asked for; the budget is a new cohort by construction and must
+be declared as one. Both are the user's decisions.
