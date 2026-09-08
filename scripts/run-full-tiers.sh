@@ -118,9 +118,14 @@ for b in "${BACKENDS[@]}"; do
     # the larger tiers. Only a run that never reached its final write (cap,
     # host guard, crash) stops the climb.
     pairlog=$(mktemp -t ag-pair.XXXXXX)
-    timeout "$CAP" ./target/release/ag run --dataset "$d" --backend "$b" --out reports 2>&1 | tee "$pairlog" &
+    # No pipeline here: with `| tee` the pid in $! was tee's, so a guard that
+    # walks down from the pair it was handed found no `ag` at all. The pair
+    # writes its own log and the ladder echoes it after; the guard is handed
+    # `timeout`, whose child is the harness.
+    timeout "$CAP" ./target/release/ag run --dataset "$d" --backend "$b" --out reports >"$pairlog" 2>&1 &
     run=$!; guard "$run" & g=$!
     rc=0; wait "$run" || rc=$?; kill "$g" 2>/dev/null || true # neither a failing pair nor an already-exited guard may end the ladder
+    cat "$pairlog"
     if grep -q "^== report:" "$pairlog"; then
       echo "## $b $d: done $(date -u +%H:%M:%SZ) (exit $rc; gates are in the bundle)"
     else
