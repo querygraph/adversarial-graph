@@ -2081,3 +2081,89 @@ keeping 6 GiB with declarations, implementing §32's memory-bounded route
 so the plan degrades inside the budget, or re-running the cohort at a
 declared larger budget. That choice belongs to the user, with the
 ladder's numbers in hand.
+
+## 38. The LanceDB write path lands in the measured stack; Turso's cell needs 12 GiB; the envelope asymmetry is named (2026-09-08 01:10 UTC)
+
+**The LanceDB bulk-load fix is measured, not asserted.** §36 item 4a was a
+hypothesis; it is now a controlled result. On one host (eigen, 31 GB),
+the same wiki-Talk graph and the same guard, with only the adapter
+differing:
+
+| | old adapter | with the fix |
+|---|---|---|
+| LOAD | 7,825 s | **21.98 s** |
+| peak client resident set | **30 GB, killed by the guard, no bundle** | **10.5 GB** |
+
+The old code loaded in 3,442 s on the laptop and 7,825 s here, so the
+fix's 22 s stands against the harder host, not the easier one. Reading
+the adapter showed the cause was worse than §36 guessed: each 500-row
+chunk was two `merge_insert` writes into *freshly opened* tables, so a
+5 M-edge graph was about twenty thousand writes and twenty thousand
+table opens, each reading and retaining a manifest. `put_graph` now uses
+its own `bulk_batch_size` (50,000), opens each table once, and compacts
+what it touched (grust `70aaeb0`).
+
+**The harness pin moved** (`d4427d2`) to grust `5253132`. The only crate
+that differs from the old pin is `grust-lancedb`, so what changes in a
+run is the LanceDB write path and nothing else. `grust-lancedb` had to
+join `[patch.crates-io]`: the published `grust-graph` otherwise resolves
+it from the registry and two `grust-core` versions collide. **Every host
+needs a rebuild before its next run.** Both probe copies used to measure
+this had their `.git` removed, so their bundles carry
+`harness_revision: unknown` and the bundler refuses them structurally;
+neither can become a row.
+
+**Turso's SF0.3 cell needs 12 GiB**, measured, not argued:
+
+| budget | turso | postgres |
+|---|---|---|
+| 6 GiB | `cell.memory-exceeded`, 544 s | `cell.memory-exceeded`, 1,003 s |
+| 8 GiB | `cell.memory-exceeded`, 597 s | running |
+| 12 GiB | **finished, 922 s** | |
+
+Against a serialized resident index of 1.05 GB. The gap is the plan's
+peak working set while it builds, which is what a declaration alone
+could never tell you. PostgreSQL's first sequence measured nothing: its
+attempt lost the host CPU preflight to a leftover process and the
+sequencer recorded `no-cell` and abandoned the backend, treating a busy
+host as a result. Fixed in grust `b7955a9` — settle between attempts,
+retry a preflight failure up to five times, and actually stop at the
+first budget that finishes, which the loop had not been doing.
+
+**The envelope asymmetry, named.** The per-container budget is not one
+envelope across the strain ladder. A containerized store runs in its own
+container at 8 CPUs and 6 GiB with swap disabled; an embedded store runs
+*inside the harness client*, a native host process bounded only by that
+host's resident-set guard. So the ledger carries Memgraph's
+soc-LiveJournal1 load failing at its 5,120 MB inside 6 GiB on the same
+page as the memory backend loading a larger graph, com-Orkut, at 28.9 GB
+resident. Both numbers are exact and each row records its own shape, but
+they are not one comparison, and the quegee block now says so
+(`adversarial-site` `502aed9`). That is a description of rows already
+published; it changes no measurement.
+
+**This is the open question for the next session, and it belongs to the
+user**: the asymmetry is arguably a bigger problem than the 6 GiB number
+itself, because it is silent rather than declared. Three answers are on
+the table, none taken: state it and leave the rows as they are; give the
+embedded stores a declared budget too (a cgroup around the client), which
+makes the ladder one envelope but invalidates comparison with every
+published cohort; or keep two envelopes and say so in every place the
+rows can be read side by side. §32's own choice — keep 6 GiB with
+declarations, implement the memory-bounded route, or re-run at a declared
+larger budget — is downstream of it.
+
+**Running unattended while the user is away** (all detached, all guarded,
+no publication step among them):
+
+- quegee: LanceDB tiers on the fixed adapter, wiki-Talk (done, 21.1 s
+  load, zero gates) then roadNet-CA, web-Google, cit-Patents;
+- eigen: PostgreSQL's budget sequence, 6 to 24 GiB, inside its windows;
+- the grust box: the SF0.3 matrix again at grust `b7955a9`, the first run
+  whose reason code and abort behaviour are both correct, so it is a
+  publication candidate rather than a diagnostic;
+- lakecat: LanceDB tiers, which fit its 15 GiB for the first time.
+
+Waiting for the user, not for compute: admitting that matrix, publishing
+the LanceDB rows (which must name the laptop's superseded wiki-Talk row),
+and the budget and envelope decisions above.
