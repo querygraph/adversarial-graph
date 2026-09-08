@@ -2299,3 +2299,62 @@ measured run on a host that also crawls must drop the page cache after
 pausing the crawler and before the first cell, as
 `~/grust-matrix-sf03-5.sh` now does. With a clean cache the memory cells
 produce components again.
+
+## 41. The SF0.3 matrix has a receipt; the memory cell is marginal at 6 GiB; site admission needs a decision that is not mine (2026-09-08 15:20 UTC)
+
+**There is a complete, receipted SF0.3 bundle.**
+`grust:~/src/grust/benchmarks/lsqb/out/matrix-sf0.3-w2r10-29fd384-grust`,
+measured 13:56-15:12 UTC on the 31 GB host at grust `29fd384`, with the
+HN shard paused and the page cache dropped first:
+
+- `status: accounted`, 12 backends, 100 files, both matrices merged;
+- 19 component reports and **five** declared cells;
+- `suite_valid` false in both suites, from FalkorDB's declared
+  quiescence termination -- a finding, not a defect.
+
+The harness-side gates pass, and so do the semantic validators, which
+re-merge the matrix from components and declarations independently.
+
+**The memory cell is marginal at the 6 GiB budget.** It passed in four
+runs and was declared in this one, all at SF0.3 on the same host, and
+this failure came *after* the page cache was dropped, so it is not the
+co-tenancy of §40:
+
+| run | baseline-memory |
+|---|---|
+| d45569d, b7955a9, 78a4295, 2a07aa7 | passed |
+| 29fd384 | **declared, OOM at 22.4 s** |
+
+So §39's summary needs qualifying. At 6 GiB the SF0.3 matrix does not
+reliably measure one backend; it measures one backend *most of the
+time*, and the four cells that never fit are joined by a fifth that fits
+about four times in five. PostgreSQL's cell needs 8 GiB and Turso's 12
+(§39); the memory cell needs something just above 6.
+
+**Site admission is blocked on a judgment, not a bug.** The site's
+matrix verifier keeps a per-scale fail-closed outcome contract --
+`SCALE_SETUP_STATES` -- pinning what each backend's `setup_outcome` must
+be at that scale. It has entries for `example` and `0.1` only: **SF0.3
+has never been admitted**. Writing that contract means declaring what
+SF0.3 is expected to show, and doing it now would pin two things that
+are not settled:
+
+1. a marginal cell as either `pass` or declared, when it is neither
+   reliably;
+2. the 6 GiB budget itself, which the user is still deciding about with
+   §39's numbers in hand.
+
+So the bundle stands finished and unpublished. Whoever admits it should
+choose the budget first (§37, §39), then write the SF0.3 contract from a
+cohort whose cells are not sitting on the boundary -- or write it at
+6 GiB deliberately, with the memory cell's marginality stated in the
+row rather than hidden by whichever run was admitted.
+
+**The declared-cell mechanism itself is done.** Six defects, all mine,
+all in the launcher path (§40 lists four; the fifth was the exit-137
+contract error and the sixth was the validator refusing an undeclared
+failing cell's retained container exit, `29fd384`). The dry-run
+technique that finally settled it -- calling `inspect_bundle` and
+`run_semantic_validators` against evidence already on disk -- costs
+thirty seconds against a ninety-six minute rerun and should be the first
+move after any change to this path, not the last.
