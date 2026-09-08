@@ -2358,3 +2358,70 @@ technique that finally settled it -- calling `inspect_bundle` and
 `run_semantic_validators` against evidence already on disk -- costs
 thirty seconds against a ninety-six minute rerun and should be the first
 move after any change to this path, not the last.
+
+## 42. Adapter audit: is any other published row measuring our write path? (2026-09-08 18:25 UTC)
+
+The LanceDB finding of §38–§40 raises the question every reader will:
+if one adapter was that bad, which others are? A store that looks slow
+may be an adapter that writes badly, and the ledger would blame the
+store. So every adapter's bulk-load path and read path was read for the
+same defect class -- an expensive resource acquired per batch, tiny
+batches, per-row round trips -- and the one suspect was tested rather
+than argued.
+
+**Load paths.**
+
+| adapter | batch | resource per batch | transaction shape | verdict |
+|---|---|---|---|---|
+| memory | in-process | -- | -- | clean |
+| turso | 500 | no: every statement built first | one transaction, WAL checkpoint after | exemplary |
+| falkor | 100 | no: connection once, grouped by label | per batch | sound |
+| neo4j, neo4j-http | 5,000 `UNWIND` | pooled driver | per batch | sound |
+| age | 5,000 `UNWIND` | fixed pool built once | per batch | sound |
+| ladybug | Arrow | record batches into scratch tables, `COPY … FROM (MATCH …)` | bulk | sound (§16.1's path) |
+| sail | batch | staged record batch per chunk | per chunk | sound |
+| surreal, helix | 100 | no: one `reqwest::Client` | one HTTP request per 100 rows | sound; small batch |
+| lancedb | 50,000 | no (fixed, §38) | `merge_insert` per batch, compaction after | fixed |
+| postgres | 500 | no: one persistent client | **autocommit per batch** | suspect -> tested below |
+
+**Read paths.** neo4j and age pooled, postgres and turso one connection,
+surreal and helix one HTTP client, falkor fixed in §22. One residual:
+**LanceDB reopens its table on every query** (`open_nodes`/`open_edges`
+inside `query_nodes`/`query_edges`). With compaction leaving few
+fragments it is cheap -- likely part of why reads gained 5x -- but it is
+a per-query manifest read and the handle should be cached. Not done: it
+is another pin move and must be measured first.
+
+**PostgreSQL, tested and cleared.** The adapter commits every 500-row
+batch in autocommit, so the 69 M-edge load is ~138,000 commits, and at
+10–40 ms per fsync that alone could span the published 5,362 s. A/B on
+the grust box, the first 1 M edges of web-Google, only the batch size
+differing:
+
+| batch | commits | load |
+|---|---|---|
+| 500 (published) | ~2,500 | 52.1 s |
+| 5,000 | ~250 | 45.0 s |
+
+Ten times fewer commits bought 14 percent. Commits cost about 3 ms here,
+and the other 45 s is the store doing upserts with index maintenance.
+**PostgreSQL's published load rows are measuring the store, not our
+commit pattern.** The hypothesis was wrong and it is better on record
+than in a drawer.
+
+**The LanceDB fix, re-reviewed for the same question.** Did it change
+answers? No: every cell in both the old-adapter control and the fixed
+run passed with zero hard gates, so outputs are identical and only time
+differs. Is it benchmark-specific? No: it is the adapter's ordinary bulk
+path, the code any user of `grust-lancedb` runs; the incremental path is
+untouched. Is the claim controlled? Same host, same tier, same guard,
+one variable (§40); the cross-host comparison against the laptop is not
+the claim.
+
+**What defends the results** is not that adapters are perfect -- one was
+not, for a day -- but that every row names the adapter revision it was
+measured with, a superseding row names what it replaces and leaves it
+visible, and this audit is on record. The remaining engineering that
+would widen coverage is in the small-batch HTTP adapters (surreal and
+helix at 100 rows per request) and in caching LanceDB's table handle;
+both are improvements to measure, not defects to hide.
