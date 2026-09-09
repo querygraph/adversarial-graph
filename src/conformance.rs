@@ -13,7 +13,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use grust::{EdgeQuery, Graph, Label, NodeId, Value};
+use grust::{EdgePolicy, EdgeQuery, Graph, Label, NodeId, Value};
 
 use crate::backends::{Backend, BackendKind};
 
@@ -22,7 +22,11 @@ const BATCH_BOUNDARY: usize = 500;
 /// The fixture: small enough to read by hand, shaped to catch what large
 /// graphs hide.
 pub fn fixture() -> Graph {
-    let mut b = Graph::builder();
+    // The builder's default policy dedupes on (from, label, to), which
+    // silently dropped k12b before any adapter saw it (every adapter then
+    // "failed" the parallel-edge checks identically). The fixture wants
+    // both.
+    let mut b = Graph::builder().edge_policy(EdgePolicy::AllowDuplicates);
     // Two labels, a mix of value types, a null, a missing property, Unicode,
     // and an id that needs escaping in most query languages.
     let _ = b
@@ -77,7 +81,8 @@ pub fn boundary_fixture(n: usize) -> Graph {
         let _ = b.node("V", format!("v{i}")).prop("i", i as i64).finish();
     }
     for i in 0..n {
-        let _ = b.edge("E", format!("v{i}"), format!("v{}", (i + 1) % n))
+        let _ = b
+            .edge("E", format!("v{i}"), format!("v{}", (i + 1) % n))
             .id(format!("e{i}"))
             .finish();
     }
@@ -348,4 +353,27 @@ pub async fn run(root: &Path, backends: &[String], out: &Path) -> i32 {
     }
     let _ = root;
     exit
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_fixture_keeps_both_parallel_edges_and_its_isolated_vertex() {
+        let g = fixture();
+        let k12: Vec<String> = g
+            .edges
+            .iter()
+            .filter(|e| e.from.as_str() == "p1" && e.to.as_str() == "p2")
+            .filter_map(|e| e.id.as_ref().map(|id| id.as_str().to_string()))
+            .collect();
+        assert_eq!(k12, vec!["k12a", "k12b"]);
+        assert!(g.nodes.iter().any(|n| n.id.as_str() == "isolated"));
+        assert!(
+            g.edges
+                .iter()
+                .any(|e| e.from.as_str() == "p1" && e.to.as_str() == "p1")
+        );
+    }
 }
