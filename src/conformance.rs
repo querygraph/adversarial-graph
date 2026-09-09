@@ -44,11 +44,18 @@ impl Shape {
 pub fn fixture(shape: Shape) -> Graph {
     let mut graph = typed_fixture();
     if shape == Shape::Untyped {
+        // Exactly what the SNAP loaders produce: V/E, no properties, no
+        // edge ids. The untyped tally is the contract the published rows
+        // rely on and nothing more; properties, ids and labels are the
+        // typed shape's business.
         for node in &mut graph.nodes {
             node.label = Label::from(crate::dataset::NODE_LABEL);
+            node.props = grust::Props::new();
         }
         for edge in &mut graph.edges {
             edge.label = Label::from(crate::dataset::EDGE_LABEL);
+            edge.id = None;
+            edge.props = grust::Props::new();
         }
     }
     graph
@@ -308,19 +315,21 @@ async fn conform(
         ),
         Err(e) => tally.check("edge into the escaped id", Err(e), ""),
     }
-    match edges(store, Some("p1"), Some("p2"), Some(knows)).await {
-        Ok(v) => {
-            let ids: Vec<String> = v
-                .iter()
-                .filter_map(|e| e.id.as_ref().map(|i| i.as_str().to_string()))
-                .collect();
-            tally.check(
-                "edge id and property read back",
-                Ok(ids == ["k12a"] && v[0].props.get("since") == Some(&Value::from(2019i64))),
-                &format!("ids {ids:?} props {:?}", v.first().map(|e| &e.props)),
-            );
+    if shape == Shape::Typed {
+        match edges(store, Some("p1"), Some("p2"), Some(knows)).await {
+            Ok(v) => {
+                let ids: Vec<String> = v
+                    .iter()
+                    .filter_map(|e| e.id.as_ref().map(|i| i.as_str().to_string()))
+                    .collect();
+                tally.check(
+                    "edge id and property read back",
+                    Ok(ids == ["k12a"] && v[0].props.get("since") == Some(&Value::from(2019i64))),
+                    &format!("ids {ids:?} props {:?}", v.first().map(|e| &e.props)),
+                );
+            }
+            Err(e) => tally.check("edge id and property read back", Err(e), ""),
         }
-        Err(e) => tally.check("edge id and property read back", Err(e), ""),
     }
 
     // Capability, not conformance (typed shape only; the answers do not
@@ -372,29 +381,32 @@ async fn conform(
         );
     }
 
-    // Update: a second put of p1 with a changed value must be read back.
-    let mut updated = graph
-        .nodes
-        .iter()
-        .find(|n| n.id.as_str() == "p1")
-        .cloned()
-        .expect("p1");
-    updated.props.insert("age".into(), Value::Int(37));
-    match store.put_node(&updated).await {
-        Ok(_) => match store.get_node(&updated.id).await {
-            Ok(Some(n)) => tally.check(
-                "update is visible on the next read",
-                Ok(n.props.get("age") == Some(&Value::Int(37))),
-                &format!("age {:?}", n.props.get("age")),
-            ),
-            Ok(None) => tally.check(
-                "update is visible on the next read",
-                Ok(false),
-                "missing after update",
-            ),
+    // Update (typed shape): a second put of p1 with a changed value must be
+    // read back.
+    if shape == Shape::Typed {
+        let mut updated = graph
+            .nodes
+            .iter()
+            .find(|n| n.id.as_str() == "p1")
+            .cloned()
+            .expect("p1");
+        updated.props.insert("age".into(), Value::Int(37));
+        match store.put_node(&updated).await {
+            Ok(_) => match store.get_node(&updated.id).await {
+                Ok(Some(n)) => tally.check(
+                    "update is visible on the next read",
+                    Ok(n.props.get("age") == Some(&Value::Int(37))),
+                    &format!("age {:?}", n.props.get("age")),
+                ),
+                Ok(None) => tally.check(
+                    "update is visible on the next read",
+                    Ok(false),
+                    "missing after update",
+                ),
+                Err(e) => tally.check("update is visible on the next read", Err(e), ""),
+            },
             Err(e) => tally.check("update is visible on the next read", Err(e), ""),
-        },
-        Err(e) => tally.check("update is visible on the next read", Err(e), ""),
+        }
     }
 
     // Delete: p3 goes, and so must its edge to p1. Deletion goes through the
@@ -540,7 +552,12 @@ mod tests {
         let g = fixture(Shape::Typed);
         let u = fixture(Shape::Untyped);
         assert!(u.nodes.iter().all(|n| n.label.as_str() == "V"));
-        assert!(u.edges.iter().all(|e| e.label.as_str() == "E"));
+        assert!(
+            u.edges
+                .iter()
+                .all(|e| e.label.as_str() == "E" && e.id.is_none())
+        );
+        assert!(u.nodes.iter().all(|n| n.props.is_empty()));
         assert_eq!(u.edges.len(), g.edges.len());
         let k12: Vec<String> = g
             .edges
