@@ -23,7 +23,7 @@ ready_probe() { case "$1" in
   memgraph) echo 'RETURN 1;' | docker compose exec -T memgraph mgconsole >/dev/null 2>&1;;
   age) docker compose exec -T age pg_isready -U postgres -d graph >/dev/null 2>&1;;
   surreal) curl -sf -m 2 http://127.0.0.1:18000/health >/dev/null 2>&1;;
-  helix) curl -sf -m 2 http://127.0.0.1:16969/ >/dev/null 2>&1;;
+  helix) curl -sf -m 2 http://127.0.0.1:18082/health >/dev/null 2>&1;;
   *) return 0;;
 esac; }
 wait_ready() { # $1 = compose service; returns 1 and logs on deadline
