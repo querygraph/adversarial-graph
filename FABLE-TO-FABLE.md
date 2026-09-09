@@ -3007,3 +3007,99 @@ guard that leaves the host room; postgres ICIJ A8 has no row anywhere yet.
   the host), postgres.
 - Memgraph and falkor on LDBC SF0.1 from grust's pass failed with hang
   gates (4 and 14); not yet read.
+
+## 50. The A8 wrapper had no guard; LDBC sf1 runs for the first time; no query is issued to a busy store (2026-09-09 18:20 UTC)
+
+Written by quegee (Fable 5.1), the afternoon after §49.
+
+### The guard that was not there
+
+The A8 pass wrapper (`~/a8-pass.sh` on every host) exported
+`AG_RSS_LIMIT_GB` to the harness, which never reads it: the guard lives in
+`scripts/run-full-tiers.sh`. Every A8 pass so far ran unguarded, which is
+how §49's turso-mvcc cell took this host down. The wrapper now carries
+the ladder's guard (resident set past the limit, or host MemAvailable
+under 2 GB twice in a row, kills the pair and logs `host.memory-exceeded`)
+and keeps each pair's full output under `~/logs/pairs/`. The quegee ICIJ
+A8 pass at `da557af`, guarded at 34 GB:
+
+| cell | A8 | peak client |
+|---|---|---|
+| memory | unsupported, 5 of 9 refused at its 2 GiB policy, 0 gates, 39 s | 29 GB |
+| turso-wal | unsupported, c4 refused, 8 matched, 0 gates, 145 s | 27 GB |
+| turso-mvcc | unsupported, c4 refused, 8 matched, 0 gates, 148 s | 26 GB |
+| postgres | unsupported, c4 refused, 8 matched, 0 gates, 144 s | — |
+
+Every ICIJ cell that had no A8 row this morning has one. quegee's system
+hostname is literally `grust` (the image it was built from); the wrappers
+branch only on `lakecat` and `eigen` and every label is explicit.
+
+### LDBC sf1, the M tier, for the first time
+
+The manifest's `ldbc-snb-sf1` had no row on any host. The first attempt
+(neo4j on grust, 22 GB guard) died at 23 GB in A8's r3 tag popularity:
+the reference executor binds every start node of a MATCH before it
+filters or aggregates, so a row query over the largest label costs a
+graph's worth of intermediates on top of the 14 GB parsed graph. The five
+remaining LDBC row shapes joined the native answer key (`72c000e`), held
+against the executor on a small graph with null properties, duplicate
+group names and edges of the right type from the wrong label. After
+that, all four families at sf1 fit in 17.2 GB of client for the Bolt/HTTP
+stores.
+
+| cell (host) | LOAD | A8 | A5 | A6 | peak client |
+|---|---|---|---|---|---|
+| neo4j (grust) | pass, 666 s | 1 gate: q9 timeout at 120 s; 28 matched | pass | last-writer-wins, declared | 17.2 GB |
+| neo4j-http (grust) | pass | 1 gate: q9 timeout; 28 matched | pass | declared | 17.2 GB |
+| memgraph (grust, `72c000e`) | pass | 8 gates: q1 q2 q3 q6 q7 q9 a1 timeouts, a7 refused at its 5 GiB memory limit (recorded as a crash, §48 precedent) | pass | declared | 17.2 GB |
+| falkor (eigen) | guard at 23 GB in the load; placement outcome | | | | |
+| falkor (quegee, `fcc4dc6`) | pass | 11 gates, below | unsupported (no reads) | unsupported | 23.8 GB |
+| age (eigen) | 2 h cap inside the load; placement outcome | | | | |
+| postgres (quegee, 32 GB guard) | pass | guard at 32 GB at the first row query; 22 counts matched through the resident snapshot | | | |
+
+The SQL stores' resident-index route holds two graphs' worth on the
+client at sf1 (the parsed graph and the store's own snapshot), about
+30 GB before a row source is read back; no host holds that beside a
+container. FalkorDB's adapter load path holds far more client memory
+than the others (16 GB at ICIJ against 8.8; 23.8 GB at sf1), so it fits
+only here.
+
+### No query is issued to a store still executing the last one
+
+Astra's finding 1, §45 item 2. The first falkor sf1 row recorded 29 A8
+gates in 58 minutes: q1 wrong, then 28 timeouts at exactly 120 s,
+including the unicode literal the reference answers in 0 ms -- the
+harness stopped waiting and moved on, FalkorDB kept executing, and every
+later query queued behind it. Memgraph at sf0.1 had four gates behind
+two the same way. At `fcc4dc6`:
+
+- FalkorDB's A8 reads carry the store budget as their own `TIMEOUT`; it
+  stops the query itself and its "Query timed out" is a timeout, not a
+  crash (`is_store_deadline`).
+- After any query the harness stopped waiting for, every store gets a
+  trivial probe, waited for up to the reference budget (not a
+  measurement). A store that answers late has finished on its own and
+  the next query starts quiet; one that never answers has the remaining
+  queries recorded as `not-attempted` with the hung query named, one gate
+  for the hang, none for them, coverage disclosed as incomplete.
+
+The falkor sf1 rerun: 11 gates in 20 minutes, every probe answered within
+8 ms. What remains is the store: q1 and a1 wrong (179,510,748 reference
+vs 29,612,477, the same shape written in both directions), the unicode
+literal `'é' = 'é'` false (9,892 vs 0), r7 truncated to 10,000 rows
+by the image's stock `RESULTSET_SIZE` (the compose keeps the stock
+default and documents it), and seven timeouts on LSQB counts. The
+memgraph sf1 rerun at `fcc4dc6` is in flight on grust.
+
+### Also today
+
+- lancedb and ladybug at ICIJ on grust: both load (under a minute, 22
+  minutes); A8, A5, A6 unsupported for the declared reasons.
+- The classification question left open for the user: Turso's bounded
+  read cap is a refusal with no gate; Memgraph's declared 5 GiB memory
+  limit on the same kind of shape is a crash with one, by §48's
+  precedent. Treating every declared resource-cap error as a refusal is
+  a one-line change and a ledger note.
+- Owed: the site's typed publication with these rows; helix-sdk's
+  bootstrap failure; the SF0.1 memgraph and falkor A8 rows reread at
+  `fcc4dc6` if the sf1 rows are published beside them.
