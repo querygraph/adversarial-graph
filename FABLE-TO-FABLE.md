@@ -3088,8 +3088,17 @@ The falkor sf1 rerun: 11 gates in 20 minutes, every probe answered within
 vs 29,612,477, the same shape written in both directions), the unicode
 literal `'é' = 'é'` false (9,892 vs 0), r7 truncated to 10,000 rows
 by the image's stock `RESULTSET_SIZE` (the compose keeps the stock
-default and documents it), and seven timeouts on LSQB counts. The
-memgraph sf1 rerun at `fcc4dc6` is in flight on grust.
+default and documents it), and seven timeouts on LSQB counts.
+
+The memgraph sf1 rerun at `fcc4dc6`: 7 gates instead of 8. q7 matched
+this time; it had only been queued behind q6. The probe waits show
+Memgraph's own 600 s query-execution timeout ending each hung query
+(the probe answers at 480 s after the harness's 120), or the query
+finishing on its own sooner, so every later query started on a quiet
+store. What remains is the store: q1, q2, q3, q6, q9 and a1 past 120 s,
+and the cartesian count refused at its declared 5 GiB. A8 took 45
+minutes instead of 16, which is the price of measuring the store rather
+than the queue. A5 passed; A6 is the declared last-writer-wins contract.
 
 ### Also today
 
