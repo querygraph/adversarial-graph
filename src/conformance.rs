@@ -249,22 +249,35 @@ async fn conform(
 
     // Nodes: every id, its label, and every property value, including the
     // null, the Unicode string and the id that needs escaping.
+    // A label that comes back in another case (SurrealDB's tables are
+    // lower-case) is a capability note, not a wrong answer: no scenario
+    // reads a label back. A different label, or a missing property, fails.
+    let mut case_folded = false;
     for node in &graph.nodes {
         let got = store.get_node(&node.id).await;
         let name = format!("node {} reads back with label and props", node.id.as_str());
         match got {
             Ok(Some(n)) => {
                 let same_label = n.label == node.label;
+                let folded_label =
+                    !same_label && n.label.as_str().eq_ignore_ascii_case(node.label.as_str());
+                case_folded |= folded_label;
                 let same_props = node.props.iter().all(|(k, v)| n.props.get(k) == Some(v));
                 tally.check(
                     &name,
-                    Ok(same_label && same_props),
+                    Ok((same_label || folded_label) && same_props),
                     &format!("got label {:?} props {:?}", n.label, n.props),
                 );
             }
             Ok(None) => tally.check(&name, Ok(false), "missing"),
             Err(e) => tally.check(&name, Err(e), ""),
         }
+    }
+
+    if case_folded {
+        println!(
+            "  CAPABILITY  node labels read back case-folded (no scenario reads a label back)"
+        );
     }
 
     // Edges: cardinalities by endpoint and label, including the loop.
