@@ -260,6 +260,20 @@ pub enum Route {
 /// bound the run.
 pub const IN_PROCESS_BUDGET: std::time::Duration = std::time::Duration::from_secs(110);
 
+/// The budget every store gets per A8 query. The harness stops waiting at
+/// this deadline; a store whose protocol takes a deadline (FalkorDB's
+/// `TIMEOUT`) is handed the same one, so it stops executing too.
+pub const STORE_BUDGET: std::time::Duration = std::time::Duration::from_secs(120);
+
+/// Whether a store's error says it stopped a query at the deadline the
+/// harness handed it (FalkorDB: "Query timed out"): recorded as a timeout,
+/// the way a query the harness stopped waiting for is, never as a crash.
+pub fn is_store_deadline(err: &grust::GrustError) -> bool {
+    let text = err.to_string().to_ascii_lowercase();
+    matches!(err, grust::GrustError::Backend(_))
+        && (text.contains("timed out") || text.contains("timeout"))
+}
+
 /// Whether a store's error is Grust's bounded-read policy refusing the
 /// query (its cooperative deadline or a resource cap), as opposed to a
 /// failure: `bounded read execution timed out`, `bounded read exceeded …`.
@@ -496,6 +510,22 @@ mod tests {
                 .filter(|q| q.kind == "rows")
                 .all(|q| q.ordered || q.id.contains("unordered"))
         );
+    }
+
+    #[test]
+    fn a_store_deadline_is_a_timeout_and_other_errors_are_not() {
+        let deadline = grust::GrustError::Backend("falkor GRAPH.RO_QUERY: Query timed out".into());
+        assert!(is_store_deadline(&deadline));
+        let memory = grust::GrustError::Backend(
+            "neo4j: Memory limit exceeded! Attempting to allocate a chunk".into(),
+        );
+        assert!(!is_store_deadline(&memory));
+        let policy = grust::GrustError::CypherExecution("bounded read execution timed out".into());
+        assert!(
+            !is_store_deadline(&policy),
+            "a policy refusal is classified by is_policy_refusal"
+        );
+        assert!(is_policy_refusal(&policy));
     }
 
     #[test]

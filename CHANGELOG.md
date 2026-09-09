@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- A8 never issues a query to a store that is still executing the last one
+  (Astra finding 1). FalkorDB is handed the store budget as its own
+  `TIMEOUT` and stops the query itself; after any query the harness stopped
+  waiting for, every store gets a trivial probe, waited for up to the
+  reference budget, and if it does not answer the remaining queries are
+  recorded as `not-attempted` with the hung query named, one hang gate for
+  the hang and none for them. A store's own deadline error is a timeout,
+  not a crash. Falkor at LDBC sf1 had recorded 28 hang gates behind one
+  slow count; Memgraph at sf0.1 four behind two.
+
 - A8 runs in a fraction of the memory: the oracle index is built over the
   loaded graph itself instead of a copy of it (`LoadedGraph::Full` is
   shared); on Turso and PostgreSQL the one pinned shape the SQL planners

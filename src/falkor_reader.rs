@@ -125,6 +125,18 @@ impl FalkorReader {
     /// Run one command on this reader's connection; a failed connection is
     /// dropped so the next call reconnects.
     fn query(&self, command: &str, cypher: &str) -> grust::Result<Value> {
+        self.query_within(command, cypher, None)
+    }
+
+    /// `GRAPH.RO_QUERY … TIMEOUT <ms>`: FalkorDB stops the query itself at
+    /// the deadline and answers "Query timed out", so the next query never
+    /// queues behind one the harness has stopped waiting for.
+    fn query_within(
+        &self,
+        command: &str,
+        cypher: &str,
+        deadline: Option<std::time::Duration>,
+    ) -> grust::Result<Value> {
         let mut slot = self.conn.lock().expect("falkor connection slot");
         if slot.is_none() {
             *slot = Some(
@@ -134,11 +146,12 @@ impl FalkorReader {
             );
         }
         let conn = slot.as_mut().expect("connection present");
-        let result: Result<Value, redis::RedisError> = redis::cmd(command)
-            .arg(&self.graph)
-            .arg(cypher)
-            .arg("--compact")
-            .query(conn);
+        let mut cmd = redis::cmd(command);
+        cmd.arg(&self.graph).arg(cypher).arg("--compact");
+        if let Some(deadline) = deadline {
+            cmd.arg("TIMEOUT").arg(deadline.as_millis() as u64);
+        }
+        let result: Result<Value, redis::RedisError> = cmd.query(conn);
         match result {
             Ok(value) => Ok(value),
             Err(e) => {
@@ -160,7 +173,11 @@ impl FalkorReader {
 
     /// Every row of a read-only query through `GRAPH.RO_QUERY`.
     pub fn rows(&self, cypher: &str) -> grust::Result<ResultSet> {
-        let value = self.query("GRAPH.RO_QUERY", cypher)?;
+        let value = self.query_within(
+            "GRAPH.RO_QUERY",
+            cypher,
+            Some(crate::differential::STORE_BUDGET),
+        )?;
         let Value::Array(parts) = value else {
             return Err(grust::GrustError::Backend(
                 "falkor: unexpected result shape".into(),

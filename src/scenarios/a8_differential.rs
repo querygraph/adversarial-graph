@@ -16,7 +16,16 @@ use super::Ctx;
 use crate::differential::{oracle, queries_for, schema_of};
 use crate::report::{Latency, ScenarioResult, histogram, record};
 
-const QUERY_BUDGET: Duration = Duration::from_secs(120);
+const QUERY_BUDGET: Duration = crate::differential::STORE_BUDGET;
+/// The probe a store gets after the harness stopped waiting for a query:
+/// a trivial read, waited for up to the reference budget (900 s by
+/// default; the wait is not a measurement). A store that does not answer
+/// it is still executing the query it was handed; issuing the next one
+/// would queue it behind that work, and its time would be the hang's, not
+/// its own -- so the remaining queries are recorded as not attempted
+/// instead. A store that answers late has finished the hung query on its
+/// own and the next one starts on a quiet store.
+const QUIESCENCE_PROBE: &str = "RETURN 1 AS ok";
 /// How long a timed-out reference task is given to return before the cell
 /// ends as unable to prove quiescence.
 const REAP_GRACE: Duration = Duration::from_secs(10);
@@ -78,7 +87,11 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         mut errors,
         mut timeouts,
         mut reference_unsupported,
-    ) = (0, 0, 0, 0, 0, 0);
+        mut not_attempted,
+    ) = (0, 0, 0, 0, 0, 0, 0);
+    // The query the harness last stopped waiting for, until the store has
+    // answered a probe since.
+    let mut hung: Option<String> = None;
     for (position, spec) in specs.iter().enumerate() {
         eprintln!(
             "   A8 {}/{} {} ({})",
@@ -87,6 +100,41 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             spec.id,
             spec.kind
         );
+        if let Some(hung_id) = hung.take() {
+            let probe_started = Instant::now();
+            let probe =
+                tokio::time::timeout(reference_budget, ctx.backend.cypher(QUIESCENCE_PROBE)).await;
+            let probe_ms = probe_started.elapsed().as_secs_f64() * 1e3;
+            match probe {
+                // An answer, or an error, is a store that is listening again.
+                Ok(_) => eprintln!("      store quiescent again after {probe_ms:.0}ms"),
+                Err(_) => {
+                    let detail = format!(
+                        "not attempted: the store was still executing {hung_id} {} s after the harness stopped waiting for it",
+                        reference_budget.as_secs()
+                    );
+                    eprintln!("      {detail}");
+                    for rest in &specs[position..] {
+                        not_attempted += 1;
+                        records.push(QueryRecord {
+                            id: rest.id.clone(),
+                            kind: rest.kind.clone(),
+                            route: None,
+                            outcome: "not-attempted",
+                            ms: None,
+                            rows: None,
+                            detail: Some(detail.clone()),
+                            oracle_ms: None,
+                            oracle_route: None,
+                        });
+                    }
+                    r.notes.push(format!(
+                        "{not_attempted} queries not attempted after {hung_id}: the store did not answer a probe within the budget"
+                    ));
+                    break;
+                }
+            }
+        }
         let oracle_started = Instant::now();
         // The oracle gets its own budget (`differential::reference_budget`,
         // larger than the store's): the reference executor is not a
@@ -115,7 +163,13 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                                 "the reference executor did not stop within {}s of its {}s budget on {}; the cell ends because quiescence cannot be proven",
                                 REAP_GRACE.as_secs(), reference_budget.as_secs(), spec.id
                             ));
-                        account_query_outcomes(&mut r, errors, timeouts + 1, reference_unsupported);
+                        account_query_outcomes(
+                            &mut r,
+                            errors,
+                            timeouts + 1,
+                            reference_unsupported,
+                            not_attempted,
+                        );
                         r.observe("queries", records.len());
                         r.finish();
                         return r;
@@ -216,12 +270,19 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                 refused += 1;
                 ("refused", None, Some(e.to_string()))
             }
+            // The store stopped the query at the deadline it was handed:
+            // a timeout, and the store is already free for the next one.
+            Ok(Err(e)) if crate::differential::is_store_deadline(&e) => {
+                timeouts += 1;
+                ("timeout", None, Some(e.to_string()))
+            }
             Ok(Err(e)) => {
                 errors += 1;
                 ("error", None, Some(e.to_string()))
             }
             Err(_) => {
                 timeouts += 1;
+                hung = Some(spec.id.clone());
                 (
                     "timeout",
                     None,
@@ -249,7 +310,7 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             oracle_route,
         });
     }
-    let attempted = specs.len() - reference_unsupported;
+    let attempted = specs.len() - reference_unsupported - not_attempted;
     if attempted > 0 && refused == attempted {
         r.unsupported("backend does not accept Cypher");
     } else if refused > 0 {
@@ -280,7 +341,14 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     r.observe("errors", errors);
     r.observe("timeouts", timeouts);
     r.observe("reference_unsupported", reference_unsupported);
-    account_query_outcomes(&mut r, errors, timeouts, reference_unsupported);
+    r.observe("not_attempted", not_attempted);
+    account_query_outcomes(
+        &mut r,
+        errors,
+        timeouts,
+        reference_unsupported,
+        not_attempted,
+    );
     if matched > 0 {
         r.latency = Some(Latency::from_histogram(&h));
     }
@@ -292,12 +360,19 @@ fn account_query_outcomes(
     errors: usize,
     timeouts: usize,
     reference_unsupported: usize,
+    not_attempted: usize,
 ) {
     r.gates.oom_or_crash += errors as u64;
+    // Each hang is one gate; the queries never issued behind it are none.
     r.gates.hang_or_timeout_without_refusal += timeouts as u64;
     if reference_unsupported > 0 {
         r.unsupported(&format!(
             "the reference could not validate {reference_unsupported} required queries; this scenario's comparison coverage is incomplete"
+        ));
+    }
+    if not_attempted > 0 {
+        r.unsupported(&format!(
+            "{not_attempted} queries were not attempted behind a query the store was still executing; this scenario's comparison coverage is incomplete"
         ));
     }
 }
@@ -309,16 +384,20 @@ mod tests {
 
     #[test]
     fn incomplete_or_failed_comparisons_never_pass() {
-        for (errors, timeouts, missing_reference, expected) in [
-            (3, 0, 0, Outcome::Fail),
-            (0, 3, 0, Outcome::Fail),
-            (0, 0, 3, Outcome::Unsupported),
-            (0, 0, 1, Outcome::Unsupported),
-            (1, 0, 1, Outcome::Fail),
-            (0, 0, 0, Outcome::Pass),
+        for (errors, timeouts, missing_reference, not_attempted, expected) in [
+            (3, 0, 0, 0, Outcome::Fail),
+            (0, 3, 0, 0, Outcome::Fail),
+            (0, 0, 3, 0, Outcome::Unsupported),
+            (0, 0, 1, 0, Outcome::Unsupported),
+            (1, 0, 1, 0, Outcome::Fail),
+            // One hang, twenty-seven queries never issued behind it: one
+            // gate, not twenty-eight, and the cell is not a pass.
+            (0, 1, 0, 27, Outcome::Fail),
+            (0, 0, 0, 2, Outcome::Unsupported),
+            (0, 0, 0, 0, Outcome::Pass),
         ] {
             let mut r = ScenarioResult::new("A8", "fixture", "fixture");
-            account_query_outcomes(&mut r, errors, timeouts, missing_reference);
+            account_query_outcomes(&mut r, errors, timeouts, missing_reference, not_attempted);
             r.finish();
             assert_eq!(r.outcome, expected);
             assert_eq!(r.gates.total(), (errors + timeouts) as u64);
@@ -330,7 +409,7 @@ mod tests {
         let mut r = ScenarioResult::new("A8", "fixture", "fixture");
         r.gates.wrong_answer = 1;
         r.unsupported("one query refused");
-        account_query_outcomes(&mut r, 0, 0, 0);
+        account_query_outcomes(&mut r, 0, 0, 0, 0);
         r.finish();
         assert_eq!(r.outcome, Outcome::Fail);
         assert_eq!(r.gates.wrong_answer, 1);
