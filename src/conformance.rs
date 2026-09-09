@@ -22,11 +22,11 @@ const BATCH_BOUNDARY: usize = 500;
 /// The fixture: small enough to read by hand, shaped to catch what large
 /// graphs hide.
 pub fn fixture() -> Graph {
-    // The builder's default policy dedupes on (from, label, to), which
-    // silently dropped k12b before any adapter saw it (every adapter then
-    // "failed" the parallel-edge checks identically). The fixture wants
-    // both.
-    let mut b = Graph::builder().edge_policy(EdgePolicy::AllowDuplicates);
+    // No parallel edges here: every harness loader dedupes on (from, label,
+    // to), so the benchmarks never send a store two edges with that key,
+    // and the adapters differ on it (see `parallel_edges_probe`). The
+    // builder's default policy dedupes the same way.
+    let mut b = Graph::builder();
     // Two labels, a mix of value types, a null, a missing property, Unicode,
     // and an id that needs escaping in most query languages.
     let _ = b
@@ -55,17 +55,12 @@ pub fn fixture() -> Graph {
         .finish();
     // An isolated vertex: no edges at all.
     let _ = b.node("Person", "isolated").finish();
-    // A self-loop, parallel edges with distinct ids, and cross-label edges.
+    // A self-loop, an edge with a property, and cross-label edges.
     let _ = b.edge("KNOWS", "p1", "p1").id("loop").finish();
     let _ = b
         .edge("KNOWS", "p1", "p2")
         .id("k12a")
         .prop("since", 2019i64)
-        .finish();
-    let _ = b
-        .edge("KNOWS", "p1", "p2")
-        .id("k12b")
-        .prop("since", 2021i64)
         .finish();
     let _ = b.edge("WORKS_AT", "p1", "c1").id("w1").finish();
     let _ = b.edge("WORKS_AT", "p2", "it's/odd id").id("w2").finish();
@@ -86,6 +81,17 @@ pub fn boundary_fixture(n: usize) -> Graph {
             .id(format!("e{i}"))
             .finish();
     }
+    b.build()
+}
+
+/// Two KNOWS edges p3->p2 with distinct ids in one batch: a capability the
+/// adapters differ on (kept both / kept one / refused the batch) and the
+/// benchmarks never exercise, since every loader dedupes on (from, label,
+/// to). Reported as a capability line, never a failure.
+pub fn parallel_edges_probe() -> Graph {
+    let mut b = Graph::builder().edge_policy(EdgePolicy::AllowDuplicates);
+    let _ = b.edge("KNOWS", "p3", "p2").id("q1").finish();
+    let _ = b.edge("KNOWS", "p3", "p2").id("q2").finish();
     b.build()
 }
 
@@ -173,14 +179,8 @@ async fn conform(kind: BackendKind, work_dir: &Path, tally: &mut Tally) -> grust
     // Edges: cardinalities by endpoint and label, including the loop and
     // the parallel pair, whose ids must both survive.
     let expect: Vec<(&str, Option<&str>, Option<&str>, Option<&str>, usize)> = vec![
-        ("all edges out of p1", Some("p1"), None, None, 4),
-        (
-            "parallel KNOWS p1->p2 both kept",
-            Some("p1"),
-            Some("p2"),
-            Some("KNOWS"),
-            2,
-        ),
+        ("all edges out of p1", Some("p1"), None, None, 3),
+        ("KNOWS p1->p2", Some("p1"), Some("p2"), Some("KNOWS"), 1),
         ("self-loop p1->p1", Some("p1"), Some("p1"), Some("KNOWS"), 1),
         (
             "edge into the escaped id",
@@ -217,19 +217,41 @@ async fn conform(kind: BackendKind, work_dir: &Path, tally: &mut Tally) -> grust
     }
     match edges(store, Some("p1"), Some("p2"), Some("KNOWS")).await {
         Ok(v) => {
-            let mut ids: Vec<String> = v
+            let ids: Vec<String> = v
                 .iter()
                 .filter_map(|e| e.id.as_ref().map(|i| i.as_str().to_string()))
                 .collect();
-            ids.sort();
             tally.check(
-                "parallel edges keep distinct ids",
-                Ok(ids == ["k12a", "k12b"]),
-                &format!("ids {ids:?}"),
+                "edge id and property read back",
+                Ok(ids == ["k12a"] && v[0].props.get("since") == Some(&Value::from(2019i64))),
+                &format!("ids {ids:?} props {:?}", v.first().map(|e| &e.props)),
             );
         }
-        Err(e) => tally.check("parallel edges keep distinct ids", Err(e), ""),
+        Err(e) => tally.check("edge id and property read back", Err(e), ""),
     }
+
+    // Capability, not conformance: two parallel edges in one batch.
+    let outcome = match backend.load(&parallel_edges_probe()).await {
+        Err(e) => format!("refused the batch: {e}"),
+        Ok(_) => match edges(store, Some("p3"), Some("p2"), Some("KNOWS")).await {
+            Err(e) => format!("read failed after the batch: {e}"),
+            Ok(v) => {
+                let mut ids: Vec<String> = v
+                    .iter()
+                    .filter_map(|e| e.id.as_ref().map(|i| i.as_str().to_string()))
+                    .collect();
+                ids.sort();
+                match ids.len() {
+                    2 => format!("kept both {ids:?}"),
+                    1 => format!("kept one {ids:?}"),
+                    n => format!("kept {n} {ids:?}"),
+                }
+            }
+        },
+    };
+    println!(
+        "  CAPABILITY  parallel edges (same from/label/to, distinct ids) in one batch: {outcome}; not exercised by the benchmarks, whose loaders dedupe that key"
+    );
 
     // Update: a second put of p1 with a changed value must be read back.
     let mut updated = graph
@@ -360,7 +382,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_fixture_keeps_both_parallel_edges_and_its_isolated_vertex() {
+    fn the_fixture_has_its_edges_and_the_probe_keeps_both_parallel_edges() {
         let g = fixture();
         let k12: Vec<String> = g
             .edges
@@ -368,7 +390,8 @@ mod tests {
             .filter(|e| e.from.as_str() == "p1" && e.to.as_str() == "p2")
             .filter_map(|e| e.id.as_ref().map(|id| id.as_str().to_string()))
             .collect();
-        assert_eq!(k12, vec!["k12a", "k12b"]);
+        assert_eq!(k12, vec!["k12a"]);
+        assert_eq!(parallel_edges_probe().edges.len(), 2);
         assert!(g.nodes.iter().any(|n| n.id.as_str() == "isolated"));
         assert!(
             g.edges
