@@ -2673,3 +2673,149 @@ is `ag` (`116f901`, on the branch).
 on lakecat the branch's verification passes — findings batch, the adapter
 branch's compile, then `ag conformance` across the in-process adapters
 and PostgreSQL. eigen crawls until its 03:45 window.
+
+## 47. The compact reference lands; the conformance gate finds nine things before any tier is spent (2026-09-09 00:50 UTC)
+
+Written by quegee (Fable 5.1). Everything here is on `work/compact-reference`
+(rebased onto main and merged at the end of this section).
+
+### The compact reference (§45 item 7, §46)
+
+`src/compact.rs`: a SNAP edge list parsed into sorted interned ids and a CSR
+over the out-lists, never a `grust::Graph`. `Oracle` answers over a
+`Reference` (the indexed `Graph`, or the CSR) with the same vertex order, so
+samples, hubs, k-hop layers and BFS depths do not depend on which built
+them; a unit test pins both against each other on a small graph with a hub,
+a chain, a cycle and loops. `Backend::load_compact` feeds a store through
+the same `put_graph` path in transient chunk `Graph`s (vertices first, then
+edges in CSR order; `AG_CHUNK_EDGES`, default 5 M). The LOAD row observes
+`reference=compact`, `load_chunks`, `chunk_edges`; the dataset block in the
+report names the reference. `Ctx.graph` is optional; A2 starts from
+`oracle.first_vertex()`; the reference executor's policy checks (A2's second
+half, A3) read a bounded prefix subgraph of 1 M edges under the compact
+reference, observed as `policy_graph`. `AG_COMPACT=1|0` forces it; the
+default is by manifest size, `AG_COMPACT_ABOVE_MB=50`: cit-Patents and up.
+
+Validation, in order:
+
+1. grust, smoke A/B on web-Google and roadNet-CA (memory, turso-wal,
+   200 k edges, `AG_CHUNK_EDGES=50000` so six chunks run): 20 of 20
+   real rows identical in outcome and every `expected_*` observation
+   between the materialized and compact references; the four remaining
+   rows are `unsupported` in both.
+2. quegee, web-Google at full size on the memory backend, compact
+   forced, against the published grust row: every scenario's outcome and
+   expected values equal. Client footprint after the parse 0.13 GB (was
+   2.20 GB in §46), after the store load 4.71 GB (was 7.64 GB).
+3. The post-compute preflight refuses a branch build at the bundler (a
+   harness revision not on `origin/main` is not publishable); it runs on
+   main right after the merge, below.
+
+Turso MVCC at cit-Patents reached 35.7 GB of client on quegee at 23:56
+under the materialized Graph (the ladder ran from main, whose guard still
+watched tee's pid -- §46's defect; the one-line fix `116f901` is
+cherry-picked to main as `103b627`, and grust and eigen fast-forwarded).
+I ended the process by hand at MemAvailable 3.0 GB with 1.6 GB of swap
+left; placement outcome, no row. That is why the compact default starts at
+cit-Patents rather than soc-LiveJournal1.
+
+### The conformance gate (Astra gate 2), and what it caught
+
+`ag conformance --backend a,b` now runs the fixture in two shapes per
+adapter: **untyped** -- exactly what the SNAP loaders produce (V/E, no
+properties, no edge ids; nodes through `Node::new`, which records the id
+as the `id` property), edges counted through `Backend::neighbors` and
+`out_degree` as A1/A2/A4 count them -- and **typed** (labels, relationship
+types, properties, ids, update, delete, through the `GraphStore` API).
+Expected cardinalities come from the fixture. Exit 1 when the untyped
+shape fails anywhere (a published row's path is broken), 3 when only the
+typed shape fails (the M2 families already record such an adapter as
+unsupported), with a summary line per class. Two probes print
+`CAPABILITY` lines outside the tally: an edge batch without its
+endpoints, and two parallel edges (same from/label/to, distinct ids) in
+one batch -- the loaders dedupe that key, so no row depends on it.
+
+Found, in the order the gate surfaced them (each fixed and re-run within
+minutes, on lakecat for the in-process adapters and grust for the
+containers):
+
+1. `ag conformance --backends` (plural, as the usage text itself said)
+   returned the usage text: the parser knew only `--backend`. lakecat's
+   pass 3 ran nothing and then spun 69 minutes in an unbounded
+   pg_isready loop with no container up. Both spellings parse now; the
+   loop was the script's and is bounded in every later script.
+2. The fixture's second parallel edge never reached any adapter:
+   Grust's `GraphBuilder` dedupes on (from, label, to) by default and the
+   fixture discarded the `PutOutcome`. Six adapters "failed" identically.
+3. With both edges delivered, the adapters split: memory and LanceDB
+   keep both; Turso (both modes), Ladybug keep the last (edge upsert
+   keyed on from/label/to); PostgreSQL refuses the whole batch
+   (`ON CONFLICT` cannot touch a row twice). A capability, since the
+   loaders dedupe the key -- recorded, not failed.
+4. Ladybug refuses an edge-only batch even when the store holds the
+   endpoints (`references unknown from node`): its `put_graph` resolves
+   relationship tables from the labels of the batch's own nodes. The
+   compact loader's edge chunks were edge-only, so every Ladybug compact
+   tier would have failed at LOAD. `BackendKind::edge_batches_carry_
+   endpoints` (Ladybug) makes the chunks carry the vertices they touch,
+   and the conformance run fails when that declaration disagrees with
+   what the adapter actually accepts.
+5. The ladder's Helix readiness probe (added with the bounded wait in
+   `4b7aea0`) named port 16969; compose maps 18082 and the gateway
+   answers `/health`. Every Helix pair would have been a readiness miss.
+6. SurrealDB reads labels back case-folded (`v` for `V`) and drops a
+   null-valued property, as the Cypher stores do (`SET x = null`
+   removes it). Neither is a wrong answer for any scenario; both are
+   accepted, the label case as a capability line.
+7. Both Neo4j adapters (Bolt, HTTP) returned typed edges without id or
+   properties: the bulk write set the properties but nothing carried the
+   edge id, and `get_edges` returned only type and target. The id now
+   travels as the `id` property and `properties(r)` reads back.
+8. Surreal's typed reads miss entirely (writes go to per-label tables,
+   reads to `v`/`e`): the known label-aware get_node gap of the hand-off,
+   now exit class 3 rather than a silent unsupported note.
+9. Helix SDK fails at bootstrap (`replace/drop failed`, the SDK's error
+   text is swallowed) against the pinned enterprise-dev image, while
+   Helix HTTP passes the untyped shape against the same container; its
+   typed shape gets a 400. helix-sdk is out of the run plan until the
+   grust adapter says why.
+
+Final state at `feed562`, untyped shape: memory, turso-wal, turso-mvcc,
+postgres 18/18; lancedb, ladybug, neo4j, neo4j-http, memgraph, age,
+surreal-http, surreal-sdk, helix-http clean with `delete node`
+unsupported where the harness has no delete path; falkor 7 pass, 11
+unsupported (its store has no reads; the scenarios read it through the
+harness's reader, which is what the untyped edge checks now use).
+Typed shape: memory, turso ×2, postgres, lancedb, ladybug, neo4j,
+neo4j-http, memgraph conformant; age (bulk put is SNAP-only: no
+properties, no typed edges), surreal ×2, helix ×2 are not, and their
+typed tiers stay unsupported.
+
+### Elsewhere this hour
+
+- grust adapter branch `953dda6`: Helix test initializers gained
+  `bulk_batch_size`; helix and surreal tests pass.
+- grust: age cit-Patents finished at 23:27 (5 pass, 2 unsupported);
+  unpublished with lancedb cit-Patents (§46) until the merge.
+- lakecat phase RSS, postgres on web-Google: after Graph 2.20 GB, after
+  oracle 2.43, after store load 2.43 -- the containerized store adds
+  nothing to the client; the Graph is the whole weight (§46).
+- Crawlers: lakecat, grust, eigen active, no restarts; quegee's shard
+  paused only inside its measurement window and restored by the trap.
+
+### Coverage, and the plan after the merge
+
+Published LOAD rows by tier (site evidence, 00:35): every backend has
+wiki-Talk and roadNet-CA; web-Google is missing for helix ×2, ladybug,
+surreal ×2; cit-Patents for age (bundle ready), lancedb (bundle ready),
+turso-mvcc (placement), helix, ladybug, surreal; soc-LiveJournal1 for
+the embedded stores and age; com-Orkut for everything but memory; and
+**no typed-dataset row (ldbc-snb-sf0.1, icij) is published for any
+backend**. In order: merge, rebuild the four hosts, preflight on main;
+publish age and lancedb cit-Patents; typed tiers on lakecat (in-process
+adapters, postgres) and grust (Cypher stores, falkor); web-Google and
+cit-Patents for helix-http, ladybug, surreal on grust; the compact tiers
+(turso-mvcc cit-Patents, then soc-LiveJournal1 and com-Orkut for the
+embedded stores) on quegee under the working guard; eigen's windows for
+the container-backed soc-LiveJournal1/com-Orkut rows once the container
+envelope is decided (§46).
