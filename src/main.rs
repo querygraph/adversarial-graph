@@ -241,7 +241,8 @@ async fn run(root: &Path, args: &Args) {
         // The compact reference (§46): a SNAP tier whose parsed `Graph`
         // would not fit the host is parsed into a CSR instead and fed to the
         // store in chunks. Decided by the manifest's file size against
-        // AG_COMPACT_ABOVE_MB (default 200, so soc-LiveJournal1 and above),
+        // AG_COMPACT_ABOVE_MB (default 50: cit-Patents and above; wiki-Talk,
+        // web-Google and roadNet-CA stay materialized),
         // or forced either way with AG_COMPACT=1|0.
         let compact = match std::env::var("AG_COMPACT").ok().as_deref() {
             Some("1") => true,
@@ -250,7 +251,7 @@ async fn run(root: &Path, args: &Args) {
                 let above_mb: u64 = std::env::var("AG_COMPACT_ABOVE_MB")
                     .ok()
                     .and_then(|v| v.parse().ok())
-                    .unwrap_or(200);
+                    .unwrap_or(50);
                 entry.bytes >= above_mb * 1024 * 1024
             }
         };
