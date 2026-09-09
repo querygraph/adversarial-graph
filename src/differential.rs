@@ -245,6 +245,10 @@ pub enum Route {
     MaterializeRustReference,
     /// The engine's own Cypher, submitted as written.
     NativeCypher,
+    /// The harness's own Rust over the loaded graph, for the two pinned
+    /// reference shapes the in-process executor cannot finish (the answer
+    /// key only; never a store's route).
+    NativeOracle,
 }
 
 /// The budget every in-process execution runs under: a cooperative wall
@@ -362,6 +366,9 @@ pub fn oracle(
     cypher: &str,
 ) -> grust::Result<(ResultSet, Route)> {
     let params = grust_cypher::CypherParameters::new();
+    if let Some(table) = native_oracle(graph, cypher) {
+        return Ok((table, Route::NativeOracle));
+    }
     if resident_proven(cypher) {
         // A proven count plan materializes nothing and answers in
         // milliseconds; it runs as pinned, since an appended LIMIT would
@@ -602,4 +609,122 @@ pub fn mentions_labels(cypher: &str) -> bool {
         i = at + 1;
     }
     false
+}
+
+/// The two LDBC row shapes Grust's in-process executor does not finish at
+/// sf0.1 (r2 posts per creator ran past 30 minutes on a 31 GB host; r5
+/// reply fan-in likewise): a property-filtered MATCH on the largest label
+/// with an aggregate. The answer key for exactly these pinned texts is
+/// computed here in Rust over the loaded graph -- a group count with the
+/// query's own ORDER BY and LIMIT -- and recorded as `native-oracle`. Any
+/// other text goes to the executor. A unit test holds this against the
+/// executor on a small graph.
+pub fn native_oracle(graph: &grust::Graph, cypher: &str) -> Option<ResultSet> {
+    const R2: &str = "MATCH (m:Message {kind: 'Post'})-[:HAS_CREATOR]->(p:Person)\nRETURN p.id AS person, count(m) AS posts\nORDER BY posts DESC, person\nLIMIT 50";
+    const R5: &str = "MATCH (c:Message {kind: 'Comment'})-[:REPLY_OF]->(m:Message)\nRETURN m.id AS root, count(c) AS replies\nORDER BY replies DESC, root\nLIMIT 20";
+    let (from_kind, rel, to_label, columns, limit) = if cypher.trim() == R2 {
+        ("Post", "HAS_CREATOR", "Person", ["person", "posts"], 50)
+    } else if cypher.trim() == R5 {
+        ("Comment", "REPLY_OF", "Message", ["root", "replies"], 20)
+    } else {
+        return None;
+    };
+    use std::collections::HashMap;
+    let mut kind_of: HashMap<&str, (&str, Option<&str>)> =
+        HashMap::with_capacity(graph.nodes.len());
+    for n in &graph.nodes {
+        let kind = match n.props.get("kind") {
+            Some(grust::Value::String(k)) => Some(k.as_str()),
+            _ => None,
+        };
+        kind_of.insert(n.id.as_str(), (n.label.as_str(), kind));
+    }
+    let mut counts: HashMap<&str, i64> = HashMap::new();
+    for e in &graph.edges {
+        if e.label.as_str() != rel {
+            continue;
+        }
+        let Some((flabel, fkind)) = kind_of.get(e.from.as_str()) else {
+            continue;
+        };
+        let Some((tlabel, _)) = kind_of.get(e.to.as_str()) else {
+            continue;
+        };
+        if *flabel == "Message" && *fkind == Some(from_kind) && *tlabel == to_label {
+            *counts.entry(e.to.as_str()).or_default() += 1;
+        }
+    }
+    let mut rows: Vec<(&str, i64)> = counts.into_iter().collect();
+    rows.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
+    rows.truncate(limit);
+    Some(ResultSet {
+        columns: columns.iter().map(|c| c.to_string()).collect(),
+        rows: rows
+            .into_iter()
+            .map(|(id, n)| vec![Cell::Str(id.to_string()), Cell::Int(n)])
+            .collect(),
+    })
+}
+
+#[cfg(test)]
+mod native_oracle_tests {
+    use super::*;
+
+    #[test]
+    fn the_native_oracle_matches_the_executor_on_a_small_snb_shape() {
+        use grust::{Edge, Node, Props, Value};
+        let mut nodes = Vec::new();
+        let mut edges = Vec::new();
+        let msg = |id: &str, kind: &str| {
+            let mut p = Props::new();
+            p.insert("kind".into(), Value::String(kind.into()));
+            Node::new("Message", id, p)
+        };
+        for i in 0..4 {
+            nodes.push(Node::new("Person", format!("p{i}"), Props::new()));
+        }
+        // posts: p0 has 3, p1 has 2, p2 has 2 (tie broken by id), p3 none
+        let mut posts = Vec::new();
+        for (i, owner) in [0, 0, 0, 1, 1, 2, 2].iter().enumerate() {
+            let id = format!("post{i}");
+            nodes.push(msg(&id, "Post"));
+            edges.push(Edge::new(
+                "HAS_CREATOR",
+                id.clone(),
+                format!("p{owner}"),
+                Props::new(),
+            ));
+            posts.push(id);
+        }
+        // a comment by p3 must not count as a post; replies: post0 gets 2, post1 gets 1
+        for (i, root) in [0, 0, 1].iter().enumerate() {
+            let id = format!("c{i}");
+            nodes.push(msg(&id, "Comment"));
+            edges.push(Edge::new("HAS_CREATOR", id.clone(), "p3", Props::new()));
+            edges.push(Edge::new(
+                "REPLY_OF",
+                id,
+                posts[*root].clone(),
+                Props::new(),
+            ));
+        }
+        let graph = grust::Graph::new(nodes, edges);
+        let index = grust::TypedGraphIndex::new(std::sync::Arc::new(graph.clone())).unwrap();
+        for spec in queries_for("ldbc-snb")
+            .iter()
+            .filter(|q| q.id == "r2-posts-per-creator" || q.id == "r5-reply-fanin")
+        {
+            let native = native_oracle(&graph, &spec.cypher).expect("pinned text recognised");
+            let params = grust_cypher::CypherParameters::new();
+            let executor = grust_cypher::run_bounded_read_query_indexed(
+                &index,
+                &bounded_text(&spec.cypher),
+                &params,
+                &reference_policy(),
+            )
+            .unwrap();
+            let executor = ResultSet::from_table(executor).normalized(spec.ordered);
+            assert_eq!(native.normalized(spec.ordered), executor, "{}", spec.id);
+        }
+    }
 }

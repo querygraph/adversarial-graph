@@ -36,6 +36,9 @@ struct QueryRecord {
     detail: Option<String>,
     /// The oracle's own time for the query, for scale, never a measurement.
     oracle_ms: Option<f64>,
+    /// How the answer key was produced: the in-process executor, the
+    /// proven resident count, or the harness's native oracle.
+    oracle_route: Option<crate::differential::Route>,
 }
 
 pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
@@ -115,8 +118,12 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                 },
             }
         };
+        let mut oracle_route = None;
         let expected = match oracle_answer {
-            Ok(Ok(Ok((table, _)))) => table.normalized(spec.ordered),
+            Ok(Ok(Ok((table, route)))) => {
+                oracle_route = Some(route);
+                table.normalized(spec.ordered)
+            }
             Ok(Ok(Err(e))) => {
                 reference_unsupported += 1;
                 eprintln!(
@@ -132,6 +139,7 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                     rows: None,
                     detail: Some(e.to_string()),
                     oracle_ms: None,
+                    oracle_route: None,
                 });
                 continue;
             }
@@ -146,6 +154,7 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                     rows: None,
                     detail: Some(format!("oracle task failed: {join}")),
                     oracle_ms: None,
+                    oracle_route: None,
                 });
                 continue;
             }
@@ -165,6 +174,7 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                     rows: None,
                     detail: Some(detail),
                     oracle_ms: Some(reference_budget.as_secs_f64() * 1e3),
+                    oracle_route: None,
                 });
                 continue;
             }
@@ -228,6 +238,7 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             rows,
             detail,
             oracle_ms: Some(oracle_ms),
+            oracle_route,
         });
     }
     let attempted = specs.len() - reference_unsupported;
