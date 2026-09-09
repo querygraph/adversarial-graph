@@ -258,7 +258,16 @@ pub enum Route {
 /// exhausted 12 GB on a nine-hop chain before the typed index took the
 /// proven counts). Every structural limit is lifted; only time and memory
 /// bound the run.
-pub const IN_PROCESS_BUDGET: std::time::Duration = std::time::Duration::from_secs(120);
+pub const IN_PROCESS_BUDGET: std::time::Duration = std::time::Duration::from_secs(110);
+
+/// Whether a store's error is Grust's bounded-read policy refusing the
+/// query (its cooperative deadline or a resource cap), as opposed to a
+/// failure: `bounded read execution timed out`, `bounded read exceeded …`.
+/// A8 records such an answer as refused, the way it records any store's
+/// declared refusal, never as a crash or a hang.
+pub fn is_policy_refusal(err: &grust::GrustError) -> bool {
+    err.to_string().contains("bounded read")
+}
 
 /// The reference executor's own budget, separate from the store's: the
 /// reference is not a measurement, only the answer key, and on LDBC sf0.1

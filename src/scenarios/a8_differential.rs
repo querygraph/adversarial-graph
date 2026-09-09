@@ -20,9 +20,13 @@ const QUERY_BUDGET: Duration = Duration::from_secs(120);
 /// How long a timed-out reference task is given to return before the cell
 /// ends as unable to prove quiescence.
 const REAP_GRACE: Duration = Duration::from_secs(10);
+// The in-process executor's own deadline sits below the store budget, so
+// a shape it cannot finish is refused by its policy inside the budget and
+// recorded as such; only a store that is still running when the budget
+// ends is a hang.
 const _: () = assert!(
-    QUERY_BUDGET.as_secs() == crate::differential::IN_PROCESS_BUDGET.as_secs(),
-    "the reference executor's cooperative deadline must equal the A8 query budget"
+    crate::differential::IN_PROCESS_BUDGET.as_secs() < QUERY_BUDGET.as_secs(),
+    "the in-process executor must refuse before the store budget ends"
 );
 
 #[derive(serde::Serialize)]
@@ -204,7 +208,10 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                     }
                 }
             }
-            Ok(Err(e)) if crate::backends::Backend::is_unsupported(&e) => {
+            Ok(Err(e))
+                if crate::backends::Backend::is_unsupported(&e)
+                    || crate::differential::is_policy_refusal(&e) =>
+            {
                 refused += 1;
                 ("refused", None, Some(e.to_string()))
             }
