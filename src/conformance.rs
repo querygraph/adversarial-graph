@@ -19,9 +19,42 @@ use crate::backends::{Backend, BackendKind};
 
 const BATCH_BOUNDARY: usize = 500;
 
+/// The two shapes the benchmarks send a store: the SNAP shape (one node
+/// label `V`, one relationship type `E`, read through the scenarios' own
+/// path -- `Backend::neighbors` and `out_degree`) and the typed shape of
+/// the M2 datasets (labels and relationship types, read through the
+/// `GraphStore` API). An adapter's answer can differ between them.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Shape {
+    Untyped,
+    Typed,
+}
+
+impl Shape {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Untyped => "untyped (SNAP shape, scenario read path)",
+            Self::Typed => "typed (labels and relationship types, GraphStore reads)",
+        }
+    }
+}
+
 /// The fixture: small enough to read by hand, shaped to catch what large
 /// graphs hide.
-pub fn fixture() -> Graph {
+pub fn fixture(shape: Shape) -> Graph {
+    let mut graph = typed_fixture();
+    if shape == Shape::Untyped {
+        for node in &mut graph.nodes {
+            node.label = Label::from(crate::dataset::NODE_LABEL);
+        }
+        for edge in &mut graph.edges {
+            edge.label = Label::from(crate::dataset::EDGE_LABEL);
+        }
+    }
+    graph
+}
+
+fn typed_fixture() -> Graph {
     // No parallel edges here: every harness loader dedupes on (from, label,
     // to), so the benchmarks never send a store two edges with that key,
     // and the adapters differ on it (see `parallel_edges_probe`). The
@@ -142,10 +175,65 @@ async fn edges(
         .await
 }
 
-async fn conform(kind: BackendKind, work_dir: &Path, tally: &mut Tally) -> grust::Result<()> {
+/// Edges `from` -> `to` (any `to` when None) under `label` (any when None):
+/// through the scenarios' read path for the untyped shape, through
+/// `GraphStore::get_edges` for the typed one.
+async fn count_out(
+    backend: &Backend,
+    shape: Shape,
+    from: &str,
+    to: Option<&str>,
+    label: Option<&str>,
+) -> grust::Result<usize> {
+    match shape {
+        Shape::Untyped => {
+            let from = NodeId::from(from);
+            match to {
+                None => backend.out_degree(&from).await,
+                Some(to) => Ok(backend
+                    .neighbors(&from)
+                    .await?
+                    .iter()
+                    .filter(|id| id.as_str() == to)
+                    .count()),
+            }
+        }
+        Shape::Typed => Ok(edges(backend.store.as_ref(), Some(from), to, label)
+            .await?
+            .len()),
+    }
+}
+
+async fn conform(
+    kind: BackendKind,
+    work_dir: &Path,
+    shape: Shape,
+    tally: &mut Tally,
+) -> grust::Result<()> {
     let backend = Backend::open(kind, work_dir, "conformance").await?;
     let store = backend.store.as_ref();
-    let graph = fixture();
+    let graph = fixture(shape);
+    // Expected cardinalities come from the fixture itself, so the same
+    // checks hold in both shapes.
+    let expect_out = |from: &str, to: Option<&str>, label: Option<&str>| -> usize {
+        graph
+            .edges
+            .iter()
+            .filter(|e| e.from.as_str() == from)
+            .filter(|e| to.is_none_or(|t| e.to.as_str() == t))
+            .filter(|e| label.is_none_or(|l| e.label.as_str() == l))
+            .count()
+    };
+    let knows = if shape == Shape::Typed {
+        "KNOWS"
+    } else {
+        crate::dataset::EDGE_LABEL
+    };
+    let works_at = if shape == Shape::Typed {
+        "WORKS_AT"
+    } else {
+        crate::dataset::EDGE_LABEL
+    };
     let report = backend.load(&graph).await?;
     tally.check(
         "load report counts the fixture",
@@ -179,46 +267,30 @@ async fn conform(kind: BackendKind, work_dir: &Path, tally: &mut Tally) -> grust
         }
     }
 
-    // Edges: cardinalities by endpoint and label, including the loop and
-    // the parallel pair, whose ids must both survive.
-    let expect: Vec<(&str, Option<&str>, Option<&str>, Option<&str>, usize)> = vec![
-        ("all edges out of p1", Some("p1"), None, None, 3),
-        ("KNOWS p1->p2", Some("p1"), Some("p2"), Some("KNOWS"), 1),
-        ("self-loop p1->p1", Some("p1"), Some("p1"), Some("KNOWS"), 1),
-        (
-            "edge into the escaped id",
-            None,
-            Some("it's/odd id"),
-            Some("WORKS_AT"),
-            1,
-        ),
-        (
-            "isolated vertex has no edges",
-            Some("isolated"),
-            None,
-            None,
-            0,
-        ),
-        (
-            "label filter WORKS_AT out of p1",
-            Some("p1"),
-            None,
-            Some("WORKS_AT"),
-            1,
-        ),
+    // Edges: cardinalities by endpoint and label, including the loop.
+    let expect: Vec<(&str, &str, Option<&str>, Option<&str>)> = vec![
+        ("all edges out of p1", "p1", None, None),
+        ("edge p1->p2", "p1", Some("p2"), Some(knows)),
+        ("self-loop p1->p1", "p1", Some("p1"), Some(knows)),
+        ("isolated vertex has no edges", "isolated", None, None),
+        ("label filter out of p1", "p1", None, Some(works_at)),
     ];
-    for (name, from, to, label, want) in expect {
-        let got = edges(store, from, to, label).await;
-        match got {
-            Ok(v) => tally.check(
-                name,
-                Ok(v.len() == want),
-                &format!("got {} want {want}", v.len()),
-            ),
+    for (name, from, to, label) in expect {
+        let want = expect_out(from, to, label);
+        match count_out(&backend, shape, from, to, label).await {
+            Ok(got) => tally.check(name, Ok(got == want), &format!("got {got} want {want}")),
             Err(e) => tally.check(name, Err(e), ""),
         }
     }
-    match edges(store, Some("p1"), Some("p2"), Some("KNOWS")).await {
+    match edges(store, None, Some("it's/odd id"), Some(works_at)).await {
+        Ok(v) => tally.check(
+            "edge into the escaped id",
+            Ok(v.len() == 1),
+            &format!("got {} want 1", v.len()),
+        ),
+        Err(e) => tally.check("edge into the escaped id", Err(e), ""),
+    }
+    match edges(store, Some("p1"), Some("p2"), Some(knows)).await {
         Ok(v) => {
             let ids: Vec<String> = v
                 .iter()
@@ -233,51 +305,54 @@ async fn conform(kind: BackendKind, work_dir: &Path, tally: &mut Tally) -> grust
         Err(e) => tally.check("edge id and property read back", Err(e), ""),
     }
 
-    // Capability, not conformance: an edge batch that does not carry its
+    // Capability, not conformance (typed shape only; the answers do not
+    // depend on labels): an edge batch that does not carry its
     // endpoints, which the store already holds. The compact loader's edge
     // chunks are shaped like this unless the backend declares otherwise
     // (`BackendKind::edge_batches_carry_endpoints`); a mismatch here is a
     // harness defect to fix before any large tier.
-    let mut eo = Graph::builder();
-    let _ = eo.edge("KNOWS", "p2", "p3").id("eo1").finish();
-    let accepted = match backend.load(&eo.build()).await {
-        Err(e) => format!("refused: {e}"),
-        Ok(_) => match edges(store, Some("p2"), Some("p3"), Some("KNOWS")).await {
-            Ok(v) if v.len() == 1 => "accepted".to_string(),
-            Ok(v) => format!("accepted but read back {} edges", v.len()),
-            Err(e) => format!("read failed: {e}"),
-        },
-    };
-    println!("  CAPABILITY  edge batch without its endpoints: {accepted}");
-    let declared = kind.edge_batches_carry_endpoints();
-    tally.check(
-        "compact edge chunks are shaped for this adapter",
-        Ok(declared == accepted.starts_with("refused")),
-        &format!("adapter {accepted}, harness declares carry_endpoints={declared}"),
-    );
+    if shape == Shape::Typed {
+        let mut eo = Graph::builder();
+        let _ = eo.edge("KNOWS", "p2", "p3").id("eo1").finish();
+        let accepted = match backend.load(&eo.build()).await {
+            Err(e) => format!("refused: {e}"),
+            Ok(_) => match edges(store, Some("p2"), Some("p3"), Some("KNOWS")).await {
+                Ok(v) if v.len() == 1 => "accepted".to_string(),
+                Ok(v) => format!("accepted but read back {} edges", v.len()),
+                Err(e) => format!("read failed: {e}"),
+            },
+        };
+        println!("  CAPABILITY  edge batch without its endpoints: {accepted}");
+        let declared = kind.edge_batches_carry_endpoints();
+        tally.check(
+            "compact edge chunks are shaped for this adapter",
+            Ok(declared == accepted.starts_with("refused")),
+            &format!("adapter {accepted}, harness declares carry_endpoints={declared}"),
+        );
 
-    // Capability, not conformance: two parallel edges in one batch.
-    let outcome = match backend.load(&parallel_edges_probe()).await {
-        Err(e) => format!("refused the batch: {e}"),
-        Ok(_) => match edges(store, Some("p3"), Some("p2"), Some("KNOWS")).await {
-            Err(e) => format!("read failed after the batch: {e}"),
-            Ok(v) => {
-                let mut ids: Vec<String> = v
-                    .iter()
-                    .filter_map(|e| e.id.as_ref().map(|i| i.as_str().to_string()))
-                    .collect();
-                ids.sort();
-                match ids.len() {
-                    2 => format!("kept both {ids:?}"),
-                    1 => format!("kept one {ids:?}"),
-                    n => format!("kept {n} {ids:?}"),
+        // Capability, not conformance: two parallel edges in one batch.
+        let outcome = match backend.load(&parallel_edges_probe()).await {
+            Err(e) => format!("refused the batch: {e}"),
+            Ok(_) => match edges(store, Some("p3"), Some("p2"), Some("KNOWS")).await {
+                Err(e) => format!("read failed after the batch: {e}"),
+                Ok(v) => {
+                    let mut ids: Vec<String> = v
+                        .iter()
+                        .filter_map(|e| e.id.as_ref().map(|i| i.as_str().to_string()))
+                        .collect();
+                    ids.sort();
+                    match ids.len() {
+                        2 => format!("kept both {ids:?}"),
+                        1 => format!("kept one {ids:?}"),
+                        n => format!("kept {n} {ids:?}"),
+                    }
                 }
-            }
-        },
-    };
-    println!(
-        "  CAPABILITY  parallel edges (same from/label/to, distinct ids) in one batch: {outcome}; not exercised by the benchmarks, whose loaders dedupe that key"
-    );
+            },
+        };
+        println!(
+            "  CAPABILITY  parallel edges (same from/label/to, distinct ids) in one batch: {outcome}; not exercised by the benchmarks, whose loaders dedupe that key"
+        );
+    }
 
     // Update: a second put of p1 with a changed value must be read back.
     let mut updated = graph
@@ -314,11 +389,11 @@ async fn conform(kind: BackendKind, work_dir: &Path, tally: &mut Tally) -> grust
                 Ok(v) => tally.check("deleted node is absent", Ok(v.is_none()), "still present"),
                 Err(e) => tally.check("deleted node is absent", Err(e), ""),
             }
-            match edges(store, Some("p3"), None, None).await {
-                Ok(v) => tally.check(
+            match count_out(&backend, shape, "p3", None, None).await {
+                Ok(n) => tally.check(
                     "deleted node's edges are gone",
-                    Ok(v.is_empty()),
-                    &format!("{} edges remain", v.len()),
+                    Ok(n == 0),
+                    &format!("{n} edges remain"),
                 ),
                 Err(e) => tally.check("deleted node's edges are gone", Err(e), ""),
             }
@@ -326,8 +401,12 @@ async fn conform(kind: BackendKind, work_dir: &Path, tally: &mut Tally) -> grust
         Err(e) => tally.check("delete node", Err(e), ""),
     }
 
-    // Batch boundary: N-1, N, N+1 rows around the incremental batch size.
+    // Batch boundary: N-1, N, N+1 rows around the incremental batch size
+    // (V/E rows; once, in the untyped shape).
     for n in [BATCH_BOUNDARY - 1, BATCH_BOUNDARY, BATCH_BOUNDARY + 1] {
+        if shape == Shape::Typed {
+            break;
+        }
         let b = Backend::open(kind, work_dir, &format!("conformance-{n}")).await?;
         let g = boundary_fixture(n);
         let r = b.load(&g).await;
@@ -367,40 +446,71 @@ async fn conform(kind: BackendKind, work_dir: &Path, tally: &mut Tally) -> grust
 pub async fn run(root: &Path, backends: &[String], out: &Path) -> i32 {
     let work = out.join("conformance-work");
     let _ = std::fs::create_dir_all(&work);
-    let mut exit = 0;
+    // 1: the untyped shape -- what every published SNAP row relies on --
+    // failed somewhere; 3: only the typed shape failed (the M2 families
+    // already record such an adapter as unsupported); 0: clean.
+    let mut untyped_failed = Vec::new();
+    let mut typed_failed = Vec::new();
     for name in backends {
         let Some(kind) = BackendKind::parse(name) else {
             eprintln!("unknown backend {name}; see `ag backends`");
             return 2;
         };
-        println!("== conformance {} ({})", kind.name(), kind.transport());
-        let mut tally = Tally {
-            pass: 0,
-            fail: 0,
-            unsupported: 0,
-        };
-        if let Err(e) = conform(kind, &work.join(kind.name()), &mut tally).await {
-            if Backend::is_unsupported(&e) {
-                tally.unsupported += 1;
-                println!("  UNSUPPORTED {e}");
-            } else {
-                tally.fail += 1;
-                println!("  FAIL        {e}");
+        for shape in [Shape::Untyped, Shape::Typed] {
+            println!(
+                "== conformance {} ({}), {}",
+                kind.name(),
+                kind.transport(),
+                shape.name()
+            );
+            let mut tally = Tally {
+                pass: 0,
+                fail: 0,
+                unsupported: 0,
+            };
+            let dir = work.join(format!("{}-{:?}", kind.name(), shape).to_lowercase());
+            if let Err(e) = conform(kind, &dir, shape, &mut tally).await {
+                if Backend::is_unsupported(&e) {
+                    tally.unsupported += 1;
+                    println!("  UNSUPPORTED {e}");
+                } else {
+                    tally.fail += 1;
+                    println!("  FAIL        {e}");
+                }
             }
-        }
-        println!(
-            "== {}: {} pass, {} fail, {} unsupported",
-            kind.name(),
-            tally.pass,
-            tally.fail,
-            tally.unsupported
-        );
-        if tally.fail > 0 {
-            exit = 1;
+            println!(
+                "== {} {:?}: {} pass, {} fail, {} unsupported",
+                kind.name(),
+                shape,
+                tally.pass,
+                tally.fail,
+                tally.unsupported
+            );
+            if tally.fail > 0 {
+                match shape {
+                    Shape::Untyped => untyped_failed.push(kind.name()),
+                    Shape::Typed => typed_failed.push(kind.name()),
+                }
+            }
         }
     }
     let _ = root;
-    exit
+    if !untyped_failed.is_empty() {
+        println!(
+            "== NOT CONFORMANT (untyped shape): {}",
+            untyped_failed.join(", ")
+        );
+    }
+    if !typed_failed.is_empty() {
+        println!("== typed shape not conformant: {}", typed_failed.join(", "));
+    }
+    if !untyped_failed.is_empty() {
+        1
+    } else if !typed_failed.is_empty() {
+        3
+    } else {
+        0
+    }
 }
 
 #[cfg(test)]
@@ -409,7 +519,11 @@ mod tests {
 
     #[test]
     fn the_fixture_has_its_edges_and_the_probe_keeps_both_parallel_edges() {
-        let g = fixture();
+        let g = fixture(Shape::Typed);
+        let u = fixture(Shape::Untyped);
+        assert!(u.nodes.iter().all(|n| n.label.as_str() == "V"));
+        assert!(u.edges.iter().all(|e| e.label.as_str() == "E"));
+        assert_eq!(u.edges.len(), g.edges.len());
         let k12: Vec<String> = g
             .edges
             .iter()

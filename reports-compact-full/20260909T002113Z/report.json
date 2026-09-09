@@ -1,0 +1,434 @@
+{
+  "schema": "adversarial-graph/report/v1",
+  "benchmark": "GRAPH-ADVERSARIAL-v1",
+  "generated_at": "2026-09-09T00:21:13.381645049+00:00",
+  "harness_version": "0.1.0",
+  "harness_revision": "5746e80f3f59bbf9b66e2b9b3f710392c028537c",
+  "harness_dirty_paths": [],
+  "grust_version": "0.13.0",
+  "grust_source": "git+https://github.com/querygraph/grust?rev=5253132105637988988568ec88eab088584b2345#5253132105637988988568ec88eab088584b2345",
+  "host": {
+    "arch": "x86_64",
+    "cpus": "16",
+    "mem_total_bytes": "43122417664",
+    "os": "linux",
+    "swap_total_bytes": "17179865088"
+  },
+  "datasets": [
+    {
+      "load": {
+        "dangling_edges_dropped": 0,
+        "duplicate_edges_dropped": 0,
+        "edges": 5105039,
+        "file": "/home/admin/src/ag-compact/datasets/web-Google.txt.gz",
+        "format": "snap-edge-list",
+        "lines": 5105043,
+        "node_labels": {
+          "V": 875713
+        },
+        "nodes": 875713,
+        "relationship_labels": {
+          "E": 5105039
+        },
+        "self_loops": 0,
+        "truncated_at": null
+      },
+      "manifest": {
+        "bytes": 21168784,
+        "file": "web-Google.txt.gz",
+        "name": "web-Google",
+        "pathology": "many-components",
+        "sha256": "bcac0af0471d749f4a8c010bca92b61cf2868a0570741de06892fc062f265ea6",
+        "tier": "S",
+        "url": "https://snap.stanford.edu/data/web-Google.txt.gz"
+      },
+      "reference": "compact",
+      "schema": {
+        "dominant_relationship": "E",
+        "node_labels": {
+          "V": 875713
+        },
+        "relationship_labels": {
+          "E": 5105039
+        }
+      },
+      "skipped_scenarios": [
+        "A5",
+        "A6",
+        "A8"
+      ]
+    }
+  ],
+  "results": [
+    {
+      "scenario": "LOAD",
+      "backend": "memory",
+      "dataset": "web-Google",
+      "outcome": "pass",
+      "gates": {
+        "wrong_answer": 0,
+        "lost_write": 0,
+        "duplicate_durable_mutation": 0,
+        "isolation_anomaly": 0,
+        "policy_bypass": 0,
+        "hang_or_timeout_without_refusal": 0,
+        "oom_or_crash": 0,
+        "unauthorized_disclosure": 0,
+        "non_deterministic_receipt": 0
+      },
+      "observations": {
+        "chunk_edges": 5000000,
+        "client_cpu_ratio": 1.0339740491893585,
+        "client_maxrss_bytes": 5431918592,
+        "client_sys_us": 2596139,
+        "client_user_us": 18356581,
+        "edges": 5105039,
+        "edges_per_s": 251923.34870374043,
+        "host_loadavg_1m_end": 9.3310546875,
+        "host_loadavg_1m_start": 12.634765625,
+        "host_steal_us": 0,
+        "load_chunks": 3,
+        "load_path": "grust-portable-api",
+        "nodes": 875713,
+        "reference": "compact",
+        "transport": "embedded",
+        "wall_us": 20264261
+      },
+      "latency": null,
+      "wall_ms": 20264,
+      "notes": []
+    },
+    {
+      "scenario": "A1",
+      "backend": "memory",
+      "dataset": "web-Google",
+      "outcome": "pass",
+      "gates": {
+        "wrong_answer": 0,
+        "lost_write": 0,
+        "duplicate_durable_mutation": 0,
+        "isolation_anomaly": 0,
+        "policy_bypass": 0,
+        "hang_or_timeout_without_refusal": 0,
+        "oom_or_crash": 0,
+        "unauthorized_disclosure": 0,
+        "non_deterministic_receipt": 0
+      },
+      "observations": {
+        "client_cpu_ratio": 0.8207849310606883,
+        "client_maxrss_bytes": 5431918592,
+        "client_sys_us": 0,
+        "client_user_us": 30241,
+        "expected_distinct": 2359,
+        "expected_layers": [
+          456,
+          1903
+        ],
+        "host_loadavg_1m_end": 9.3310546875,
+        "host_loadavg_1m_start": 9.3310546875,
+        "host_steal_us": 0,
+        "hub": "506742",
+        "hub_out_degree": 456,
+        "k": 2,
+        "observed_layers": [
+          456,
+          1903
+        ],
+        "read_path": "grust-portable-api",
+        "wall_us": 36844
+      },
+      "latency": {
+        "samples": 3,
+        "p50_us": 8671,
+        "p90_us": 13583,
+        "p99_us": 13583,
+        "p999_us": 13583,
+        "max_us": 13583,
+        "mean_us": 10074.0
+      },
+      "wall_ms": 36,
+      "notes": []
+    },
+    {
+      "scenario": "A2",
+      "backend": "memory",
+      "dataset": "web-Google",
+      "outcome": "pass",
+      "gates": {
+        "wrong_answer": 0,
+        "lost_write": 0,
+        "duplicate_durable_mutation": 0,
+        "isolation_anomaly": 0,
+        "policy_bypass": 0,
+        "hang_or_timeout_without_refusal": 0,
+        "oom_or_crash": 0,
+        "unauthorized_disclosure": 0,
+        "non_deterministic_receipt": 0
+      },
+      "observations": {
+        "client_cpu_ratio": 0.9989300061823486,
+        "client_maxrss_bytes": 5697126400,
+        "client_sys_us": 222157,
+        "client_user_us": 7992456,
+        "depth": 50,
+        "expected_deepest": 32,
+        "expected_reached": 600492,
+        "host_loadavg_1m_end": 8.0498046875,
+        "host_loadavg_1m_start": 9.3310546875,
+        "host_steal_us": 10000,
+        "observed_deepest": 32,
+        "observed_reached": 600492,
+        "policy_graph": "prefix-subgraph(423465 nodes, 1000000 edges)",
+        "policy_refusal": "Cypher syntax error: [gql:syntax] path can traverse 200 hops; read policy maximum is 4",
+        "policy_refusal_ms": 3,
+        "read_path": "grust-portable-api",
+        "start": "0",
+        "wall_us": 8223412
+      },
+      "latency": {
+        "samples": 1,
+        "p50_us": 7073791,
+        "p90_us": 7073791,
+        "p99_us": 7073791,
+        "p999_us": 7073791,
+        "max_us": 7073791,
+        "mean_us": 7071744.0
+      },
+      "wall_ms": 8223,
+      "notes": []
+    },
+    {
+      "scenario": "A3",
+      "backend": "memory",
+      "dataset": "web-Google",
+      "outcome": "pass",
+      "gates": {
+        "wrong_answer": 0,
+        "lost_write": 0,
+        "duplicate_durable_mutation": 0,
+        "isolation_anomaly": 0,
+        "policy_bypass": 0,
+        "hang_or_timeout_without_refusal": 0,
+        "oom_or_crash": 0,
+        "unauthorized_disclosure": 0,
+        "non_deterministic_receipt": 0
+      },
+      "observations": {
+        "attacks": 7,
+        "cartesian.ms": 0,
+        "cartesian.refusal": "Cypher syntax error: [gql:syntax] RETURN requires a positive literal LIMIT no larger than 50",
+        "client_cpu_ratio": 0.999620730094568,
+        "client_maxrss_bytes": 5697126400,
+        "client_sys_us": 232071,
+        "client_user_us": 769474,
+        "deep-path.ms": 0,
+        "deep-path.refusal": "Cypher syntax error: [gql:syntax] path can traverse 64 hops; read policy maximum is 4",
+        "host_loadavg_1m_end": 8.0498046875,
+        "host_loadavg_1m_start": 8.0498046875,
+        "host_steal_us": 0,
+        "policy_graph": "prefix-subgraph(423465 nodes, 1000000 edges)",
+        "range-bomb.ms": 0,
+        "range-bomb.refusal": "Cypher syntax error: [gql:syntax] bounded read query requires MATCH",
+        "read_path": "grust-portable-api",
+        "refused": 7,
+        "triple-cartesian.ms": 0,
+        "triple-cartesian.refusal": "Cypher syntax error: [gql:syntax] RETURN requires a positive literal LIMIT no larger than 50",
+        "two-hop-collect.ms": 0,
+        "two-hop-collect.refusal": "Cypher syntax error: [gql:syntax] RETURN requires a positive literal LIMIT no larger than 50",
+        "unanchored-match.ms": 0,
+        "unanchored-match.refusal": "Cypher syntax error: [gql:syntax] RETURN requires a positive literal LIMIT no larger than 50",
+        "union-arms.ms": 0,
+        "union-arms.refusal": "Cypher syntax error: [gql:syntax] query must contain 1 to 4 UNION arms",
+        "wall_us": 1001925
+      },
+      "latency": {
+        "samples": 7,
+        "p50_us": 5,
+        "p90_us": 22,
+        "p99_us": 22,
+        "p999_us": 22,
+        "max_us": 22,
+        "mean_us": 9.285714285714285
+      },
+      "wall_ms": 1001,
+      "notes": []
+    },
+    {
+      "scenario": "A4",
+      "backend": "memory",
+      "dataset": "web-Google",
+      "outcome": "pass",
+      "gates": {
+        "wrong_answer": 0,
+        "lost_write": 0,
+        "duplicate_durable_mutation": 0,
+        "isolation_anomaly": 0,
+        "policy_bypass": 0,
+        "hang_or_timeout_without_refusal": 0,
+        "oom_or_crash": 0,
+        "unauthorized_disclosure": 0,
+        "non_deterministic_receipt": 0
+      },
+      "observations": {
+        "accepted": 3200,
+        "client_cpu_ratio": 1.593600159829515,
+        "client_maxrss_bytes": 5697126400,
+        "client_sys_us": 45773,
+        "client_user_us": 2086,
+        "conflicts": 0,
+        "edges_per_writer": 200,
+        "final_out_degree": 3656,
+        "host_loadavg_1m_end": 8.0498046875,
+        "host_loadavg_1m_start": 8.0498046875,
+        "host_steal_us": 0,
+        "hub": "506742",
+        "initial_out_degree": 456,
+        "non_conflict_errors": 0,
+        "read_path": "grust-portable-api",
+        "wall_us": 30032,
+        "writers": 16
+      },
+      "latency": {
+        "samples": 3200,
+        "p50_us": 8,
+        "p90_us": 300,
+        "p99_us": 711,
+        "p999_us": 1010,
+        "max_us": 1490,
+        "mean_us": 91.98218749999997
+      },
+      "wall_ms": 30,
+      "notes": []
+    },
+    {
+      "scenario": "A7",
+      "backend": "memory",
+      "dataset": "web-Google",
+      "outcome": "unsupported",
+      "gates": {
+        "wrong_answer": 0,
+        "lost_write": 0,
+        "duplicate_durable_mutation": 0,
+        "isolation_anomaly": 0,
+        "policy_bypass": 0,
+        "hang_or_timeout_without_refusal": 0,
+        "oom_or_crash": 0,
+        "unauthorized_disclosure": 0,
+        "non_deterministic_receipt": 0
+      },
+      "observations": {
+        "client_cpu_ratio": 0.9565217391304348,
+        "client_maxrss_bytes": 5697126400,
+        "client_sys_us": 44,
+        "client_user_us": 0,
+        "host_loadavg_1m_end": 8.0498046875,
+        "host_loadavg_1m_start": 8.0498046875,
+        "host_steal_us": 0,
+        "read_path": "grust-portable-api",
+        "wall_us": 46
+      },
+      "latency": null,
+      "wall_ms": 0,
+      "notes": [
+        "backend does not implement GraphCommitStore"
+      ]
+    },
+    {
+      "scenario": "A12",
+      "backend": "memory",
+      "dataset": "web-Google",
+      "outcome": "pass",
+      "gates": {
+        "wrong_answer": 0,
+        "lost_write": 0,
+        "duplicate_durable_mutation": 0,
+        "isolation_anomaly": 0,
+        "policy_bypass": 0,
+        "hang_or_timeout_without_refusal": 0,
+        "oom_or_crash": 0,
+        "unauthorized_disclosure": 0,
+        "non_deterministic_receipt": 0
+      },
+      "observations": {
+        "client_cpu_ratio": 0.013777559522532935,
+        "client_maxrss_bytes": 5697126400,
+        "client_sys_us": 180809,
+        "client_user_us": 645972,
+        "cold_start_ms": 1,
+        "host_loadavg_1m_end": 4.0517578125,
+        "host_loadavg_1m_start": 8.0498046875,
+        "host_steal_us": 0,
+        "hub": "506742",
+        "hub_edges_appended_by_a4": 3200,
+        "read_path": "grust-portable-api",
+        "stream_200rps_achieved_rps": 200.0,
+        "stream_200rps_dropped": 0,
+        "stream_200rps_errors": 0,
+        "stream_200rps_late_arrivals_over_1s": 0,
+        "stream_200rps_max_in_flight": 1,
+        "stream_200rps_offered": 6001,
+        "stream_200rps_response_max_us": 4615,
+        "stream_200rps_response_p50_us": 1149,
+        "stream_200rps_response_p999_us": 3605,
+        "stream_200rps_response_p99_us": 3111,
+        "stream_200rps_sent": 6001,
+        "stream_200rps_service_max_us": 2989,
+        "stream_200rps_service_p50_us": 8,
+        "stream_200rps_service_p999_us": 2071,
+        "stream_200rps_service_p99_us": 2002,
+        "stream_50rps_achieved_rps": 50.0,
+        "stream_50rps_dropped": 0,
+        "stream_50rps_errors": 0,
+        "stream_50rps_late_arrivals_over_1s": 0,
+        "stream_50rps_max_in_flight": 1,
+        "stream_50rps_offered": 1501,
+        "stream_50rps_response_max_us": 3513,
+        "stream_50rps_response_p50_us": 1002,
+        "stream_50rps_response_p999_us": 3457,
+        "stream_50rps_response_p99_us": 2899,
+        "stream_50rps_sent": 1501,
+        "stream_50rps_service_max_us": 2173,
+        "stream_50rps_service_p50_us": 9,
+        "stream_50rps_service_p999_us": 2087,
+        "stream_50rps_service_p99_us": 2021,
+        "total_errors": 0,
+        "total_sent": 7502,
+        "total_unsupported": 0,
+        "wall_us": 60009249
+      },
+      "latency": {
+        "samples": 7502,
+        "p50_us": 8,
+        "p90_us": 16,
+        "p99_us": 2007,
+        "p999_us": 2075,
+        "max_us": 2989,
+        "mean_us": 49.27685950413224
+      },
+      "wall_ms": 60009,
+      "notes": []
+    }
+  ],
+  "gates": {
+    "wrong_answer": 0,
+    "lost_write": 0,
+    "duplicate_durable_mutation": 0,
+    "isolation_anomaly": 0,
+    "policy_bypass": 0,
+    "hang_or_timeout_without_refusal": 0,
+    "oom_or_crash": 0,
+    "unauthorized_disclosure": 0,
+    "non_deterministic_receipt": 0
+  },
+  "summary": {
+    "complete": true,
+    "expected_cells": 1,
+    "hard_gate_total": 0,
+    "missing_cells": [],
+    "outcomes": {
+      "pass": 6,
+      "unsupported": 1
+    },
+    "smoke": false
+  }
+}
