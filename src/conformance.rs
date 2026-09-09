@@ -48,15 +48,32 @@ pub fn fixture(shape: Shape) -> Graph {
         // edge ids. The untyped tally is the contract the published rows
         // rely on and nothing more; properties, ids and labels are the
         // typed shape's business.
-        for node in &mut graph.nodes {
-            node.label = Label::from(crate::dataset::NODE_LABEL);
-            node.props = grust::Props::new();
-        }
-        for edge in &mut graph.edges {
-            edge.label = Label::from(crate::dataset::EDGE_LABEL);
-            edge.id = None;
-            edge.props = grust::Props::new();
-        }
+        // Rebuilt through the constructors the loaders use: Node::new keeps
+        // the id as the `id` property, which the Cypher adapters' bulk
+        // write (`SET n = props`) relies on.
+        graph.nodes = graph
+            .nodes
+            .iter()
+            .map(|n| {
+                grust::Node::new(
+                    crate::dataset::NODE_LABEL,
+                    n.id.as_str(),
+                    grust::Props::new(),
+                )
+            })
+            .collect();
+        graph.edges = graph
+            .edges
+            .iter()
+            .map(|e| {
+                grust::Edge::new(
+                    crate::dataset::EDGE_LABEL,
+                    e.from.as_str(),
+                    e.to.as_str(),
+                    grust::Props::new(),
+                )
+            })
+            .collect();
     }
     graph
 }
@@ -557,7 +574,11 @@ mod tests {
                 .iter()
                 .all(|e| e.label.as_str() == "E" && e.id.is_none())
         );
-        assert!(u.nodes.iter().all(|n| n.props.is_empty()));
+        assert!(
+            u.nodes
+                .iter()
+                .all(|n| n.props.len() == 1 && n.props.contains_key("id"))
+        );
         assert_eq!(u.edges.len(), g.edges.len());
         let k12: Vec<String> = g
             .edges
