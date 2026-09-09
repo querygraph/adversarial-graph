@@ -265,6 +265,25 @@ pub const IN_PROCESS_BUDGET: std::time::Duration = std::time::Duration::from_sec
 /// `TIMEOUT`) is handed the same one, so it stops executing too.
 pub const STORE_BUDGET: std::time::Duration = std::time::Duration::from_secs(120);
 
+/// Whether a store's error is its own declared resource cap refusing the
+/// query, stated in the store's typed message -- Memgraph's `--memory-limit`
+/// ("Memory limit exceeded! … the maximum allowed size for allocation is
+/// set to 5.00GiB"), Neo4j's transaction memory pool
+/// (`MemoryPoolOutOfMemoryError`), FalkorDB's `QUERY_MEM_CAPACITY` ("mem
+/// consumption exceeded capacity"). The store stopped the query, said
+/// so, and is still up: A8 records it as refused, exactly as it records
+/// Grust's bounded-read cap on the in-process and SQL routes, and the cell
+/// is not comparable past it. Any other failure stays an error. A load
+/// that ends at a store's limit is a different thing: no data to measure,
+/// still a failing row (§48).
+pub fn is_declared_limit(err: &grust::GrustError) -> bool {
+    let text = err.to_string();
+    matches!(err, grust::GrustError::Backend(_))
+        && (text.contains("Memory limit exceeded")
+            || text.contains("MemoryPoolOutOfMemoryError")
+            || text.contains("mem consumption exceeded capacity"))
+}
+
 /// Whether a store's error says it stopped a query at the deadline the
 /// harness handed it (FalkorDB: "Query timed out"): recorded as a timeout,
 /// the way a query the harness stopped waiting for is, never as a crash.
@@ -520,6 +539,14 @@ mod tests {
             "neo4j: Memory limit exceeded! Attempting to allocate a chunk".into(),
         );
         assert!(!is_store_deadline(&memory));
+        assert!(is_declared_limit(&memory));
+        assert!(is_declared_limit(&grust::GrustError::Backend(
+            "Neo.TransientError.General.MemoryPoolOutOfMemoryError The allocation of an extra 2.0 MiB would use more than the limit".into()
+        )));
+        assert!(!is_declared_limit(&grust::GrustError::Backend(
+            "neo4j: connection reset by peer".into()
+        )));
+        assert!(!is_declared_limit(&deadline));
         let policy = grust::GrustError::CypherExecution("bounded read execution timed out".into());
         assert!(
             !is_store_deadline(&policy),

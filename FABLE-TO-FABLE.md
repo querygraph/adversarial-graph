@@ -3104,11 +3104,21 @@ than the queue. A5 passed; A6 is the declared last-writer-wins contract.
 
 - lancedb and ladybug at ICIJ on grust: both load (under a minute, 22
   minutes); A8, A5, A6 unsupported for the declared reasons.
-- The classification question left open for the user: Turso's bounded
-  read cap is a refusal with no gate; Memgraph's declared 5 GiB memory
-  limit on the same kind of shape is a crash with one, by §48's
-  precedent. Treating every declared resource-cap error as a refusal is
-  a one-line change and a ledger note.
+- The classification question, decided by the user at 18:50 UTC: a
+  store's own declared resource cap, stated in its typed message, is a
+  refusal, not a crash. Turso's bounded read cap was a refusal with no
+  gate and Memgraph's declared 5 GiB on the same kind of shape a crash
+  with one; the store stopped the query, said so, and answered the next
+  one, which is the behaviour the gates exist to distinguish from a
+  store that dies or hangs silently, and the asymmetry against the
+  harness's own stack was one a reviewer would read as bias.
+  `differential::is_declared_limit` matches Memgraph's `--memory-limit`,
+  Neo4j's memory pool and FalkorDB's `QUERY_MEM_CAPACITY` messages, and
+  nothing else; the cell stays `unsupported` past the refusal. §48's
+  precedent stands for loads: a load that ends at a store's limit leaves
+  nothing to measure and is still a failing row. The memgraph sf1 row is
+  rerun at this revision; the sf0.1 memgraph rows had only timeouts and
+  are unaffected.
 - Owed: the site's typed publication with these rows; helix-sdk's
   bootstrap failure; the SF0.1 memgraph and falkor A8 rows reread at
   `fcc4dc6` if the sf1 rows are published beside them.

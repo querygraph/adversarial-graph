@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- A8 records a store's own declared resource cap as a refusal, not a
+  crash: Memgraph's `--memory-limit`, Neo4j's transaction memory pool,
+  FalkorDB's `QUERY_MEM_CAPACITY`, matched on the store's typed message
+  (`differential::is_declared_limit`). The store stopped the query, said
+  so, and is still up, exactly as Grust's bounded-read cap is recorded on
+  the in-process and SQL routes; the cell stays unsupported past it. A load
+  that ends at a store's limit is still a failing row.
+
 - A8 never issues a query to a store that is still executing the last one
   (Astra finding 1). FalkorDB is handed the store budget as its own
   `TIMEOUT` and stops the query itself; after any query the harness stopped

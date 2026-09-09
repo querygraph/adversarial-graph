@@ -263,9 +263,12 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                     }
                 }
             }
+            // A typed refusal: the adapter has no such operation, Grust's
+            // bounded-read policy, or the store's own declared resource cap.
             Ok(Err(e))
                 if crate::backends::Backend::is_unsupported(&e)
-                    || crate::differential::is_policy_refusal(&e) =>
+                    || crate::differential::is_policy_refusal(&e)
+                    || crate::differential::is_declared_limit(&e) =>
             {
                 refused += 1;
                 ("refused", None, Some(e.to_string()))
