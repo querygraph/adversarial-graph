@@ -39,6 +39,7 @@ struct QueryRecord {
 }
 
 pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
+    let reference_budget = crate::differential::reference_budget();
     let mut r = ScenarioResult::new("A8", ctx.backend.kind.name(), ctx.dataset);
     let Some(schema) = schema_of(ctx.format) else {
         r.unsupported("A8 needs a typed dataset (LDBC SNB or ICIJ Offshore Leaks)");
@@ -79,11 +80,12 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             spec.kind
         );
         let oracle_started = Instant::now();
-        // The oracle gets the same budget as the store: the reference executor
-        // is not a measurement, but a shape it cannot answer in the budget is
-        // not comparable either, and is recorded as such rather than waited on.
-        // The reference executor runs under its own cooperative deadline
-        // (`in_process_policy().max_execution_time`, equal to QUERY_BUDGET),
+        // The oracle gets its own budget (`differential::reference_budget`,
+        // larger than the store's): the reference executor is not a
+        // measurement, but a shape it cannot answer in that budget is not
+        // comparable either, and is recorded as such rather than waited on.
+        // The reference executor runs under the same cooperative deadline
+        // (`in_process_policy_with(reference_budget()).max_execution_time`),
         // so a timed-out task stops itself shortly after the outer timeout
         // fires. It is nevertheless reaped here before the next query: a
         // blocking task keeps its thread, the graph and the CPU until it
@@ -95,7 +97,7 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
             let index = Arc::clone(&index);
             let cypher = spec.cypher.clone();
             let mut task = tokio::task::spawn_blocking(move || oracle(&graph, &index, &cypher));
-            match tokio::time::timeout(QUERY_BUDGET, &mut task).await {
+            match tokio::time::timeout(reference_budget, &mut task).await {
                 Ok(joined) => Ok(joined),
                 Err(elapsed) => match tokio::time::timeout(REAP_GRACE, &mut task).await {
                     Ok(_) => Err(elapsed),
@@ -103,7 +105,7 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                         r.gates.hang_or_timeout_without_refusal += 1;
                         r.notes.push(format!(
                                 "the reference executor did not stop within {}s of its {}s budget on {}; the cell ends because quiescence cannot be proven",
-                                REAP_GRACE.as_secs(), QUERY_BUDGET.as_secs(), spec.id
+                                REAP_GRACE.as_secs(), reference_budget.as_secs(), spec.id
                             ));
                         account_query_outcomes(&mut r, errors, timeouts + 1, reference_unsupported);
                         r.observe("queries", records.len());
@@ -151,7 +153,7 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                 reference_unsupported += 1;
                 let detail = format!(
                     "the reference executor exceeded the {} s budget; the shape is not comparable on this slice",
-                    QUERY_BUDGET.as_secs()
+                    reference_budget.as_secs()
                 );
                 eprintln!("      reference-unsupported: {detail}");
                 records.push(QueryRecord {
@@ -162,7 +164,7 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
                     ms: None,
                     rows: None,
                     detail: Some(detail),
-                    oracle_ms: Some(QUERY_BUDGET.as_secs_f64() * 1e3),
+                    oracle_ms: Some(reference_budget.as_secs_f64() * 1e3),
                 });
                 continue;
             }
@@ -247,6 +249,8 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     }
     r.observe("queries", &records);
     r.observe("query_count", specs.len());
+    r.observe("reference_budget_s", reference_budget.as_secs());
+    r.observe("store_budget_s", QUERY_BUDGET.as_secs());
     r.observe("matched", matched);
     r.observe("mismatched", mismatched);
     r.observe("refused", refused);

@@ -256,7 +256,29 @@ pub enum Route {
 /// bound the run.
 pub const IN_PROCESS_BUDGET: std::time::Duration = std::time::Duration::from_secs(120);
 
+/// The reference executor's own budget, separate from the store's: the
+/// reference is not a measurement, only the answer key, and on LDBC sf0.1
+/// two of its row shapes (posts per creator, reply fan-in) need more than
+/// the store's 120 s in Grust's in-process executor. Every store was
+/// coming out `unsupported` on A8 for that reason alone. Override with
+/// AG_REFERENCE_BUDGET_S; the memory backend's own in-process route keeps
+/// the store budget, since there it is the system under test.
+pub fn reference_budget() -> std::time::Duration {
+    std::time::Duration::from_secs(
+        std::env::var("AG_REFERENCE_BUDGET_S")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(900),
+    )
+}
+
 pub fn in_process_policy() -> grust_cypher::ReadQueryPolicy {
+    in_process_policy_with(IN_PROCESS_BUDGET)
+}
+
+pub fn in_process_policy_with(
+    max_execution_time: std::time::Duration,
+) -> grust_cypher::ReadQueryPolicy {
     grust_cypher::ReadQueryPolicy {
         max_query_bytes: 1 << 20,
         max_parameter_bytes: 1 << 20,
@@ -270,7 +292,7 @@ pub fn in_process_policy() -> grust_cypher::ReadQueryPolicy {
         max_range_items: grust_cypher::MAX_RANGE_ITEMS,
         max_union_arms: 16,
         max_path_length: 256,
-        max_execution_time: IN_PROCESS_BUDGET,
+        max_execution_time,
         allow_graph_selection: false,
         allow_catalog_procedures: false,
         require_match: false,
@@ -332,7 +354,7 @@ pub fn oracle(
     // for an unproven shape and measures the graph once through the index
     // instead of serializing it per query (10 s per query on a 200k slice).
     let _ = graph;
-    let policy = in_process_policy();
+    let policy = in_process_policy_with(reference_budget());
     let table = grust_cypher::run_bounded_read_query_indexed(
         index,
         &bounded_text(cypher),
