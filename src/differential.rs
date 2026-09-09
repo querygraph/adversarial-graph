@@ -641,19 +641,21 @@ pub fn mentions_labels(cypher: &str) -> bool {
     false
 }
 
-/// The pinned shapes Grust's in-process executor does not finish inside
-/// the store budget's policy (110 s, 2 GiB of intermediates): LDBC r2
-/// posts per creator and r5 reply fan-in ran past 30 minutes at sf0.1;
-/// ICIJ c4 co-officers and r1 officer fan-out exceed 8 GiB of
-/// intermediates; ICIJ r2, r3 and r4 -- a property filter, a group count
-/// and a DISTINCT over the 814k Entity nodes -- each exceed 2 GiB while
-/// binding their start nodes and took 13-23 s of the answer key under an
-/// 8 GiB cap. For exactly these pinned texts the answer key is computed
+/// The pinned row shapes, and the two count shapes the executor cannot
+/// finish. Grust's in-process executor binds every start node of a MATCH
+/// before it filters or aggregates, so a row query over the largest label
+/// costs a graph's worth of intermediates: LDBC r2 posts per creator and
+/// r5 reply fan-in ran past 30 minutes at sf0.1; ICIJ c4 co-officers and
+/// r1 officer fan-out exceed 8 GiB; ICIJ r2, r3 and r4 each exceed 2 GiB
+/// and took 13-23 s under an 8 GiB cap; and at LDBC sf1 the executor on
+/// r3 tag popularity took the client past a 22 GB host guard on top of a
+/// 14 GB graph. For exactly these pinned texts the answer key is computed
 /// here in Rust over the loaded graph -- a group count with the query's
 /// own ORDER BY and LIMIT, a co-occurrence pair count, a filtered
-/// projection, a distinct property -- and recorded as `native-oracle`.
-/// Any other text goes to the executor. Unit tests hold every shape
-/// against the executor on a small graph.
+/// projection, a distinct property, an edge projection -- and recorded as
+/// `native-oracle`. The count shapes stay with the executor and the
+/// resident index's proven plans. Unit tests hold every shape against the
+/// executor on a small graph.
 pub fn native_oracle(graph: &grust::Graph, cypher: &str) -> Option<ResultSet> {
     const R2: &str = "MATCH (m:Message {kind: 'Post'})-[:HAS_CREATOR]->(p:Person)\nRETURN p.id AS person, count(m) AS posts\nORDER BY posts DESC, person\nLIMIT 50";
     const R5: &str = "MATCH (c:Message {kind: 'Comment'})-[:REPLY_OF]->(m:Message)\nRETURN m.id AS root, count(c) AS replies\nORDER BY replies DESC, root\nLIMIT 20";
@@ -663,7 +665,163 @@ pub fn native_oracle(graph: &grust::Graph, cypher: &str) -> Option<ResultSet> {
     const ICIJ_R3: &str = "MATCH (e:Entity)-[:REGISTERED_ADDRESS]->(a:Address)\nRETURN a.id AS address, count(e) AS entities\nORDER BY entities DESC, address\nLIMIT 25";
     const ICIJ_R4: &str =
         "MATCH (e:Entity)\nRETURN DISTINCT e.jurisdiction AS jurisdiction\nORDER BY jurisdiction";
+    const R1: &str = "MATCH (p:Person)-[:KNOWS]->(q:Person)\nRETURN p.id AS a, q.id AS b\nORDER BY a, b\nLIMIT 200";
+    const R3: &str = "MATCH (t:Tag)<-[:HAS_TAG]-(m:Message)\nRETURN t.name AS tag, count(*) AS n\nORDER BY n DESC, tag\nLIMIT 25";
+    const R4: &str = "MATCH (p:Person)\nWHERE p.gender = 'female'\nRETURN p.id AS id, p.firstName AS firstName\nORDER BY id\nLIMIT 100";
+    const R6: &str = "MATCH (p:Person)-[:IS_LOCATED_IN]->(:City)-[:IS_PART_OF]->(c:Country)\nRETURN DISTINCT c.name AS country\nORDER BY country";
+    const R7: &str = "MATCH (p:Person)-[:KNOWS]->(q:Person)\nWHERE p.gender = 'male' AND q.gender = 'female'\nRETURN p.id AS a, q.id AS b";
     let text = cypher.trim();
+    use std::collections::HashMap;
+    // Ascending with an absent value last, as the executor and the engines
+    // order a null under ORDER BY.
+    fn null_last(a: &Cell, b: &Cell) -> Ordering {
+        match (a, b) {
+            (Cell::Null, Cell::Null) => Ordering::Equal,
+            (Cell::Null, _) => Ordering::Greater,
+            (_, Cell::Null) => Ordering::Less,
+            _ => a.compare(b),
+        }
+    }
+    let prop =
+        |n: &grust::Node, key: &str| n.props.get(key).map(Cell::from_grust).unwrap_or(Cell::Null);
+    let string_prop_is = |n: &grust::Node, key: &str, want: &str| matches!(n.props.get(key), Some(grust::Value::String(v)) if v == want);
+    // Label by node id, for the edge shapes.
+    let label_of = || -> HashMap<&str, &str> {
+        graph
+            .nodes
+            .iter()
+            .map(|n| (n.id.as_str(), n.label.as_str()))
+            .collect()
+    };
+    let pairs = |columns: [&str; 2], rows: Vec<(&str, &str)>| ResultSet {
+        columns: columns.iter().map(|c| c.to_string()).collect(),
+        rows: rows
+            .into_iter()
+            .map(|(a, b)| vec![Cell::Str(a.to_string()), Cell::Str(b.to_string())])
+            .collect(),
+    };
+    if text == R1 || text == R7 {
+        // KNOWS edges between Person nodes; r7 keeps the male -> female ones.
+        let gender: HashMap<&str, &str> = graph
+            .nodes
+            .iter()
+            .filter(|n| n.label.as_str() == "Person")
+            .filter_map(|n| match n.props.get("gender") {
+                Some(grust::Value::String(g)) => Some((n.id.as_str(), g.as_str())),
+                _ => None,
+            })
+            .collect();
+        let labels = label_of();
+        let mut rows: Vec<(&str, &str)> = graph
+            .edges
+            .iter()
+            .filter(|e| e.label.as_str() == "KNOWS")
+            .filter(|e| {
+                labels.get(e.from.as_str()) == Some(&"Person")
+                    && labels.get(e.to.as_str()) == Some(&"Person")
+            })
+            .filter(|e| {
+                text == R1
+                    || (gender.get(e.from.as_str()) == Some(&"male")
+                        && gender.get(e.to.as_str()) == Some(&"female"))
+            })
+            .map(|e| (e.from.as_str(), e.to.as_str()))
+            .collect();
+        if text == R1 {
+            rows.sort();
+            rows.truncate(200);
+        }
+        return Some(pairs(["a", "b"], rows));
+    }
+    if text == R3 {
+        // HAS_TAG edges from a Message to a Tag, counted per tag *name* (the
+        // grouping key is the value, so two tags with one name are one row).
+        let names: HashMap<&str, Cell> = graph
+            .nodes
+            .iter()
+            .filter(|n| n.label.as_str() == "Tag")
+            .map(|n| (n.id.as_str(), prop(n, "name")))
+            .collect();
+        let labels = label_of();
+        let mut counts: Vec<(Cell, i64)> = Vec::new();
+        // Grouped on the cell's JSON text: `Cell` carries floats and is not
+        // hashable itself.
+        let mut at: HashMap<String, usize> = HashMap::new();
+        for e in graph.edges.iter().filter(|e| e.label.as_str() == "HAS_TAG") {
+            if labels.get(e.from.as_str()) != Some(&"Message") {
+                continue;
+            }
+            let Some(name) = names.get(e.to.as_str()) else {
+                continue;
+            };
+            let key = serde_json::to_string(name).unwrap_or_default();
+            match at.get(&key) {
+                Some(&i) => counts[i].1 += 1,
+                None => {
+                    at.insert(key, counts.len());
+                    counts.push((name.clone(), 1));
+                }
+            }
+        }
+        counts.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| null_last(&a.0, &b.0)));
+        counts.truncate(25);
+        return Some(ResultSet {
+            columns: vec!["tag".to_string(), "n".to_string()],
+            rows: counts
+                .into_iter()
+                .map(|(name, n)| vec![name, Cell::Int(n)])
+                .collect(),
+        });
+    }
+    if text == R4 {
+        let mut rows: Vec<(&str, Cell)> = graph
+            .nodes
+            .iter()
+            .filter(|n| n.label.as_str() == "Person" && string_prop_is(n, "gender", "female"))
+            .map(|n| (n.id.as_str(), prop(n, "firstName")))
+            .collect();
+        rows.sort_by(|a, b| a.0.cmp(b.0));
+        rows.truncate(100);
+        return Some(ResultSet {
+            columns: vec!["id".to_string(), "firstName".to_string()],
+            rows: rows
+                .into_iter()
+                .map(|(id, first)| vec![Cell::Str(id.to_string()), first])
+                .collect(),
+        });
+    }
+    if text == R6 {
+        // Countries of the cities some Person is located in, by name, distinct.
+        let labels = label_of();
+        let cities: std::collections::HashSet<&str> = graph
+            .edges
+            .iter()
+            .filter(|e| e.label.as_str() == "IS_LOCATED_IN")
+            .filter(|e| {
+                labels.get(e.from.as_str()) == Some(&"Person")
+                    && labels.get(e.to.as_str()) == Some(&"City")
+            })
+            .map(|e| e.to.as_str())
+            .collect();
+        let name_of: HashMap<&str, Cell> = graph
+            .nodes
+            .iter()
+            .filter(|n| n.label.as_str() == "Country")
+            .map(|n| (n.id.as_str(), prop(n, "name")))
+            .collect();
+        let mut names: Vec<Cell> = graph
+            .edges
+            .iter()
+            .filter(|e| e.label.as_str() == "IS_PART_OF" && cities.contains(e.from.as_str()))
+            .filter_map(|e| name_of.get(e.to.as_str()).cloned())
+            .collect();
+        names.sort_by(null_last);
+        names.dedup();
+        return Some(ResultSet {
+            columns: vec!["country".to_string()],
+            rows: names.into_iter().map(|v| vec![v]).collect(),
+        });
+    }
     if text == ICIJ_R2 {
         // Entities whose `jurisdiction` is the string 'SAM', by id.
         let mut rows: Vec<(&str, Cell)> = graph
@@ -704,12 +862,7 @@ pub fn native_oracle(graph: &grust::Graph, cypher: &str) -> Option<ResultSet> {
                     .unwrap_or(Cell::Null)
             })
             .collect();
-        values.sort_by(|a, b| match (a, b) {
-            (Cell::Null, Cell::Null) => Ordering::Equal,
-            (Cell::Null, _) => Ordering::Greater,
-            (_, Cell::Null) => Ordering::Less,
-            _ => a.compare(b),
-        });
+        values.sort_by(null_last);
         values.dedup();
         return Some(ResultSet {
             columns: vec!["jurisdiction".to_string()],
@@ -717,7 +870,6 @@ pub fn native_oracle(graph: &grust::Graph, cypher: &str) -> Option<ResultSet> {
         });
     }
     // A node's label and, where the shape filters on it, its `kind`.
-    use std::collections::HashMap;
     let kind_of = || -> HashMap<&str, (&str, Option<&str>)> {
         graph
             .nodes
@@ -884,12 +1036,95 @@ mod native_oracle_tests {
                 Props::new(),
             ));
         }
+        // genders and names: p0 male Ann, p1 female Bea, p2 female (no
+        // firstName), p3 no gender
+        for (i, gender, first) in [
+            (0, Some("male"), Some("Ann")),
+            (1, Some("female"), Some("Bea")),
+            (2, Some("female"), None),
+            (3, None, Some("Dee")),
+        ] {
+            let n = nodes
+                .iter_mut()
+                .find(|n| n.id.as_str() == format!("p{i}"))
+                .unwrap();
+            if let Some(g) = gender {
+                n.props.insert("gender".into(), Value::String(g.into()));
+            }
+            if let Some(f) = first {
+                n.props.insert("firstName".into(), Value::String(f.into()));
+            }
+        }
+        // KNOWS: p0->p1 (male->female), p0->p2 (male->female), p1->p0, p3->p1,
+        // p2->p3; a KNOWS edge from a post must not count
+        for (a, b) in [(0, 1), (0, 2), (1, 0), (3, 1), (2, 3)] {
+            edges.push(Edge::new(
+                "KNOWS",
+                format!("p{a}"),
+                format!("p{b}"),
+                Props::new(),
+            ));
+        }
+        edges.push(Edge::new("KNOWS", "post0", "p1", Props::new()));
+        // tags: t0 and t3 both named "rust" (one group), t1 "graph", t2 unnamed;
+        // HAS_TAG from posts and comments; one from a Person must not count
+        for (i, name) in [
+            (0, Some("rust")),
+            (1, Some("graph")),
+            (2, None),
+            (3, Some("rust")),
+        ] {
+            let mut p = Props::new();
+            if let Some(name) = name {
+                p.insert("name".into(), Value::String(name.into()));
+            }
+            nodes.push(Node::new("Tag", format!("t{i}"), p));
+        }
+        for (m, t) in [
+            ("post0", 0),
+            ("post1", 0),
+            ("post2", 3),
+            ("c0", 1),
+            ("c1", 1),
+            ("c2", 2),
+            ("post3", 2),
+            ("post4", 2),
+        ] {
+            edges.push(Edge::new("HAS_TAG", m, format!("t{t}"), Props::new()));
+        }
+        edges.push(Edge::new("HAS_TAG", "p0", "t1", Props::new()));
+        // places: p0,p1 in city0 (country "Fr"), p2 in city1 (country
+        // "De"), city2 has no person (country "Xx" must not appear), city3
+        // has p3 and a country without a name
+        for i in 0..4 {
+            nodes.push(Node::new("City", format!("city{i}"), Props::new()));
+        }
+        for (i, name) in [(0, Some("Fr")), (1, Some("De")), (2, Some("Xx")), (3, None)] {
+            let mut p = Props::new();
+            if let Some(name) = name {
+                p.insert("name".into(), Value::String(name.into()));
+            }
+            nodes.push(Node::new("Country", format!("k{i}"), p));
+        }
+        for (person, city) in [(0, 0), (1, 0), (2, 1), (3, 3)] {
+            edges.push(Edge::new(
+                "IS_LOCATED_IN",
+                format!("p{person}"),
+                format!("city{city}"),
+                Props::new(),
+            ));
+        }
+        for i in 0..4 {
+            edges.push(Edge::new(
+                "IS_PART_OF",
+                format!("city{i}"),
+                format!("k{i}"),
+                Props::new(),
+            ));
+        }
         let graph = grust::Graph::new(nodes, edges);
         let index = grust::TypedGraphIndex::new(std::sync::Arc::new(graph.clone())).unwrap();
-        for spec in queries_for("ldbc-snb")
-            .iter()
-            .filter(|q| q.id == "r2-posts-per-creator" || q.id == "r5-reply-fanin")
-        {
+        for spec in queries_for("ldbc-snb").iter().filter(|q| q.kind == "rows") {
             let native = native_oracle(&graph, &spec.cypher).expect("pinned text recognised");
             let params = grust_cypher::CypherParameters::new();
             let executor = grust_cypher::run_bounded_read_query_indexed(
@@ -901,6 +1136,51 @@ mod native_oracle_tests {
             .unwrap();
             let executor = ResultSet::from_table(executor).normalized(spec.ordered);
             assert_eq!(native.normalized(spec.ordered), executor, "{}", spec.id);
+        }
+        let by_id = |id: &str| {
+            native_oracle(
+                &graph,
+                &queries_for("ldbc-snb")
+                    .iter()
+                    .find(|q| q.id == id)
+                    .unwrap()
+                    .cypher,
+            )
+            .unwrap()
+        };
+        let s = |v: &str| Cell::Str(v.into());
+        assert_eq!(
+            by_id("r1-knows-pairs").rows,
+            vec![
+                vec![s("p0"), s("p1")],
+                vec![s("p0"), s("p2")],
+                vec![s("p1"), s("p0")],
+                vec![s("p2"), s("p3")],
+                vec![s("p3"), s("p1")],
+            ]
+        );
+        assert_eq!(
+            by_id("r7-knows-unordered").normalized(false).rows,
+            vec![vec![s("p0"), s("p1")], vec![s("p0"), s("p2")]]
+        );
+        assert_eq!(
+            by_id("r3-tag-popularity").rows,
+            vec![
+                vec![s("rust"), Cell::Int(3)],
+                vec![Cell::Null, Cell::Int(3)],
+                vec![s("graph"), Cell::Int(2)],
+            ]
+        );
+        assert_eq!(
+            by_id("r4-female-persons").rows,
+            vec![vec![s("p1"), s("Bea")], vec![s("p2"), Cell::Null]]
+        );
+        assert_eq!(
+            by_id("r6-countries-distinct").rows,
+            vec![vec![s("De")], vec![s("Fr")], vec![Cell::Null]]
+        );
+        for spec in queries_for("ldbc-snb").iter().filter(|q| q.kind != "rows") {
+            assert!(native_oracle(&graph, &spec.cypher).is_none(), "{}", spec.id);
         }
     }
 

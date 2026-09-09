@@ -13,6 +13,12 @@
   kernel kill on another); and ICIJ r2, r3 and r4 join the native answer
   key, each of which had exceeded 2 GiB of intermediates and taken 13-23 s
   in the executor. The route each store took is recorded as before.
+- The five remaining LDBC row shapes (r1 knows pairs, r3 tag popularity, r4
+  female persons, r6 countries distinct, r7 knows unordered) join the native
+  answer key: at sf1 the executor on r3 took the client past a 22 GB host
+  guard on top of a 14 GB graph. Every row shape of both schemas is held
+  against the executor on a small graph with null properties, duplicate
+  group names and edges of the right type from the wrong label.
 
 - A8 backend errors and timeouts now fire hard gates, and missing reference
   coverage prevents a pass. A failed gate takes precedence over an unsupported
