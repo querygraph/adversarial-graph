@@ -39,6 +39,33 @@ fn backend(err: impl std::fmt::Display) -> GrustError {
 
 /// Grust properties as a Bolt map: ints, floats, bools and strings as
 /// themselves, string arrays as lists, dates and decimals as their text.
+/// A typed edge's properties as written: its id travels as the `id`
+/// property, the way Node::new records a node's, so it reads back.
+pub fn edge_props(edge: &Edge) -> Props {
+    let mut props = edge.props.clone();
+    if let Some(id) = &edge.id {
+        props
+            .entry("id".to_string())
+            .or_insert_with(|| grust::Value::from(id.as_str()));
+    }
+    props
+}
+
+/// The inverse: the `id` property, when present, becomes the edge id.
+pub fn edge_from_props(label: String, from: &str, to: &str, mut props: Props) -> Edge {
+    let id = match props.remove("id") {
+        Some(grust::Value::String(s)) => Some(s),
+        Some(other) => {
+            props.insert("id".to_string(), other);
+            None
+        }
+        None => None,
+    };
+    let mut edge = Edge::new(label, from, to, props);
+    edge.id = id.map(grust::EdgeId::from);
+    edge
+}
+
 fn bolt_props(props: &Props) -> BoltType {
     let mut map = BoltMap::new();
     for (key, value) in props.iter() {
@@ -210,7 +237,7 @@ impl GraphStore for Neo4jStore {
                             BoltString::from("to"),
                             BoltType::String(BoltString::from(e.to.as_str())),
                         );
-                        map.put(BoltString::from("props"), bolt_props(&e.props));
+                        map.put(BoltString::from("props"), bolt_props(&edge_props(e)));
                         BoltType::Map(map)
                     })
                     .collect();
@@ -298,7 +325,7 @@ impl GraphStore for Neo4jStore {
             .driver
             .execute(
                 query(&format!(
-                    "MATCH (a {{id: $id}})-[r{rel}]->(b) RETURN type(r) AS label, b.id AS to"
+                    "MATCH (a {{id: $id}})-[r{rel}]->(b) RETURN type(r) AS label, b.id AS to, properties(r) AS props"
                 ))
                 .param("id", from.as_str()),
             )
@@ -309,7 +336,11 @@ impl GraphStore for Neo4jStore {
             let label: String = row.get("label").map_err(backend)?;
             let to: String = row.get("to").map_err(backend)?;
             if q.to.as_ref().is_none_or(|t| t.as_str() == to) {
-                edges.push(Edge::new(label, from.as_str(), to, Props::new()));
+                let props = row
+                    .get::<serde_json::Value>("props")
+                    .map(|v| crate::typed_load::props_from_json(&v))
+                    .unwrap_or_default();
+                edges.push(edge_from_props(label, from.as_str(), &to, props));
             }
         }
         Ok(edges)

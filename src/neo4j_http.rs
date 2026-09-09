@@ -231,7 +231,7 @@ impl GraphStore for Neo4jHttpStore {
             for chunk in edges.chunks(BATCH) {
                 let rows: Vec<Value> = chunk
                     .iter()
-                    .map(|e| json!({ "from": e.from.as_str(), "to": e.to.as_str(), "props": json_props(&e.props) }))
+                    .map(|e| json!({ "from": e.from.as_str(), "to": e.to.as_str(), "props": json_props(&crate::neo4j::edge_props(e)) }))
                     .collect();
                 self.query(
                     format!(
@@ -304,7 +304,7 @@ impl GraphStore for Neo4jHttpStore {
             .unwrap_or_default();
         let rows = self
             .query(
-                format!("MATCH (a {{id: $id}})-[r{rel}]->(b) RETURN type(r), b.id"),
+                format!("MATCH (a {{id: $id}})-[r{rel}]->(b) RETURN type(r), b.id, properties(r)"),
                 json!({ "id": from.as_str() }),
             )
             .await?;
@@ -313,9 +313,13 @@ impl GraphStore for Neo4jHttpStore {
             .filter_map(|row| {
                 let label = row.first()?.as_str()?.to_string();
                 let to = row.get(1)?.as_str()?.to_string();
+                let props = row
+                    .get(2)
+                    .map(crate::typed_load::props_from_json)
+                    .unwrap_or_default();
                 q.to.as_ref()
                     .is_none_or(|t| t.as_str() == to)
-                    .then(|| Edge::new(label, from.as_str(), to, Props::new()))
+                    .then(|| crate::neo4j::edge_from_props(label, from.as_str(), &to, props))
             })
             .collect())
     }
