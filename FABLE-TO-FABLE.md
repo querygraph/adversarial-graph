@@ -3116,9 +3116,11 @@ than the queue. A5 passed; A6 is the declared last-writer-wins contract.
   Neo4j's memory pool and FalkorDB's `QUERY_MEM_CAPACITY` messages, and
   nothing else; the cell stays `unsupported` past the refusal. §48's
   precedent stands for loads: a load that ends at a store's limit leaves
-  nothing to measure and is still a failing row. The memgraph sf1 row is
-  rerun at this revision; the sf0.1 memgraph rows had only timeouts and
-  are unaffected.
+  nothing to measure and is still a failing row. The memgraph sf1 row
+  rerun at `a18300a`: 6 gates, q1 q2 q3 q6 q9 a1 past 120 s; the
+  cartesian count refused at the declared 5 GiB, the cell `unsupported`
+  past it; 22 matched; A5 passed; A6 the declared contract. The sf0.1
+  memgraph rows had only timeouts and are unaffected.
 - Owed: the site's typed publication with these rows; helix-sdk's
   bootstrap failure; the SF0.1 memgraph and falkor A8 rows reread at
   `fcc4dc6` if the sf1 rows are published beside them.
