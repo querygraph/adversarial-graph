@@ -176,10 +176,40 @@ impl TypedGraphBuilder {
     }
 }
 
-/// A CSV cell as a typed property value: empty cells are absent, integers
-/// are `Int`, and a millisecond epoch in a date column is an RFC 3339
-/// `DateTime`; everything else stays a string.
-pub fn typed_value(column: &str, cell: &str, epoch_millis_columns: &[&str]) -> Option<Value> {
+/// Which columns of a file are integer-typed: every non-empty cell parses
+/// as an `i64` (and at least one exists). Typing is a property of the
+/// column, never of the cell: a Tag named `1984` in a column of names is a
+/// string, and a column that mixed `Int` and `String` values made Memgraph
+/// refuse `ORDER BY` on it ("Can't compare value of type int to value of
+/// type string") while Neo4j and the reference sorted it -- a loader
+/// artifact, not a store finding.
+pub fn integer_columns(headers: &csv::StringRecord, records: &[csv::StringRecord]) -> Vec<bool> {
+    let n = headers.len();
+    let mut all_int = vec![true; n];
+    let mut any = vec![false; n];
+    for record in records {
+        for (i, cell) in record.iter().enumerate().take(n) {
+            if cell.is_empty() {
+                continue;
+            }
+            any[i] = true;
+            if all_int[i] && cell.parse::<i64>().is_err() {
+                all_int[i] = false;
+            }
+        }
+    }
+    (0..n).map(|i| any[i] && all_int[i]).collect()
+}
+
+/// A CSV cell as a typed property value: empty cells are absent, a cell of
+/// an integer column (`integer_columns`) is `Int`, a millisecond epoch in a
+/// date column is an RFC 3339 `DateTime`; everything else is a string.
+pub fn typed_value(
+    column: &str,
+    cell: &str,
+    integer_column: bool,
+    epoch_millis_columns: &[&str],
+) -> Option<Value> {
     if cell.is_empty() {
         return None;
     }
@@ -191,7 +221,7 @@ pub fn typed_value(column: &str, cell: &str, epoch_millis_columns: &[&str]) -> O
     {
         return Value::datetime(datetime.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)).ok();
     }
-    if let Ok(int) = cell.parse::<i64>() {
+    if integer_column && let Ok(int) = cell.parse::<i64>() {
         return Some(Value::Int(int));
     }
     Some(Value::String(cell.to_string()))
@@ -234,16 +264,23 @@ mod tests {
 
     #[test]
     fn values_are_typed_by_column_and_shape() {
-        assert_eq!(typed_value("length", "", &[]), None);
-        assert_eq!(typed_value("length", "140", &[]), Some(Value::Int(140)));
+        assert_eq!(typed_value("length", "", true, &[]), None);
         assert_eq!(
-            typed_value("name", "Kam_Air", &[]),
+            typed_value("length", "140", true, &[]),
+            Some(Value::Int(140))
+        );
+        assert_eq!(
+            typed_value("name", "1984", false, &[]),
+            Some(Value::String("1984".into()))
+        );
+        assert_eq!(
+            typed_value("name", "Kam_Air", false, &[]),
             Some(Value::String("Kam_Air".into()))
         );
-        let date = typed_value("creationDate", "1266161530447", &["creationDate"]).unwrap();
+        let date = typed_value("creationDate", "1266161530447", true, &["creationDate"]).unwrap();
         assert!(matches!(date, Value::DateTime(_)), "{date:?}");
         assert_eq!(
-            typed_value("creationDate", "not a date", &["creationDate"]),
+            typed_value("creationDate", "not a date", false, &["creationDate"]),
             Some(Value::String("not a date".into()))
         );
     }
@@ -278,5 +315,18 @@ mod tests {
         assert_eq!(schema.dominant_relationship.as_deref(), Some("KNOWS"));
         assert!(!schema.is_untyped() || schema.node_labels.len() == 1);
         assert_eq!(graph.edges.len(), 2);
+    }
+
+    #[test]
+    fn a_column_is_integer_only_when_every_cell_is() {
+        let headers = csv::StringRecord::from(vec!["id", "name", "year", "note"]);
+        let rows = vec![
+            csv::StringRecord::from(vec!["1", "1984", "2008", ""]),
+            csv::StringRecord::from(vec!["2", "Kam_Air", "", ""]),
+        ];
+        assert_eq!(
+            integer_columns(&headers, &rows),
+            vec![true, false, true, false]
+        );
     }
 }

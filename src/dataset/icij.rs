@@ -17,7 +17,9 @@ use std::path::Path;
 use grust::{Graph, Props};
 
 use super::LoadStats;
-use super::typed::{DatasetSchema, TypedGraphBuilder, relationship_label, typed_value};
+use super::typed::{
+    DatasetSchema, TypedGraphBuilder, integer_columns, relationship_label, typed_value,
+};
 
 pub const FORMAT: &str = "icij-offshore-leaks";
 const NODE_FILES: &[(&str, &str)] = &[
@@ -56,20 +58,21 @@ fn load_nodes(
 ) -> std::io::Result<()> {
     let mut reader = reader(source);
     let headers = reader.headers()?.clone();
-    for record in reader.records() {
-        let record = record?;
+    let records: Vec<csv::StringRecord> = reader.records().collect::<Result<_, _>>()?;
+    let int_columns = integer_columns(&headers, &records);
+    for record in records {
         builder.lines += 1;
         let Some(id) = record.get(0).filter(|id| !id.is_empty()) else {
             continue;
         };
         let mut props = Props::new();
-        for (column, cell) in headers.iter().zip(record.iter()) {
+        for (i, (column, cell)) in headers.iter().zip(record.iter()).enumerate() {
             let column = if column == "node_id" {
                 "sourceId"
             } else {
                 column
             };
-            if let Some(value) = typed_value(column, cell, &[]) {
+            if let Some(value) = typed_value(column, cell, int_columns[i], &[]) {
                 props.insert(column.to_string(), value);
             }
         }
@@ -91,8 +94,9 @@ fn load_relationships(builder: &mut TypedGraphBuilder, source: impl Read) -> std
             "relationships.csv lacks node_id_start, node_id_end or rel_type",
         ));
     };
-    for record in reader.records() {
-        let record = record?;
+    let records: Vec<csv::StringRecord> = reader.records().collect::<Result<_, _>>()?;
+    let int_columns = integer_columns(&headers, &records);
+    for record in records {
         builder.lines += 1;
         let (Some(from), Some(to), Some(rel_type)) =
             (record.get(start), record.get(end), record.get(kind))
@@ -105,7 +109,7 @@ fn load_relationships(builder: &mut TypedGraphBuilder, source: impl Read) -> std
             if index == start || index == end || index == kind {
                 continue;
             }
-            if let Some(value) = typed_value(name, cell, &[]) {
+            if let Some(value) = typed_value(name, cell, int_columns[index], &[]) {
                 props.insert(name.to_string(), value);
             }
         }

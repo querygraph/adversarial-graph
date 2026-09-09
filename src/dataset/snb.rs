@@ -21,7 +21,9 @@ use std::process::Command;
 use grust::{Graph, Props, Value};
 
 use super::LoadStats;
-use super::typed::{DatasetSchema, TypedGraphBuilder, relationship_label, typed_value};
+use super::typed::{
+    DatasetSchema, TypedGraphBuilder, integer_columns, relationship_label, typed_value,
+};
 
 pub const FORMAT: &str = "ldbc-snb-csvbasic";
 const DATE_COLUMNS: &[&str] = &["creationDate", "birthday", "joinDate"];
@@ -178,8 +180,9 @@ fn namespaced(builder: &TypedGraphBuilder, column_type: &str, raw_id: &str) -> O
 fn load_nodes(builder: &mut TypedGraphBuilder, entity: &str, path: &Path) -> std::io::Result<()> {
     let mut reader = reader(path)?;
     let headers = reader.headers()?.clone();
-    for record in reader.records() {
-        let record = record?;
+    let records: Vec<csv::StringRecord> = reader.records().collect::<Result<_, _>>()?;
+    let int_columns = integer_columns(&headers, &records);
+    for record in records {
         builder.lines += 1;
         let Some(raw_id) = record.get(0) else {
             continue;
@@ -189,12 +192,12 @@ fn load_nodes(builder: &mut TypedGraphBuilder, entity: &str, path: &Path) -> std
         if label == "Message" {
             props.insert("kind".to_string(), Value::String(capitalize(entity)));
         }
-        for (column, cell) in headers.iter().zip(record.iter()) {
+        for (i, (column, cell)) in headers.iter().zip(record.iter()).enumerate() {
             if column == "type" && matches!(entity, "organisation" | "place") {
                 continue;
             }
             let column = if column == "id" { "sourceId" } else { column };
-            if let Some(value) = typed_value(column, cell, DATE_COLUMNS) {
+            if let Some(value) = typed_value(column, cell, int_columns[i], DATE_COLUMNS) {
                 props.insert(column.to_string(), value);
             }
         }
@@ -243,11 +246,12 @@ fn load_edges(
     let from_type = headers.get(0).map(column_type).unwrap_or_default();
     let to_type = headers.get(1).map(column_type).unwrap_or_default();
     let mut taken = 0usize;
-    for record in reader.records() {
+    let records: Vec<csv::StringRecord> = reader.records().collect::<Result<_, _>>()?;
+    let int_columns = integer_columns(&headers, &records);
+    for record in records {
         if cap.is_some_and(|cap| taken >= cap) || builder.full() {
             break;
         }
-        let record = record?;
         builder.lines += 1;
         let (Some(from_raw), Some(to_raw)) = (record.get(0), record.get(1)) else {
             continue;
@@ -260,8 +264,8 @@ fn load_edges(
             continue;
         };
         let mut props = Props::new();
-        for (column, cell) in headers.iter().zip(record.iter()).skip(2) {
-            if let Some(value) = typed_value(column, cell, DATE_COLUMNS) {
+        for (i, (column, cell)) in headers.iter().zip(record.iter()).enumerate().skip(2) {
+            if let Some(value) = typed_value(column, cell, int_columns[i], DATE_COLUMNS) {
                 props.insert(column.to_string(), value);
             }
         }
