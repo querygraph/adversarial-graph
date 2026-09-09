@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- A8 runs in a fraction of the memory: the oracle index is built over the
+  loaded graph itself instead of a copy of it (`LoadedGraph::Full` is
+  shared); on Turso and PostgreSQL the one pinned shape the SQL planners
+  refuse (ICIJ c4, `WHERE o <> p`) runs the reference executor over the
+  store's resident snapshot under the store budget's policy (110 s, 2 GiB
+  of intermediates) instead of the adapters' own fallback, which read the
+  whole graph out of the store again for every such query and ran the
+  executor unbounded and synchronously (a 2 h hang on one host, a 32 GB
+  kernel kill on another); and ICIJ r2, r3 and r4 join the native answer
+  key, each of which had exceeded 2 GiB of intermediates and taken 13-23 s
+  in the executor. The route each store took is recorded as before.
+
 - A8 backend errors and timeouts now fire hard gates, and missing reference
   coverage prevents a pass. A failed gate takes precedence over an unsupported
   operation in the cell headline; refusal details remain in the notes.

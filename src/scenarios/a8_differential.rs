@@ -58,8 +58,9 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
         return r;
     }
     // The oracle's typed index over the in-process graph, built once,
-    // outside every query's timing.
-    let graph = Arc::new(ctx.typed_graph().clone());
+    // outside every query's timing, over the loaded graph itself: the copy
+    // A8 used to take here was a second graph's worth of memory per cell.
+    let graph = Arc::clone(ctx.shared_typed_graph());
     let index = match grust::TypedGraphIndex::new(Arc::clone(&graph)).map(Arc::new) {
         Ok(index) => index,
         Err(e) => {

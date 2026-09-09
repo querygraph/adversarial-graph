@@ -844,13 +844,17 @@ impl Backend {
             .map_err(|e| grust::GrustError::Backend(e.to_string()))?
             .map(ResultSet::from_table)
         };
-        if let Some(memory) = &self.memory {
-            if resident_proven(cypher) {
-                return run_indexed(memory.indexed_snapshot()?, cypher.to_string()).await;
-            }
-            let index = memory.indexed_snapshot()?;
-            let text = crate::differential::bounded_text(cypher);
-            return tokio::task::spawn_blocking(move || {
+        // The reference executor over a store's resident snapshot, under the
+        // store budget's policy (`in_process_policy`: 110 s, 2 GiB of
+        // intermediates), so a shape it cannot finish is refused inside the
+        // budget instead of running on. The Grust adapters' own fallback
+        // (`run_read_query` past the SQL planners) reads the whole graph out
+        // of the store again for every query and runs the executor with no
+        // bound, synchronously: on ICIJ that was a 2 h hang on one host and
+        // a 32 GB kill on another for the one shape the planners refuse.
+        let run_bounded = |index: Arc<grust::TypedGraphIndex>, cypher: String| async move {
+            let text = crate::differential::bounded_text(&cypher);
+            tokio::task::spawn_blocking(move || {
                 grust_cypher::run_bounded_read_query_indexed(
                     &index,
                     &text,
@@ -860,25 +864,41 @@ impl Backend {
             })
             .await
             .map_err(|e| grust::GrustError::Backend(e.to_string()))?
-            .map(ResultSet::from_table);
+            .map(ResultSet::from_table)
+        };
+        if let Some(memory) = &self.memory {
+            if resident_proven(cypher) {
+                return run_indexed(memory.indexed_snapshot()?, cypher.to_string()).await;
+            }
+            return run_bounded(memory.indexed_snapshot()?, cypher.to_string()).await;
         }
         let params = grust_cypher::CypherParameters::new();
         if let Some(turso) = &self.turso {
-            if self.cypher_route(cypher) == Route::ResidentIndexRustCount {
-                return run_indexed(turso.indexed_snapshot().await?, cypher.to_string()).await;
-            }
-            return Ok(ResultSet::from_table(
-                turso.run_read_query(cypher, &params).await?,
-            ));
+            return match self.cypher_route(cypher) {
+                Route::ResidentIndexRustCount => {
+                    run_indexed(turso.indexed_snapshot().await?, cypher.to_string()).await
+                }
+                Route::MaterializeRustReference => {
+                    run_bounded(turso.indexed_snapshot().await?, cypher.to_string()).await
+                }
+                _ => Ok(ResultSet::from_table(
+                    turso.run_read_query(cypher, &params).await?,
+                )),
+            };
         }
         #[cfg(feature = "postgres")]
         if let Some(postgres) = &self.postgres {
-            if self.cypher_route(cypher) == Route::ResidentIndexRustCount {
-                return run_indexed(postgres.indexed_snapshot().await?, cypher.to_string()).await;
-            }
-            return Ok(ResultSet::from_table(
-                postgres.run_read_query(cypher, &params).await?,
-            ));
+            return match self.cypher_route(cypher) {
+                Route::ResidentIndexRustCount => {
+                    run_indexed(postgres.indexed_snapshot().await?, cypher.to_string()).await
+                }
+                Route::MaterializeRustReference => {
+                    run_bounded(postgres.indexed_snapshot().await?, cypher.to_string()).await
+                }
+                _ => Ok(ResultSet::from_table(
+                    postgres.run_read_query(cypher, &params).await?,
+                )),
+            };
         }
         #[cfg(feature = "falkor")]
         if let Some(reader) = &self.falkor {

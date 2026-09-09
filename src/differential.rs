@@ -453,7 +453,6 @@ mod tests {
             unreachable!("not compact")
         };
         eprintln!("loaded {} nodes / {} edges", stats.nodes, stats.edges);
-        let graph = Arc::new(graph);
         let index = grust::TypedGraphIndex::new(Arc::clone(&graph)).unwrap();
         let params = grust_cypher::CypherParameters::new();
         let policy = in_process_policy();
@@ -559,6 +558,28 @@ mod tests {
         assert_eq!(bounded_text(comment).matches("LIMIT").count(), 1);
     }
 
+    /// The route each pinned ICIJ text takes on a SQL-backed store: the
+    /// counts are proven on the resident index, the row shapes are SQL
+    /// row sources, and c4's `WHERE o <> p` is the one the planners refuse
+    /// -- the shape that reaches the executor over the store's snapshot.
+    #[test]
+    fn the_icij_set_routes_on_the_sql_dialect() {
+        let dialect = grust::TursoReadDialect::new("ag");
+        for spec in queries_for("icij") {
+            let route = if resident_proven(&spec.cypher) {
+                Route::ResidentIndexRustCount
+            } else {
+                sql_route(&spec.cypher, &dialect)
+            };
+            let expected = match spec.id.as_str() {
+                "c4-co-officers" => Route::MaterializeRustReference,
+                id if id.starts_with('c') => Route::ResidentIndexRustCount,
+                _ => Route::RowSourceRustProjection,
+            };
+            assert_eq!(route, expected, "{}", spec.id);
+        }
+    }
+
     #[test]
     fn routes_follow_the_planners() {
         assert!(resident_proven(
@@ -620,22 +641,81 @@ pub fn mentions_labels(cypher: &str) -> bool {
     false
 }
 
-/// The pinned shapes Grust's in-process executor does not finish (LDBC
-/// r2 posts per creator and r5 reply fan-in ran past 30 minutes at sf0.1;
+/// The pinned shapes Grust's in-process executor does not finish inside
+/// the store budget's policy (110 s, 2 GiB of intermediates): LDBC r2
+/// posts per creator and r5 reply fan-in ran past 30 minutes at sf0.1;
 /// ICIJ c4 co-officers and r1 officer fan-out exceed 8 GiB of
-/// intermediates): a property-filtered or label-filtered MATCH on the
-/// largest label with an aggregate. For exactly these pinned texts the
-/// answer key is computed here in Rust over the loaded graph -- a group
-/// count with the query's own ORDER BY and LIMIT, or a co-occurrence pair
-/// count -- and recorded as `native-oracle`. Any other text goes to the
-/// executor. Unit tests hold every shape against the executor on a small
-/// graph.
+/// intermediates; ICIJ r2, r3 and r4 -- a property filter, a group count
+/// and a DISTINCT over the 814k Entity nodes -- each exceed 2 GiB while
+/// binding their start nodes and took 13-23 s of the answer key under an
+/// 8 GiB cap. For exactly these pinned texts the answer key is computed
+/// here in Rust over the loaded graph -- a group count with the query's
+/// own ORDER BY and LIMIT, a co-occurrence pair count, a filtered
+/// projection, a distinct property -- and recorded as `native-oracle`.
+/// Any other text goes to the executor. Unit tests hold every shape
+/// against the executor on a small graph.
 pub fn native_oracle(graph: &grust::Graph, cypher: &str) -> Option<ResultSet> {
     const R2: &str = "MATCH (m:Message {kind: 'Post'})-[:HAS_CREATOR]->(p:Person)\nRETURN p.id AS person, count(m) AS posts\nORDER BY posts DESC, person\nLIMIT 50";
     const R5: &str = "MATCH (c:Message {kind: 'Comment'})-[:REPLY_OF]->(m:Message)\nRETURN m.id AS root, count(c) AS replies\nORDER BY replies DESC, root\nLIMIT 20";
     const ICIJ_R1: &str = "MATCH (o:Officer)-[:OFFICER_OF]->(e:Entity)\nRETURN o.id AS officer, count(e) AS entities\nORDER BY entities DESC, officer\nLIMIT 50";
     const ICIJ_C4: &str = "MATCH (o:Officer)-[:OFFICER_OF]->(:Entity)<-[:OFFICER_OF]-(p:Officer)\nWHERE o <> p\nRETURN count(*) AS count";
+    const ICIJ_R2: &str = "MATCH (e:Entity)\nWHERE e.jurisdiction = 'SAM'\nRETURN e.id AS id, e.name AS name\nORDER BY id\nLIMIT 100";
+    const ICIJ_R3: &str = "MATCH (e:Entity)-[:REGISTERED_ADDRESS]->(a:Address)\nRETURN a.id AS address, count(e) AS entities\nORDER BY entities DESC, address\nLIMIT 25";
+    const ICIJ_R4: &str =
+        "MATCH (e:Entity)\nRETURN DISTINCT e.jurisdiction AS jurisdiction\nORDER BY jurisdiction";
     let text = cypher.trim();
+    if text == ICIJ_R2 {
+        // Entities whose `jurisdiction` is the string 'SAM', by id.
+        let mut rows: Vec<(&str, Cell)> = graph
+            .nodes
+            .iter()
+            .filter(|n| n.label.as_str() == "Entity")
+            .filter(|n| {
+                matches!(n.props.get("jurisdiction"), Some(grust::Value::String(j)) if j == "SAM")
+            })
+            .map(|n| {
+                (
+                    n.id.as_str(),
+                    n.props.get("name").map(Cell::from_grust).unwrap_or(Cell::Null),
+                )
+            })
+            .collect();
+        rows.sort_by(|a, b| a.0.cmp(b.0));
+        rows.truncate(100);
+        return Some(ResultSet {
+            columns: vec!["id".to_string(), "name".to_string()],
+            rows: rows
+                .into_iter()
+                .map(|(id, name)| vec![Cell::Str(id.to_string()), name])
+                .collect(),
+        });
+    }
+    if text == ICIJ_R4 {
+        // Every distinct `jurisdiction` an Entity carries, ascending, an
+        // absent property as one null row that sorts last.
+        let mut values: Vec<Cell> = graph
+            .nodes
+            .iter()
+            .filter(|n| n.label.as_str() == "Entity")
+            .map(|n| {
+                n.props
+                    .get("jurisdiction")
+                    .map(Cell::from_grust)
+                    .unwrap_or(Cell::Null)
+            })
+            .collect();
+        values.sort_by(|a, b| match (a, b) {
+            (Cell::Null, Cell::Null) => Ordering::Equal,
+            (Cell::Null, _) => Ordering::Greater,
+            (_, Cell::Null) => Ordering::Less,
+            _ => a.compare(b),
+        });
+        values.dedup();
+        return Some(ResultSet {
+            columns: vec!["jurisdiction".to_string()],
+            rows: values.into_iter().map(|v| vec![v]).collect(),
+        });
+    }
     // A node's label and, where the shape filters on it, its `kind`.
     use std::collections::HashMap;
     let kind_of = || -> HashMap<&str, (&str, Option<&str>)> {
@@ -717,6 +797,16 @@ pub fn native_oracle(graph: &grust::Graph, cypher: &str) -> Option<ResultSet> {
             false,
             ["officer", "entities"],
             50,
+        ));
+    }
+    if text == ICIJ_R3 {
+        return Some(group_count(
+            "REGISTERED_ADDRESS",
+            ("Entity", None),
+            "Address",
+            true,
+            ["address", "entities"],
+            25,
         ));
     }
     if text == ICIJ_C4 {
@@ -822,9 +912,40 @@ mod native_oracle_tests {
         for i in 0..5 {
             nodes.push(Node::new("Officer", format!("o{i}"), Props::new()));
         }
-        for i in 0..4 {
-            nodes.push(Node::new("Entity", format!("e{i}"), Props::new()));
+        // jurisdictions: e0 SAM, e1 SAM (no name), e2 BVI, e3 none; the
+        // Officer o0 carries a SAM jurisdiction that must not count
+        for (i, jurisdiction, name) in [
+            (0, Some("SAM"), Some("Zeta Ltd")),
+            (1, Some("SAM"), None),
+            (2, Some("BVI"), Some("Alpha Inc")),
+            (3, None, Some("Beta")),
+        ] {
+            let mut p = Props::new();
+            if let Some(j) = jurisdiction {
+                p.insert("jurisdiction".into(), grust::Value::String(j.into()));
+            }
+            if let Some(n) = name {
+                p.insert("name".into(), grust::Value::String(n.into()));
+            }
+            nodes.push(Node::new("Entity", format!("e{i}"), p));
         }
+        nodes[0]
+            .props
+            .insert("jurisdiction".into(), grust::Value::String("SAM".into()));
+        // addresses: a0 registered by e0, e1, e2; a1 by e3; an Officer's
+        // REGISTERED_ADDRESS edge must not count
+        for i in 0..2 {
+            nodes.push(Node::new("Address", format!("a{i}"), Props::new()));
+        }
+        for (e, a) in [(0, 0), (1, 0), (2, 0), (3, 1)] {
+            edges.push(Edge::new(
+                "REGISTERED_ADDRESS",
+                format!("e{e}"),
+                format!("a{a}"),
+                Props::new(),
+            ));
+        }
+        edges.push(Edge::new("REGISTERED_ADDRESS", "o1", "a1", Props::new()));
         // e0: officers 0,1,2 (6 ordered pairs); e1: 0,1 (2); e2: 3 (0); e3: none
         for (o, e) in [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (3, 2)] {
             edges.push(Edge::new(
@@ -839,9 +960,16 @@ mod native_oracle_tests {
         edges.push(Edge::new("OFFICER_OF", "o4", "o0", Props::new()));
         let graph = grust::Graph::new(nodes, edges);
         let index = grust::TypedGraphIndex::new(std::sync::Arc::new(graph.clone())).unwrap();
+        let native_shapes = [
+            "c4-co-officers",
+            "r1-officer-fanout",
+            "r2-samoa-entities",
+            "r3-address-fanin",
+            "r4-jurisdictions-distinct",
+        ];
         for spec in queries_for("icij")
             .iter()
-            .filter(|q| q.id == "c4-co-officers" || q.id == "r1-officer-fanout")
+            .filter(|q| native_shapes.contains(&q.id.as_str()))
         {
             let native = native_oracle(&graph, &spec.cypher).expect("pinned text recognised");
             let params = grust_cypher::CypherParameters::new();
@@ -868,5 +996,46 @@ mod native_oracle_tests {
             .rows,
             vec![vec![Cell::Int(8)]]
         );
+        let by_id = |id: &str| {
+            native_oracle(
+                &graph,
+                &queries_for("icij")
+                    .iter()
+                    .find(|q| q.id == id)
+                    .unwrap()
+                    .cypher,
+            )
+            .unwrap()
+            .rows
+        };
+        assert_eq!(
+            by_id("r2-samoa-entities"),
+            vec![
+                vec![Cell::Str("e0".into()), Cell::Str("Zeta Ltd".into())],
+                vec![Cell::Str("e1".into()), Cell::Null],
+            ]
+        );
+        assert_eq!(
+            by_id("r3-address-fanin"),
+            vec![
+                vec![Cell::Str("a0".into()), Cell::Int(3)],
+                vec![Cell::Str("a1".into()), Cell::Int(1)],
+            ]
+        );
+        assert_eq!(
+            by_id("r4-jurisdictions-distinct"),
+            vec![
+                vec![Cell::Str("BVI".into())],
+                vec![Cell::Str("SAM".into())],
+                vec![Cell::Null],
+            ]
+        );
+        // Every other pinned ICIJ text still goes to the executor.
+        for spec in queries_for("icij")
+            .iter()
+            .filter(|q| !native_shapes.contains(&q.id.as_str()))
+        {
+            assert!(native_oracle(&graph, &spec.cypher).is_none(), "{}", spec.id);
+        }
     }
 }

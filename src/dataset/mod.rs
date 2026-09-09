@@ -63,7 +63,9 @@ impl DatasetFormat {
 /// What a loader produced: the parsed `Graph`, or the compact reference
 /// for a SNAP tier whose `Graph` would not fit the host (`crate::compact`).
 pub enum LoadedGraph {
-    Full(Graph),
+    /// Shared: the typed families' oracle index borrows it for the length of
+    /// the run instead of copying it (A8 used to clone the whole graph).
+    Full(std::sync::Arc<Graph>),
     Compact(crate::compact::CompactGraph),
 }
 
@@ -97,14 +99,12 @@ pub fn load_dataset(
         DatasetFormat::Snap => {
             let (graph, stats) = load_snap_edge_list(path, limit)?;
             let schema = DatasetSchema::of(&graph);
-            Ok((LoadedGraph::Full(graph), stats, schema))
+            Ok((LoadedGraph::Full(std::sync::Arc::new(graph)), stats, schema))
         }
-        DatasetFormat::LdbcSnbCsvBasic => {
-            snb::load(path, limit).map(|(g, s, d)| (LoadedGraph::Full(g), s, d))
-        }
-        DatasetFormat::IcijOffshoreLeaks => {
-            icij::load(path, limit).map(|(g, s, d)| (LoadedGraph::Full(g), s, d))
-        }
+        DatasetFormat::LdbcSnbCsvBasic => snb::load(path, limit)
+            .map(|(g, s, d)| (LoadedGraph::Full(std::sync::Arc::new(g)), s, d)),
+        DatasetFormat::IcijOffshoreLeaks => icij::load(path, limit)
+            .map(|(g, s, d)| (LoadedGraph::Full(std::sync::Arc::new(g)), s, d)),
     }
 }
 

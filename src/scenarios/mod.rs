@@ -21,7 +21,7 @@ pub struct Ctx<'a> {
     pub format: &'a str,
     /// The parsed graph, absent under the compact reference (SNAP tiers
     /// above the host's `Graph` budget); the typed families require it.
-    pub graph: Option<&'a grust::Graph>,
+    pub graph: Option<&'a std::sync::Arc<grust::Graph>>,
     /// The compact reference when `graph` is absent.
     pub compact: Option<&'a crate::compact::CompactGraph>,
     pub oracle: &'a Oracle<'a>,
@@ -37,6 +37,12 @@ impl Ctx<'_> {
     /// The parsed graph for a typed family, which only runs on typed
     /// datasets and those always materialize (`dataset::load_dataset`).
     pub fn typed_graph(&self) -> &grust::Graph {
+        self.shared_typed_graph()
+    }
+
+    /// The same graph, shared: a family that builds a long-lived index over
+    /// it holds a reference instead of a copy.
+    pub fn shared_typed_graph(&self) -> &std::sync::Arc<grust::Graph> {
         self.graph
             .expect("typed families run over materialized typed datasets")
     }
