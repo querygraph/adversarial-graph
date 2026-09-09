@@ -2871,7 +2871,7 @@ are informative. Each was found by a row, fixed on main, and re-run:
 
 | backend | LOAD | A8 | A5 | A6 |
 |---|---|---|---|---|
-| turso-wal | pass | pass, 29/29 (41 s) | pass | pass? -- no: last-writer-wins, unsupported |
+| turso-wal | pass | pass, 29/29 (41 s) | pass | last-writer-wins, unsupported |
 | turso-mvcc | pass | pass, 29/29 (44 s) | pass | **pass** (guarded-commit CAS holds) |
 | postgres | pass | pass, 29/29 (41 s) | pass | last-writer-wins, unsupported |
 | memory | pass | 27 matched, 2 refused by its bounded executor at 110 s; unsupported | pass | last-writer-wins, unsupported |
@@ -2881,8 +2881,7 @@ are informative. Each was found by a row, fixed on main, and re-run:
 | falkor | pass | **13 matched, 2 wrong, 12 timeouts** -- below | unsupported (no reads) | unsupported |
 | lancedb, ladybug | pass | unsupported (no Cypher) | unsupported (no delete path) | last-writer-wins, unsupported |
 
-(turso-wal's A6: last-writer-wins, unsupported; only turso-mvcc carries the
-guarded-commit path.) The A5 passes are the first evidence on the site that
+Only turso-mvcc carries the guarded-commit path. The A5 passes are the first evidence on the site that
 the recursive-delete family holds anywhere. ICIJ ran for the Cypher stores
 and AGE on grust: LOAD passes everywhere, A5/A6 are LDBC-only by design, A8
 needs the reference cap of item 3 and is re-run in the A8 pass.
