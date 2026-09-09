@@ -620,59 +620,136 @@ pub fn mentions_labels(cypher: &str) -> bool {
     false
 }
 
-/// The two LDBC row shapes Grust's in-process executor does not finish at
-/// sf0.1 (r2 posts per creator ran past 30 minutes on a 31 GB host; r5
-/// reply fan-in likewise): a property-filtered MATCH on the largest label
-/// with an aggregate. The answer key for exactly these pinned texts is
-/// computed here in Rust over the loaded graph -- a group count with the
-/// query's own ORDER BY and LIMIT -- and recorded as `native-oracle`. Any
-/// other text goes to the executor. A unit test holds this against the
-/// executor on a small graph.
+/// The pinned shapes Grust's in-process executor does not finish (LDBC
+/// r2 posts per creator and r5 reply fan-in ran past 30 minutes at sf0.1;
+/// ICIJ c4 co-officers and r1 officer fan-out exceed 8 GiB of
+/// intermediates): a property-filtered or label-filtered MATCH on the
+/// largest label with an aggregate. For exactly these pinned texts the
+/// answer key is computed here in Rust over the loaded graph -- a group
+/// count with the query's own ORDER BY and LIMIT, or a co-occurrence pair
+/// count -- and recorded as `native-oracle`. Any other text goes to the
+/// executor. Unit tests hold every shape against the executor on a small
+/// graph.
 pub fn native_oracle(graph: &grust::Graph, cypher: &str) -> Option<ResultSet> {
     const R2: &str = "MATCH (m:Message {kind: 'Post'})-[:HAS_CREATOR]->(p:Person)\nRETURN p.id AS person, count(m) AS posts\nORDER BY posts DESC, person\nLIMIT 50";
     const R5: &str = "MATCH (c:Message {kind: 'Comment'})-[:REPLY_OF]->(m:Message)\nRETURN m.id AS root, count(c) AS replies\nORDER BY replies DESC, root\nLIMIT 20";
-    let (from_kind, rel, to_label, columns, limit) = if cypher.trim() == R2 {
-        ("Post", "HAS_CREATOR", "Person", ["person", "posts"], 50)
-    } else if cypher.trim() == R5 {
-        ("Comment", "REPLY_OF", "Message", ["root", "replies"], 20)
-    } else {
-        return None;
-    };
+    const ICIJ_R1: &str = "MATCH (o:Officer)-[:OFFICER_OF]->(e:Entity)\nRETURN o.id AS officer, count(e) AS entities\nORDER BY entities DESC, officer\nLIMIT 50";
+    const ICIJ_C4: &str = "MATCH (o:Officer)-[:OFFICER_OF]->(:Entity)<-[:OFFICER_OF]-(p:Officer)\nWHERE o <> p\nRETURN count(*) AS count";
+    let text = cypher.trim();
+    // A node's label and, where the shape filters on it, its `kind`.
     use std::collections::HashMap;
-    let mut kind_of: HashMap<&str, (&str, Option<&str>)> =
-        HashMap::with_capacity(graph.nodes.len());
-    for n in &graph.nodes {
-        let kind = match n.props.get("kind") {
-            Some(grust::Value::String(k)) => Some(k.as_str()),
-            _ => None,
-        };
-        kind_of.insert(n.id.as_str(), (n.label.as_str(), kind));
-    }
-    let mut counts: HashMap<&str, i64> = HashMap::new();
-    for e in &graph.edges {
-        if e.label.as_str() != rel {
-            continue;
+    let kind_of = || -> HashMap<&str, (&str, Option<&str>)> {
+        graph
+            .nodes
+            .iter()
+            .map(|n| {
+                let kind = match n.props.get("kind") {
+                    Some(grust::Value::String(k)) => Some(k.as_str()),
+                    _ => None,
+                };
+                (n.id.as_str(), (n.label.as_str(), kind))
+            })
+            .collect()
+    };
+    // Group count of edges `rel` whose source has (label, kind) and whose
+    // target has label `to_label`, grouped by the `by` end; ORDER BY the
+    // count DESC then the id; LIMIT.
+    let group_count = |rel: &str,
+                       from: (&str, Option<&str>),
+                       to_label: &str,
+                       by_target: bool,
+                       columns: [&str; 2],
+                       limit: usize| {
+        let kinds = kind_of();
+        let mut counts: HashMap<&str, i64> = HashMap::new();
+        for e in &graph.edges {
+            if e.label.as_str() != rel {
+                continue;
+            }
+            let (Some(f), Some(t)) = (kinds.get(e.from.as_str()), kinds.get(e.to.as_str())) else {
+                continue;
+            };
+            if f.0 == from.0 && (from.1.is_none() || f.1 == from.1) && t.0 == to_label {
+                let key = if by_target {
+                    e.to.as_str()
+                } else {
+                    e.from.as_str()
+                };
+                *counts.entry(key).or_default() += 1;
+            }
         }
-        let Some((flabel, fkind)) = kind_of.get(e.from.as_str()) else {
-            continue;
-        };
-        let Some((tlabel, _)) = kind_of.get(e.to.as_str()) else {
-            continue;
-        };
-        if *flabel == "Message" && *fkind == Some(from_kind) && *tlabel == to_label {
-            *counts.entry(e.to.as_str()).or_default() += 1;
+        let mut rows: Vec<(&str, i64)> = counts.into_iter().collect();
+        rows.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
+        rows.truncate(limit);
+        ResultSet {
+            columns: columns.iter().map(|c| c.to_string()).collect(),
+            rows: rows
+                .into_iter()
+                .map(|(id, n)| vec![Cell::Str(id.to_string()), Cell::Int(n)])
+                .collect(),
         }
+    };
+    if text == R2 {
+        return Some(group_count(
+            "HAS_CREATOR",
+            ("Message", Some("Post")),
+            "Person",
+            true,
+            ["person", "posts"],
+            50,
+        ));
     }
-    let mut rows: Vec<(&str, i64)> = counts.into_iter().collect();
-    rows.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
-    rows.truncate(limit);
-    Some(ResultSet {
-        columns: columns.iter().map(|c| c.to_string()).collect(),
-        rows: rows
-            .into_iter()
-            .map(|(id, n)| vec![Cell::Str(id.to_string()), Cell::Int(n)])
-            .collect(),
-    })
+    if text == R5 {
+        return Some(group_count(
+            "REPLY_OF",
+            ("Message", Some("Comment")),
+            "Message",
+            true,
+            ["root", "replies"],
+            20,
+        ));
+    }
+    if text == ICIJ_R1 {
+        return Some(group_count(
+            "OFFICER_OF",
+            ("Officer", None),
+            "Entity",
+            false,
+            ["officer", "entities"],
+            50,
+        ));
+    }
+    if text == ICIJ_C4 {
+        // Ordered pairs of distinct officers sharing an entity: per entity,
+        // k officers with an OFFICER_OF edge into it give k(k-1) matches
+        // (the loaders keep one edge per (from, label, to), so an officer
+        // has at most one edge into an entity).
+        let kinds = kind_of();
+        let mut officers_of: HashMap<&str, std::collections::HashSet<&str>> = HashMap::new();
+        for e in &graph.edges {
+            if e.label.as_str() != "OFFICER_OF" {
+                continue;
+            }
+            let (Some(f), Some(t)) = (kinds.get(e.from.as_str()), kinds.get(e.to.as_str())) else {
+                continue;
+            };
+            if f.0 == "Officer" && t.0 == "Entity" {
+                officers_of
+                    .entry(e.to.as_str())
+                    .or_default()
+                    .insert(e.from.as_str());
+            }
+        }
+        let count: i64 = officers_of
+            .values()
+            .map(|s| (s.len() as i64) * (s.len() as i64 - 1))
+            .sum();
+        return Some(ResultSet {
+            columns: vec!["count".to_string()],
+            rows: vec![vec![Cell::Int(count)]],
+        });
+    }
+    None
 }
 
 #[cfg(test)]
@@ -735,5 +812,61 @@ mod native_oracle_tests {
             let executor = ResultSet::from_table(executor).normalized(spec.ordered);
             assert_eq!(native.normalized(spec.ordered), executor, "{}", spec.id);
         }
+    }
+
+    #[test]
+    fn the_native_oracle_matches_the_executor_on_a_small_icij_shape() {
+        use grust::{Edge, Node, Props};
+        let mut nodes = Vec::new();
+        let mut edges = Vec::new();
+        for i in 0..5 {
+            nodes.push(Node::new("Officer", format!("o{i}"), Props::new()));
+        }
+        for i in 0..4 {
+            nodes.push(Node::new("Entity", format!("e{i}"), Props::new()));
+        }
+        // e0: officers 0,1,2 (6 ordered pairs); e1: 0,1 (2); e2: 3 (0); e3: none
+        for (o, e) in [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (3, 2)] {
+            edges.push(Edge::new(
+                "OFFICER_OF",
+                format!("o{o}"),
+                format!("e{e}"),
+                Props::new(),
+            ));
+        }
+        // an Entity->Entity OFFICER_OF edge and an Officer->Officer one must not count
+        edges.push(Edge::new("OFFICER_OF", "e3", "e0", Props::new()));
+        edges.push(Edge::new("OFFICER_OF", "o4", "o0", Props::new()));
+        let graph = grust::Graph::new(nodes, edges);
+        let index = grust::TypedGraphIndex::new(std::sync::Arc::new(graph.clone())).unwrap();
+        for spec in queries_for("icij")
+            .iter()
+            .filter(|q| q.id == "c4-co-officers" || q.id == "r1-officer-fanout")
+        {
+            let native = native_oracle(&graph, &spec.cypher).expect("pinned text recognised");
+            let params = grust_cypher::CypherParameters::new();
+            let executor = grust_cypher::run_bounded_read_query_indexed(
+                &index,
+                &bounded_text(&spec.cypher),
+                &params,
+                &reference_policy(),
+            )
+            .unwrap();
+            let executor = ResultSet::from_table(executor).normalized(spec.ordered);
+            assert_eq!(native.normalized(spec.ordered), executor, "{}", spec.id);
+        }
+        assert_eq!(
+            native_oracle(
+                &graph,
+                &queries_for("icij")
+                    .iter()
+                    .find(|q| q.id == "c4-co-officers")
+                    .unwrap()
+                    .cypher
+            )
+            .unwrap()
+            .rows,
+            vec![vec![Cell::Int(8)]]
+        );
     }
 }
