@@ -262,7 +262,12 @@ async fn conform(
                 let folded_label =
                     !same_label && n.label.as_str().eq_ignore_ascii_case(node.label.as_str());
                 case_folded |= folded_label;
-                let same_props = node.props.iter().all(|(k, v)| n.props.get(k) == Some(v));
+                // A null property may come back absent: Cypher stores
+                // treat SET x = null as removal, and SurrealDB drops it too.
+                let same_props = node.props.iter().all(|(k, v)| match n.props.get(k) {
+                    Some(got) => got == v,
+                    None => *v == Value::Null,
+                });
                 tally.check(
                     &name,
                     Ok((same_label || folded_label) && same_props),
