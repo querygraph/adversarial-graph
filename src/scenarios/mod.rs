@@ -66,8 +66,25 @@ impl Ctx<'_> {
     }
 }
 
+/// Every scenario, in run order. A8 (the read-only differential against
+/// the reference over the loaded graph) runs before the mutating typed
+/// families A5 and A6: on 2026-09-09 the first typed tiers showed every
+/// store agreeing with each other and disagreeing with the reference by
+/// A5's deletes and A6's upserts (14 "wrong answers" per cell), while A8
+/// alone on a pristine store matched on every query.
 pub fn all() -> &'static [&'static str] {
-    &["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A12"]
+    &["A1", "A2", "A3", "A4", "A8", "A5", "A6", "A7", "A12"]
+}
+
+#[cfg(test)]
+mod order_tests {
+    #[test]
+    fn the_differential_runs_before_the_mutating_families() {
+        let order = super::all();
+        let at = |id: &str| order.iter().position(|s| *s == id).unwrap();
+        assert!(at("A8") < at("A5"));
+        assert!(at("A8") < at("A6"));
+    }
 }
 
 /// Whether a scenario is defined over the dataset's shape: the M1 families
