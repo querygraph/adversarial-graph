@@ -272,12 +272,31 @@ pub fn reference_budget() -> std::time::Duration {
     )
 }
 
+/// The reference executor's intermediate-bytes cap, separate from the
+/// store route's 2 GiB: on ICIJ five of nine reference shapes exceed 2 GiB
+/// while binding their start nodes, and the answer key was missing for
+/// them. AG_REFERENCE_INTERMEDIATE_GB (default 8) sizes it to the host;
+/// the host guard still bounds the process.
+pub fn reference_intermediate_bytes() -> usize {
+    std::env::var("AG_REFERENCE_INTERMEDIATE_GB")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(8)
+        << 30
+}
+
 pub fn in_process_policy() -> grust_cypher::ReadQueryPolicy {
-    in_process_policy_with(IN_PROCESS_BUDGET)
+    in_process_policy_with(IN_PROCESS_BUDGET, 2 << 30)
+}
+
+/// The reference executor's policy: its own time budget and intermediate cap.
+pub fn reference_policy() -> grust_cypher::ReadQueryPolicy {
+    in_process_policy_with(reference_budget(), reference_intermediate_bytes())
 }
 
 pub fn in_process_policy_with(
     max_execution_time: std::time::Duration,
+    max_intermediate_bytes: usize,
 ) -> grust_cypher::ReadQueryPolicy {
     grust_cypher::ReadQueryPolicy {
         max_query_bytes: 1 << 20,
@@ -286,7 +305,7 @@ pub fn in_process_policy_with(
         max_graph_edges: usize::MAX,
         max_graph_bytes: usize::MAX,
         max_candidate_work: usize::MAX,
-        max_intermediate_bytes: 2 << 30,
+        max_intermediate_bytes,
         max_result_rows: BOUNDED_LIMIT,
         max_output_bytes: usize::MAX,
         max_range_items: grust_cypher::MAX_RANGE_ITEMS,
@@ -354,7 +373,7 @@ pub fn oracle(
     // for an unproven shape and measures the graph once through the index
     // instead of serializing it per query (10 s per query on a 200k slice).
     let _ = graph;
-    let policy = in_process_policy_with(reference_budget());
+    let policy = reference_policy();
     let table = grust_cypher::run_bounded_read_query_indexed(
         index,
         &bounded_text(cypher),

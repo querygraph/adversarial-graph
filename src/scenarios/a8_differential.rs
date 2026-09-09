@@ -250,6 +250,10 @@ pub async fn run(ctx: &Ctx<'_>) -> ScenarioResult {
     r.observe("queries", &records);
     r.observe("query_count", specs.len());
     r.observe("reference_budget_s", reference_budget.as_secs());
+    r.observe(
+        "reference_intermediate_gb",
+        crate::differential::reference_intermediate_bytes() >> 30,
+    );
     r.observe("store_budget_s", QUERY_BUDGET.as_secs());
     r.observe("matched", matched);
     r.observe("mismatched", mismatched);
