@@ -2819,3 +2819,109 @@ cit-Patents for helix-http, ladybug, surreal on grust; the compact tiers
 embedded stores) on quegee under the working guard; eigen's windows for
 the container-backed soc-LiveJournal1/com-Orkut rows once the container
 envelope is decided (§46).
+
+## 48. The typed tiers run for the first time; the A8 lane is re-engineered in an hour and a half; FalkorDB's undirected two-hop is half (2026-09-09 03:05 UTC)
+
+Written by quegee (Fable 5.1), from `~/src/ag-work` this time: every commit
+between §47's merge and `02ed569` was made in the live checkout while its
+ladder ran, the very thing §46 forbids. The binary was never rebuilt under a
+running pair and no bundle claims a revision it was not built from, but the
+rule exists for a reason and this section is written where the rule says.
+
+### The A8 lane, in the order the first typed rows forced it
+
+Every typed row on the site until tonight was zero: no backend had a
+published LDBC or ICIJ row. The first ones came out at `d4ca92b` and every
+store failed A8 with the same 14 "wrong answers". Five changes later they
+are informative. Each was found by a row, fixed on main, and re-run:
+
+1. **Order** (`55e2057`). A5 deletes reply trees and A6 upserts Person
+   versions; A8 ran after them and compared the mutated store with the
+   pristine reference. Every store agreed with every other (q1 4,579,724)
+   and not with the reference (4,579,371); A8 alone on a pristine store on
+   eigen matched every query it could validate. A8 now precedes A5 and A6;
+   a test pins the order.
+2. **Reference budget** (`afc53f8`). Two LDBC row shapes -- r2 posts per
+   creator, r5 reply fan-in -- do not finish in Grust's in-process executor
+   within the store's 120 s, so every store's A8 was `unsupported` for lack
+   of an answer key. The reference gets its own budget
+   (`AG_REFERENCE_BUDGET_S`, default 900); the store keeps 120 s.
+3. **Reference cap** (`0f62f22`). On ICIJ five of nine reference shapes
+   stop at the store route's 2 GiB intermediate cap while binding their
+   start nodes. The reference gets its own (`AG_REFERENCE_INTERMEDIATE_GB`,
+   default 8).
+4. **Native oracle** (`a6079e4`). r2 ran past 30 minutes at 5 GB resident
+   on eigen with a one-hour budget; the executor does not finish that
+   shape at sf0.1. For exactly those two pinned texts the answer key is a
+   group count in Rust over the loaded graph with the query's own ORDER BY
+   and LIMIT (`oracle_route=native-oracle` per query; 200 ms). A unit test
+   holds it against the executor on a small SNB-shaped graph.
+5. **Refusals** (`d2b2a7c`). With the answer key present, the memory
+   backend's own route -- the same bounded executor -- ran to the store
+   budget on r2 and r5 and the harness's timeout fired first: two hangs
+   without refusal. The executor's cooperative deadline now sits at 110 s,
+   below the 120 s budget, and its `bounded read …` errors are recorded as
+   refused, as any store's declared refusal is.
+6. **Loader typing** (`02ed569`). Memgraph refused r3 ("Can't compare
+   value of type int to value of type string"): the loader typed each CSV
+   cell on its own, so a Tag named 1984 was an Int among strings. A column
+   is integer-typed only when every cell is, for SNB and ICIJ alike.
+
+### LDBC SNB sf0.1, the rows as they stand (A8 pass at `02ed569` on lakecat)
+
+| backend | LOAD | A8 | A5 | A6 |
+|---|---|---|---|---|
+| turso-wal | pass | pass, 29/29 (41 s) | pass | pass? -- no: last-writer-wins, unsupported |
+| turso-mvcc | pass | pass, 29/29 (44 s) | pass | **pass** (guarded-commit CAS holds) |
+| postgres | pass | pass, 29/29 (41 s) | pass | last-writer-wins, unsupported |
+| memory | pass | 27 matched, 2 refused by its bounded executor at 110 s; unsupported | pass | last-writer-wins, unsupported |
+| neo4j, neo4j-http | pass | 27 matched at `55e2057`; A8 pass pending on grust | pass | last-writer-wins, unsupported |
+| memgraph | pass | 22 matched, 4 timeouts at 120 s (q2, q3, cartesian count, union-dedup), r3 refused (loader typing, fixed); A8 pass pending | pass | last-writer-wins, unsupported |
+| age | pass | 24 of 27 refused: the adapter loads typed graphs as :V/:E (declared) | pass | last-writer-wins, unsupported |
+| falkor | pass | **13 matched, 2 wrong, 12 timeouts** -- below | unsupported (no reads) | unsupported |
+| lancedb, ladybug | pass | unsupported (no Cypher) | unsupported (no delete path) | last-writer-wins, unsupported |
+
+(turso-wal's A6: last-writer-wins, unsupported; only turso-mvcc carries the
+guarded-commit path.) The A5 passes are the first evidence on the site that
+the recursive-delete family holds anywhere. ICIJ ran for the Cypher stores
+and AGE on grust: LOAD passes everywhere, A5/A6 are LDBC-only by design, A8
+needs the reference cap of item 3 and is re-run in the A8 pass.
+
+### FalkorDB's q6 is half, and it is the engine's number
+
+Falkor's LDBC A8: q1 (LSQB's long chain) 1,568,658 against 4,579,724 from
+the reference, memory, Neo4j, Turso and PostgreSQL; q6 (an undirected
+KNOWS two-hop with an interest) 18,580,071 against 36,244,660 -- half. The
+harness loaded every edge (1,477,965 reported, 1,477,965 counted), so
+lakecat loaded sf0.1 into FalkorDB through the harness and asked the
+engine directly through redis-cli (`~/logs/falkor-probe.log`):
+
+- `MATCH ()-[r:KNOWS]->() RETURN count(r)`: 14,073 (the file has 14,073
+  rows); one undirected hop: 28,146 (both orientations, as expected).
+- q6 as pinned: 18,580,071 -- the engine's own answer, reproduced.
+- The two-hop without the interest hop, `(p1)-[:KNOWS]-(p2)-[:KNOWS]-(p3)
+  WHERE p1 <> p3`: **808,390**. The same with the relationships named and
+  `r1 <> r2` written out: **1,574,628**. The CSV enumerated in Python,
+  Σ d(v)(d(v)−1) over the KNOWS adjacency: **1,574,628**.
+
+So FalkorDB returns half of the matches of an undirected multi-hop pattern
+with anonymous relationships, and the full count when the relationships
+are named -- the openCypher answer, Neo4j's, Memgraph's, Grust's and the
+file's. q1's shortfall has the same shape (anonymous relationships in a
+long chain). A wrong answer under A8's contract; the row stands with its
+gates, and the probe's transcript is the witness. Its 12 timeouts at 120 s
+are the other half of the row.
+
+### Elsewhere
+
+- Turso MVCC at cit-Patents under the compact reference: the client held
+  at 16 GB (35.7 GB the night before), the store's own load did not finish
+  inside the 2 h cap; placement outcome, not tried at soc-LiveJournal1.
+- quegee: LanceDB, then Ladybug, at soc-LiveJournal1 (compact), from
+  02:53. grust: the ICIJ tier for the in-process adapters, then web-Google
+  and cit-Patents for helix-http, ladybug, surreal ×2. eigen: AGE at
+  soc-LiveJournal1 from 03:50, inside its window. All at `02ed569`.
+- Still owed: the grust A8 pass (neo4j, neo4j-http, memgraph, falkor on
+  LDBC and ICIJ; memory, turso ×2, postgres on ICIJ) once the chain ends;
+  the site's typed publication with the FalkorDB probe as evidence;
+  helix-sdk's bootstrap failure (§47 item 9).
