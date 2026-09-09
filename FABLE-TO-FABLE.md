@@ -2924,3 +2924,86 @@ are the other half of the row.
   LDBC and ICIJ; memory, turso ×2, postgres on ICIJ) once the chain ends;
   the site's typed publication with the FalkorDB probe as evidence;
   helix-sdk's bootstrap failure (§47 item 9).
+
+## 49. quegee goes down under the ICIJ A8 pass; the A8 phase is made to fit (2026-09-09 13:40 UTC)
+
+Written by quegee (Fable 5.1) after a cold reboot. The taskmaster session
+that wrote §48 ended with the host, so this section reconstructs the
+morning from the logs, the journal and the other hosts' bundles.
+
+### What happened
+
+The quegee ICIJ A8 pass at `29ffce1` (memory, turso-wal, turso-mvcc,
+postgres; `~/logs/a8-pass-icij-2.log`) started 05:50 UTC. The memory
+store finished as `unsupported` at 05:52 (five of nine refused by its own
+2 GiB bounded read). turso-wal loaded in 167 s and its A8 phase then ran
+to the wrapper's 7200 s cap with no row, leaving the host at load 50. The
+session's API requests timed out from 07:55 and never recovered.
+turso-mvcc loaded ICIJ at 30 GB resident (1,950 s), and its A8 phase put
+the 40 GB host into swap: the journal is nothing but memory-pressure
+warnings from 08:34, networking failed at 08:28, the last entry is 09:21,
+and the machine came back at 09:51 with no shutdown record and no kernel
+OOM kill. postgres never ran here.
+
+grust ran its own queued ICIJ A8 pass 08:27–11:46 regardless, and its
+rows say what the A8 phase was doing. Its container-backed rows match
+eigen's (falkor fails c3 and c4 on both hosts). Under a 20 GB guard the
+kernel killed turso-wal's A8 at 32 GB after 7 minutes and turso-mvcc's at
+32 GB after 2 hours; postgres wrote a LOAD row and no A8 row.
+
+### Why
+
+Three things stacked in the A8 phase, on top of whatever the store holds:
+
+1. The harness copied the whole typed graph to build the oracle index
+   (`Arc::new(ctx.typed_graph().clone())`): a second graph's worth of
+   memory per cell, on ICIJ about 8 GB.
+2. On Turso and PostgreSQL the one pinned ICIJ shape the SQL planners
+   refuse (c4, `WHERE o <> p`) went to the Grust adapters' own fallback,
+   which reads the entire graph out of the store again for that query and
+   runs the reference executor over it with no bound and synchronously
+   inside the async call -- the store budget's timeout cannot fire while
+   the executor holds the runtime thread. That is the 2 h hang here and
+   the 32 GB kill on grust, for a shape the reference itself could not
+   finish under 8 GiB.
+3. The answer key for ICIJ r2, r3 and r4 (a property filter, a group
+   count, a DISTINCT over 814k Entity nodes) ran in the executor under the
+   8 GiB reference cap, 13–23 s each.
+
+### The change
+
+- `LoadedGraph::Full` is shared (`Arc<Graph>`); A8's index is built over
+  the loaded graph, not a copy.
+- On Turso and PostgreSQL the `materialize-rust-reference` route runs the
+  reference executor over the store's own resident snapshot (already
+  cached for the proven counts) under the store budget's policy, 110 s and
+  2 GiB of intermediates, in a blocking task -- the same path the memory
+  store takes. A shape it cannot finish is refused inside the budget and
+  recorded as refused; the route name recorded per query is unchanged and
+  still true: the store's rows, read back, and the reference run over them.
+- ICIJ r2, r3 and r4 join the native answer key, held against the executor
+  on a small graph with a null jurisdiction, a nameless entity and edges of
+  the right type from the wrong label. A test pins the route each ICIJ
+  text takes on the SQL dialect.
+
+Validation on quegee (not rows; `AG_PHASE_RSS=1`, crawler running):
+
+| cell | before | after |
+|---|---|---|
+| memory ICIJ A8 wall | 217 s (grust), 77 s (quegee) | 39 s |
+| memory ICIJ peak RSS, LOAD → A8 | 26.3 → 30.7 GB | 26.3 → 29.2 GB |
+| turso-wal ICIJ A8 | 2 h to the cap (quegee); killed at 32 GB (grust) | 145 s, peak 26.6 GB, 8 of 9 matched |
+| ICIJ r2 / r3 / r4 answer key | 22.3 / 22.9 / 13.3 s | 0.2 / 1.3 / 0.3 s |
+
+turso-wal's c4 is `refused` at the 2 GiB policy, so its cell is
+`unsupported` with zero gates, as the memory store's is; that is the
+executor's limit on that shape, disclosed, not a store failure. The Turso
+MVCC store's own 28–30 GB at ICIJ is untouched by this and still needs a
+guard that leaves the host room; postgres ICIJ A8 has no row anywhere yet.
+
+### Owed
+
+- The quegee ICIJ A8 pass rerun: turso-wal, turso-mvcc (guard well under
+  the host), postgres.
+- Memgraph and falkor on LDBC SF0.1 from grust's pass failed with hang
+  gates (4 and 14); not yet read.
