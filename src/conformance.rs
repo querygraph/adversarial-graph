@@ -90,6 +90,9 @@ pub fn boundary_fixture(n: usize) -> Graph {
 /// to). Reported as a capability line, never a failure.
 pub fn parallel_edges_probe() -> Graph {
     let mut b = Graph::builder().edge_policy(EdgePolicy::AllowDuplicates);
+    // the endpoints ride along: an adapter may resolve them within the batch
+    let _ = b.node("Person", "p3").finish();
+    let _ = b.node("Person", "p2").finish();
     let _ = b.edge("KNOWS", "p3", "p2").id("q1").finish();
     let _ = b.edge("KNOWS", "p3", "p2").id("q2").finish();
     b.build()
@@ -229,6 +232,29 @@ async fn conform(kind: BackendKind, work_dir: &Path, tally: &mut Tally) -> grust
         }
         Err(e) => tally.check("edge id and property read back", Err(e), ""),
     }
+
+    // Capability, not conformance: an edge batch that does not carry its
+    // endpoints, which the store already holds. The compact loader's edge
+    // chunks are shaped like this unless the backend declares otherwise
+    // (`BackendKind::edge_batches_carry_endpoints`); a mismatch here is a
+    // harness defect to fix before any large tier.
+    let mut eo = Graph::builder();
+    let _ = eo.edge("KNOWS", "p2", "p3").id("eo1").finish();
+    let accepted = match backend.load(&eo.build()).await {
+        Err(e) => format!("refused: {e}"),
+        Ok(_) => match edges(store, Some("p2"), Some("p3"), Some("KNOWS")).await {
+            Ok(v) if v.len() == 1 => "accepted".to_string(),
+            Ok(v) => format!("accepted but read back {} edges", v.len()),
+            Err(e) => format!("read failed: {e}"),
+        },
+    };
+    println!("  CAPABILITY  edge batch without its endpoints: {accepted}");
+    let declared = kind.edge_batches_carry_endpoints();
+    tally.check(
+        "compact edge chunks are shaped for this adapter",
+        Ok(declared == accepted.starts_with("refused")),
+        &format!("adapter {accepted}, harness declares carry_endpoints={declared}"),
+    );
 
     // Capability, not conformance: two parallel edges in one batch.
     let outcome = match backend.load(&parallel_edges_probe()).await {

@@ -54,14 +54,22 @@ impl CompactGraph {
         })
     }
 
-    /// The edges as edge-only `Graph`s of at most `batch` edges each, in CSR
-    /// order, so the store sees every edge exactly once.
-    pub fn edge_chunks(&self, batch: usize) -> impl Iterator<Item = Graph> + '_ {
+    /// The edges as `Graph`s of at most `batch` edges each, in CSR order,
+    /// so the store sees every edge exactly once. Edge-only unless
+    /// `with_endpoints`, when each chunk also carries the distinct vertices
+    /// its edges touch (for an adapter that resolves endpoints within the
+    /// batch; see `BackendKind::edge_batches_carry_endpoints`).
+    pub fn edge_chunks(
+        &self,
+        batch: usize,
+        with_endpoints: bool,
+    ) -> impl Iterator<Item = Graph> + '_ {
         let batch = batch.max(1);
         let mut v = 0usize;
         let mut i = 0usize; // position within v's out-list
         std::iter::from_fn(move || {
             let mut edges = Vec::with_capacity(batch.min(self.edge_count));
+            let mut touched: Vec<u32> = Vec::new();
             while edges.len() < batch && v < self.ids.len() {
                 let out = self.out(v);
                 if i < out.len() {
@@ -71,6 +79,10 @@ impl CompactGraph {
                         self.ids[out[i] as usize].as_str(),
                         Props::new(),
                     ));
+                    if with_endpoints {
+                        touched.push(v as u32);
+                        touched.push(out[i]);
+                    }
                     i += 1;
                 } else {
                     v += 1;
@@ -78,10 +90,15 @@ impl CompactGraph {
                 }
             }
             if edges.is_empty() {
-                None
-            } else {
-                Some(Graph::new(Vec::new(), edges))
+                return None;
             }
+            touched.sort_unstable();
+            touched.dedup();
+            let nodes = touched
+                .into_iter()
+                .map(|t| Node::new(NODE_LABEL, self.ids[t as usize].as_str(), Props::new()))
+                .collect();
+            Some(Graph::new(nodes, edges))
         })
     }
 }
@@ -243,11 +260,16 @@ mod tests {
         assert_eq!(g.out(1), &[2]); // 2->3
         assert_eq!(g.out(2), &[0, 2]); // 3->1, 3->3
         let mut seen = 0;
-        for chunk in g.edge_chunks(2) {
+        for chunk in g.edge_chunks(2, false) {
             seen += chunk.edges.len();
             assert!(chunk.edges.len() <= 2);
+            assert!(chunk.nodes.is_empty());
         }
         assert_eq!(seen, 5);
+        let carried: Vec<Graph> = g.edge_chunks(2, true).collect();
+        assert_eq!(carried.iter().map(|c| c.edges.len()).sum::<usize>(), 5);
+        // first chunk: 1->2, 1->3 touches vertices 1, 2, 3
+        assert_eq!(carried[0].nodes.len(), 3);
         assert_eq!(g.node_chunks(2).map(|c| c.nodes.len()).sum::<usize>(), 3);
         let prefix = g.prefix_subgraph(3);
         assert_eq!(prefix.edges.len(), 3);

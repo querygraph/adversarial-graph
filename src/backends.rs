@@ -115,6 +115,21 @@ impl BackendKind {
     }
     /// How the harness reaches the system: recorded per run so HTTP and
     /// SDK rows of the same engine can be compared.
+    /// Whether a put_graph batch of edges must carry its endpoint nodes:
+    /// the Ladybug adapter resolves each edge's relationship table from the
+    /// labels of the nodes in the same batch and refuses an edge whose
+    /// endpoints are not there, even when the store already holds them
+    /// (the conformance probe "edge batch without its endpoints" shows
+    /// which adapters do). The compact loader's edge chunks carry them for
+    /// such a backend and stay edge-only otherwise.
+    pub fn edge_batches_carry_endpoints(self) -> bool {
+        #[cfg(feature = "ladybug")]
+        if self == Self::Ladybug {
+            return true;
+        }
+        false
+    }
+
     pub fn transport(self) -> &'static str {
         match self {
             Self::Memory => "embedded",
@@ -730,6 +745,8 @@ impl Backend {
         graph: &crate::compact::CompactGraph,
         chunk_edges: usize,
     ) -> grust::Result<(grust::LoadReport, usize)> {
+        // Vertices first, then edges in CSR order; a backend whose edge
+        // batches must carry their endpoints gets them re-put per chunk.
         let mut report = grust::LoadReport::default();
         let mut chunks = 0usize;
         for chunk in graph.node_chunks(chunk_edges) {
@@ -737,9 +754,10 @@ impl Backend {
             report.nodes += rep.nodes;
             chunks += 1;
         }
-        for chunk in graph.edge_chunks(chunk_edges) {
+        let carry = self.kind.edge_batches_carry_endpoints();
+        for chunk in graph.edge_chunks(chunk_edges, carry) {
             let rep = self.load(&chunk).await?;
-            report.edges += rep.edges;
+            report.edges += rep.edges; // the re-put endpoints are not new nodes
             chunks += 1;
         }
         Ok((report, chunks))
