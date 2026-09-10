@@ -157,7 +157,8 @@ for b in "${BACKENDS[@]}"; do
     # walks down from the pair it was handed found no `ag` at all. The pair
     # writes its own log and the ladder echoes it after; the guard is handed
     # `timeout`, whose child is the harness.
-    timeout "$CAP" ./target/release/ag run --dataset "$d" --backend "$b" --out reports >"$pairlog" 2>&1 &
+    # -k: a pair that does not exit on SIGTERM at the cap is killed a minute later.
+    timeout -k 60 "$CAP" ./target/release/ag run --dataset "$d" --backend "$b" --out reports >"$pairlog" 2>&1 &
     run=$!; guard "$run" & g=$!
     rc=0; wait "$run" || rc=$?; kill "$g" 2>/dev/null || true # neither a failing pair nor an already-exited guard may end the ladder
     cat "$pairlog"
