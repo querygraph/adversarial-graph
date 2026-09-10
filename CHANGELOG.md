@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- The load has its own budget (`AG_LOAD_BUDGET_S`, the ladder passes its
+  `--cap`), separate from the families' time: a load that does not finish
+  inside it is a LOAD row with the `hang_or_timeout_without_refusal` gate
+  and the families do not run; a store that loads inside it gets the
+  families under a pair timeout of twice the cap. Before, one cap covered
+  both, and at com-Orkut it ended Turso WAL's and LanceDB's first
+  traversal after their loads had finished.
+- A store whose measured rate on this host projects the tier past the load
+  budget is not sent to spend it (`budget::measured_rate`, from the host's
+  own passing LOAD rows, the largest tier first): a `not-tested` LOAD row
+  with the projection, the rate and the run it came from, and no larger
+  tier after it. `AG_PREDICT_LOAD=0` sends the store anyway, for the
+  deliberate measurement of a load past the budget.
+
 - A load failure or a crash gate on a containerized backend records the
   container's own state in the row's notes (`GET /containers/{name}/json`):
   "container adversarial-graph-neo4j-1: exited, exit 137, OOMKilled". The

@@ -8,6 +8,11 @@
 #   AG_RSS_LIMIT_GB=13 AG_MEM_AVAILABLE_MIN_GB=1 …   host memory guard (§13, §15)
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# --cap is the load budget and, separately, the families' budget: the harness
+# ends a load at AG_LOAD_BUDGET_S with its gate, and a store whose measured
+# rate on this host projects past it is not sent (the row says so); the
+# pair's own timeout is twice the cap, so a store that loads inside its
+# budget gets the families under theirs.
 CAP=7200; DATASETS="wiki-Talk,roadNet-CA,web-Google,cit-Patents,soc-LiveJournal1,com-Orkut"
 while [ $# -gt 0 ]; do case "$1" in --cap) CAP=$2; shift 2;; --datasets) DATASETS=$2; shift 2;; *) break;; esac; done
 BACKENDS=("$@"); [ ${#BACKENDS[@]} -eq 0 ] && BACKENDS=(memory turso-wal turso-mvcc postgres neo4j neo4j-http falkor lancedb)
@@ -113,7 +118,7 @@ wait_for_window() { # $1 = the backend's compose service, stopped while waiting
     # 10# forces decimal: at 08:xx or 09:xx UTC a bare "08" is invalid octal
     # and the arithmetic -- and, under set -e, the ladder -- dies.
     now=$(date -u +%s); start_s=$(( 10#$(date -u +%H) * 3600 + 10#$(date -u +%M) * 60 + 10#$(date -u +%S) ))
-    cap_end=$(( start_s + CAP + 300 ))
+    cap_end=$(( start_s + 2 * CAP + 300 ))
     IFS=, read -ra WINDOWS <<<"$BLACKOUTS"
     for w in "${WINDOWS[@]}"; do
       local a b as bs
@@ -158,14 +163,19 @@ for b in "${BACKENDS[@]}"; do
     # writes its own log and the ladder echoes it after; the guard is handed
     # `timeout`, whose child is the harness.
     # -k: a pair that does not exit on SIGTERM at the cap is killed a minute later.
-    timeout -k 60 "$CAP" ./target/release/ag run --dataset "$d" --backend "$b" --out reports >"$pairlog" 2>&1 &
+    AG_LOAD_BUDGET_S="$CAP" timeout -k 60 "$((2 * CAP))" ./target/release/ag run --dataset "$d" --backend "$b" --out reports >"$pairlog" 2>&1 &
     run=$!; guard "$run" & g=$!
     rc=0; wait "$run" || rc=$?; kill "$g" 2>/dev/null || true # neither a failing pair nor an already-exited guard may end the ladder
     cat "$pairlog"
     if grep -q "^== report:" "$pairlog"; then
       echo "## $b $d: done $(date -u +%H:%M:%SZ) (exit $rc; gates are in the bundle)"
+      # A load the store could not finish inside its budget, or one the
+      # harness projected past it, is a row; a larger tier is not.
+      if grep -qE "not attempted: .* load budget|did not finish inside the .* load budget" "$pairlog"; then
+        echo "## $b: not trying larger tiers after the load budget at $d"; rm -f "$pairlog"; break
+      fi
     else
-      echo "## $b $d: exit $rc after cap ${CAP}s, host memory guard, or crash $(date -u +%H:%M:%SZ); no complete bundle; not trying larger tiers for $b"; rm -f "$pairlog"; break
+      echo "## $b $d: exit $rc after the pair cap $((2 * CAP))s, host memory guard, or crash $(date -u +%H:%M:%SZ); no complete bundle; not trying larger tiers for $b"; rm -f "$pairlog"; break
     fi
     rm -f "$pairlog"
   done

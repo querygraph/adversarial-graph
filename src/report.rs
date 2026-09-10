@@ -150,6 +150,15 @@ impl ScenarioResult {
         self.outcome = Outcome::Unsupported;
         self.notes.push(why.to_string());
     }
+
+    /// A cell the harness declined to spend the budget on, from what this
+    /// host had already measured: `not-tested`, the projection in the note,
+    /// and `finish` leaves it so.
+    pub fn not_attempted(&mut self, why: &str) {
+        self.outcome = Outcome::NotTested;
+        self.setup_failed = true;
+        self.notes.push(why.to_string());
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -9,6 +9,7 @@
 #[cfg(feature = "age")]
 mod age;
 mod backends;
+mod budget;
 mod compact;
 mod conformance;
 mod dataset;
@@ -360,19 +361,73 @@ async fn run(root: &Path, args: &Args) {
             let t = std::time::Instant::now();
             let load_probe = probe::Probe::start(kind.container());
             let mut load_result = report::ScenarioResult::new("LOAD", kind.name(), dataset_name);
-            let loaded_report = match (graph, compact_graph) {
-                (Some(g), _) => backend.load(g).await,
-                (None, Some(c)) => match backend.load_compact(c, chunk_edges).await {
-                    Ok((rep, chunks)) => {
+            let load_budget = budget::load_budget();
+            // A tier the store's own measured rate on this host says cannot
+            // load inside the budget is not sent to spend it: the row says
+            // what was projected from what, and the families do not run.
+            if let Some(cap) = load_budget
+                && budget::predict_enabled()
+                && let Some(rate) = budget::measured_rate(&args.out, kind.name())
+                && rate.projected(stats.edges as u64) > cap
+            {
+                let projected = rate.projected(stats.edges as u64);
+                let why = format!(
+                    "not attempted: {} edges at the store's measured {:.0} edges/s on this host ({} edges, {} in {}) is {:.1} h against the {:.1} h load budget",
+                    stats.edges,
+                    rate.edges_per_s,
+                    rate.edges,
+                    rate.dataset,
+                    rate.run,
+                    projected.as_secs_f64() / 3600.0,
+                    cap.as_secs_f64() / 3600.0
+                );
+                eprintln!("   {why}");
+                load_result.observe("transport", kind.transport());
+                load_result.observe("projected_load_s", projected.as_secs());
+                load_result.observe("measured_edges_per_s", rate.edges_per_s);
+                load_result.not_attempted(&why);
+                report.push(load_result.clone());
+                persist(&mut report, &load_result);
+                continue;
+            }
+            if let Some(cap) = load_budget {
+                load_result.observe("load_budget_s", cap.as_secs());
+            }
+            let load_future = async {
+                match (graph, compact_graph) {
+                    (Some(g), _) => backend.load(g).await.map(|rep| (rep, None)),
+                    (None, Some(c)) => backend
+                        .load_compact(c, chunk_edges)
+                        .await
+                        .map(|(rep, chunks)| (rep, Some(chunks))),
+                    (None, None) => unreachable!(),
+                }
+            };
+            let loaded = match load_budget {
+                Some(cap) => tokio::time::timeout(cap, load_future).await,
+                None => Ok(load_future.await),
+            };
+            let loaded_report = match loaded {
+                Ok(Ok((rep, chunks))) => {
+                    if let Some(chunks) = chunks {
                         load_result.observe("reference", "compact");
                         load_result.observe("load_chunks", chunks);
                         load_result.observe("chunk_edges", chunk_edges);
-                        Ok(rep)
                     }
-                    Err(e) => Err(e),
-                },
-                (None, None) => unreachable!(),
+                    Ok(rep)
+                }
+                Ok(Err(e)) => Err(e),
+                // The load did not finish inside its budget: a finding with
+                // its gate, and the families do not run on a partial store.
+                Err(_) => Err(grust::GrustError::Backend(format!(
+                    "the load did not finish inside the {} s load budget ({} nodes, {} edges offered)",
+                    load_budget.map(|c| c.as_secs()).unwrap_or(0),
+                    stats.nodes,
+                    stats.edges
+                ))),
             };
+            let load_timed_out =
+                matches!(loaded_report, Err(ref e) if e.to_string().contains("load budget"));
             match loaded_report {
                 Ok(rep) => {
                     eprintln!(
@@ -405,7 +460,11 @@ async fn run(root: &Path, args: &Args) {
                 }
                 Err(e) => {
                     eprintln!("   load failed: {e}");
-                    load_result.gates.oom_or_crash += 1;
+                    if load_timed_out {
+                        load_result.gates.hang_or_timeout_without_refusal += 1;
+                    } else {
+                        load_result.gates.oom_or_crash += 1;
+                    }
                     load_result.notes.push(e.to_string());
                     // The container's own state, when there is one: an HTTP
                     // or Bolt error after the kernel took the store at its
