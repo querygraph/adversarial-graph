@@ -7,274 +7,79 @@ shared host — compare CPU columns and the recorded load average. `Host` is arc
 the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix 10k).
 
 
+## cit-Patents
+
+| Backend | Scenario | Slice | Outcome | Gates | Wall ms | Client CPU | Server CPU ms | p50 µs | p99 µs | Load 1m | Host | Path | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| lancedb | A1 | full | pass | 0 | 1401829 | 3.06 |  | 470286335 | 471859199 | 3 | x86_64/16, steal 0.1s | grust-portable-api |  |
+| lancedb | A12 | full | pass | 0 | 66332 | 13.98 |  | 3325951 | 4089855 | 19 | x86_64/16 | grust-portable-api |  |
+| lancedb | A2 | full | pass | 0 | 480 | 3.34 |  | 479999 | 479999 | 3 | x86_64/16 | grust-portable-api |  |
+| lancedb | A3 | full | unsupported | 0 | 0 | 0.79 |  |  |  | 3 | x86_64/16 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| lancedb | A4 | full | pass | 0 | 1249908 | 14.53 |  | 6152191 | 8069119 | 19 | x86_64/16, steal 0.1s | grust-portable-api |  |
+| lancedb | A7 | full | unsupported | 0 | 0 | 0.89 |  |  |  | 19 | x86_64/16 | grust-portable-api | backend does not implement GraphCommitStore |
+| lancedb | LOAD | full | pass | 0 | 153065 | 3.91 |  |  |  | 4 | x86_64/16, steal 0.0s | grust-portable-api |  |
+
+## icij-offshore-leaks
+
+| Backend | Scenario | Slice | Outcome | Gates | Wall ms | Client CPU | Server CPU ms | p50 µs | p99 µs | Load 1m | Host | Path | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| memory | A8 | full | unsupported | 0 | 38861 | 1.00 |  | 213247 | 915455 | 1 | x86_64/16 | grust-portable-api | 5 of 9 queries refused by the store: Cypher execution error: [gql:execution] bounded read exceeded 2147483648 cumulative intermediate bytes while expanding fixed relationship segments |
+| memory | LOAD | full | pass | 0 | 26675 | 1.00 |  |  |  | 2 | x86_64/16, steal 0.0s | grust-portable-api |  |
+| turso-wal | A8 | full | unsupported | 0 | 145062 | 1.00 |  | 4188159 | 67108863 | 1 | x86_64/16, steal 0.0s | grust-portable-api | 1 of 9 queries refused by the store: Cypher execution error: [gql:execution] bounded read exceeded 2147483648 cumulative intermediate bytes while expanding fixed relationship segments |
+| turso-wal | LOAD | full | pass | 0 | 161070 | 0.81 |  |  |  | 1 | x86_64/16 | grust-portable-api |  |
+| turso-mvcc | A8 | full | unsupported | 0 | 147622 | 1.00 |  | 4751359 | 64028671 | 2 | x86_64/16, steal 0.0s | grust-portable-api | 1 of 9 queries refused by the store: Cypher execution error: [gql:execution] bounded read exceeded 2147483648 cumulative intermediate bytes while expanding fixed relationship segments |
+| turso-mvcc | LOAD | full | pass | 0 | 1927862 | 0.98 |  |  |  | 1 | x86_64/16, steal 0.1s | grust-portable-api |  |
+| postgres | A8 | full | unsupported | 0 | 143860 | 0.91 | 62754 | 589823 | 60129279 | 1 | x86_64/16 | grust-portable-api | 1 of 9 queries refused by the store: Cypher execution error: [gql:execution] bounded read exceeded 2147483648 cumulative intermediate bytes while expanding fixed relationship segments |
+| postgres | LOAD | full | pass | 0 | 276531 | 0.04 | 222393 |  |  | 1 | x86_64/16, steal 0.0s | grust-portable-api |  |
+
+## ldbc-snb-sf1
+
+| Backend | Scenario | Slice | Outcome | Gates | Wall ms | Client CPU | Server CPU ms | p50 µs | p99 µs | Load 1m | Host | Path | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| postgres | LOAD | full | pass | 0 | 1521942 | 0.02 | 1410120 |  |  | 1 | x86_64/16, steal 0.1s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
+| falkor | A5 | full | unsupported | 0 | 5340 | 1.00 | 191 |  |  | 1 | x86_64/16 | harness-native-cypher (resultset_size=10000) | backend cannot read a vertex by id: unsupported graph feature: FalkorGraphStore does not implement reads yet |
+| falkor | A6 | full | unsupported | 0 | 48 | 0.85 | 2 |  |  | 1 | x86_64/16 | harness-native-cypher (resultset_size=10000) | backend cannot read a vertex by id: unsupported graph feature: FalkorGraphStore does not implement reads yet |
+| falkor | A8 | full | fail | 11 | 1215132 | 0.03 | 1229607 | 124287 | 48594943 | 1 | x86_64/16, steal 0.1s | harness-native-cypher (resultset_size=10000) | q1: row 0: [179510748] vs [29612477]; a1-reversed-chain: row 0: [179510748] vs [29612477]; a10-unicode-literal: row 0: [9892] vs [0]; r7-knows-unordered: 44406 rows vs 10000 earlier fail (gates=29) in 20260909T155902Z: q1: row 0: [179510748] vs [29612477] |
+| falkor | LOAD | full | pass | 0 | 1321456 | 0.04 | 1819045 |  |  | 2 | x86_64/16, steal 0.1s | harness-native-cypher (resultset_size=10000) |  |
+
 ## roadNet-CA
 
 | Backend | Scenario | Slice | Outcome | Gates | Wall ms | Client CPU | Server CPU ms | p50 µs | p99 µs | Load 1m | Host | Path | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| memory | A1 | 200k | pass | 0 | 0 | 0.99 |  | 11 | 11 | 1 | x86_64/4 | grust-portable-api |  |
-| memory | A1 | 50k | pass | 0 | 0 | 0.99 |  | 94 | 94 | 31 | aarch64/10 |  |  |
-| memory | A1 | full | pass | 0 | 10 |  |  | 29 | 96 |  | aarch64/10 |  |  |
-| memory | A2 | 200k | pass | 0 | 62 | 1.00 |  | 93 | 93 | 1 | x86_64/4 | grust-portable-api |  |
-| memory | A2 | full | pass | 0 | 2120 |  |  | 205439 | 205439 |  | aarch64/10 |  |  |
-| memory | A3 | 200k | pass | 0 | 62 | 1.00 |  | 6 | 22 | 1 | x86_64/4 | grust-portable-api |  |
-| memory | A3 | full | pass | 0 | 1445 |  |  | 4 | 30 |  | aarch64/10 |  |  |
-| memory | A4 | 200k | pass | 0 | 2 | 1.48 |  | 3 | 369 | 1 | x86_64/4 | grust-portable-api |  |
-| memory | A4 | 50k | pass | 0 | 0 | 1.58 |  | 1 | 81 | 31 | aarch64/10 |  |  |
-| memory | A4 | full | pass | 0 | 27 |  |  | 7 | 652 |  | aarch64/10 |  |  |
-| memory | A7 | 200k | unsupported | 0 | 0 | 2.54 |  |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| memory | A7 | full | unsupported | 0 | 0 |  |  |  |  |  | aarch64/10 |  | backend does not implement GraphCommitStore |
-| memory | LOAD | 200k | pass | 0 | 411 | 1.00 |  |  |  | 1 | x86_64/4 | grust-portable-api |  |
-| memory | LOAD | 50k | pass | 0 | 39 | 1.00 |  |  |  | 31 | aarch64/10 |  |  |
-| turso-wal | A1 | 200k | pass | 0 | 0 | 1.00 |  | 308 | 308 | 1 | x86_64/4 | grust-portable-api |  |
-| turso-wal | A1 | full | pass | 0 | 23 |  |  | 596 | 4267 |  | aarch64/10 |  |  |
-| turso-wal | A2 | 200k | pass | 0 | 10 | 1.00 |  | 10591 | 10591 | 1 | x86_64/4 | grust-portable-api |  |
-| turso-wal | A2 | full | pass | 0 | 2460 |  |  | 2455551 | 2455551 |  | aarch64/10 |  |  |
-| turso-wal | A3 | 200k | unsupported | 0 | 0 | 0.94 |  |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| turso-wal | A3 | full | unsupported | 0 | 0 |  |  |  |  |  | aarch64/10 |  | bounded read policy is exercised through the reference executor on the memory backend |
-| turso-wal | A4 | 200k | pass | 0 | 497 | 0.05 |  | 203 | 11439 | 1 | x86_64/4 | grust-portable-api |  |
-| turso-wal | A4 | full | pass | 0 | 44 |  |  | 27 | 1073 |  | aarch64/10 |  |  |
-| turso-wal | A7 | 200k | pass | 0 | 12 | 0.59 |  |  |  | 1 | x86_64/4 | grust-portable-api | earlier fail (gates=17) in 20260904T202851Z: hub out-degree 27 != expected 10 |
-| turso-wal | A7 | full | pass | 0 | 51 |  |  |  |  |  | aarch64/10 |  |  |
-| turso-wal | LOAD | 200k | pass | 0 | 5163 | 0.98 |  |  |  | 1 | x86_64/4 | grust-portable-api |  |
-| turso-mvcc | A1 | 200k | pass | 0 | 0 | 1.00 |  | 639 | 639 | 1 | x86_64/4 | grust-portable-api |  |
-| turso-mvcc | A1 | full | pass | 0 | 5 |  |  | 1234 | 1541 |  | aarch64/10 |  |  |
-| turso-mvcc | A2 | 200k | pass | 0 | 14 | 1.00 |  | 14655 | 14655 | 1 | x86_64/4 | grust-portable-api |  |
-| turso-mvcc | A2 | full | pass | 0 | 1570 |  |  | 1569791 | 1569791 |  | aarch64/10 |  |  |
-| turso-mvcc | A3 | 200k | unsupported | 0 | 0 | 0.97 |  |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| turso-mvcc | A3 | full | unsupported | 0 | 0 |  |  |  |  |  | aarch64/10 |  | bounded read policy is exercised through the reference executor on the memory backend |
-| turso-mvcc | A4 | 200k | pass | 0 | 741 | 2.83 |  | 25903 | 76543 | 1 | x86_64/4 | grust-portable-api |  |
-| turso-mvcc | A4 | full | pass | 0 | 406 |  |  | 934 | 10335 |  | aarch64/10 |  |  |
-| turso-mvcc | A7 | 200k | pass | 0 | 15 | 1.21 |  |  |  | 1 | x86_64/4 | grust-portable-api | earlier fail (gates=100) in 20260904T202851Z: hub out-degree 110 != expected 10 |
-| turso-mvcc | A7 | full | pass | 0 | 38 |  |  |  |  |  | aarch64/10 |  |  |
-| turso-mvcc | LOAD | 200k | pass | 0 | 18194 | 0.99 |  |  |  | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
-| ladybug | A1 | 200k | pass | 0 | 27 | 0.98 |  | 19695 | 19695 | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
-| ladybug | A1 | 200k | pass | 0 | 30 | 1.02 |  | 24319 | 24319 | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=true) |  |
-| ladybug | A2 | 200k | pass | 0 | 483 | 1.12 |  | 483583 | 483583 | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
-| ladybug | A2 | 200k | pass | 0 | 493 | 1.13 |  | 493311 | 493311 | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=true) |  |
-| ladybug | A3 | 200k | unsupported | 0 | 0 | 0.95 |  |  |  | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) | bounded read policy is exercised through the reference executor on the memory backend |
-| ladybug | A3 | 200k | unsupported | 0 | 0 | 1.00 |  |  |  | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=true) | bounded read policy is exercised through the reference executor on the memory backend |
-| ladybug | A4 | 200k | pass | 0 | 3442 | 0.39 |  | 33791 | 902143 | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
-| ladybug | A4 | 200k | pass | 0 | 1381 | 0.50 |  | 26031 | 66175 | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=true) |  |
-| ladybug | A7 | 200k | unsupported | 0 | 0 | 0.93 |  |  |  | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) | backend does not implement GraphCommitStore |
-| ladybug | A7 | 200k | unsupported | 0 | 0 | 0.98 |  |  |  | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=true) | backend does not implement GraphCommitStore |
-| ladybug | LOAD | 200k | pass | 0 | 13688 | 1.08 |  |  |  | 1 | x86_64/4, steal 0.0s | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
-| ladybug | LOAD | 200k | pass | 0 | 13829 | 1.08 |  |  |  | 1 | x86_64/4, steal 0.0s | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=true) |  |
-| lancedb | A1 | 200k | pass | 0 | 95 | 2.42 |  | 95167 | 95167 | 3 | x86_64/4 | grust-portable-api |  |
-| lancedb | A2 | 200k | pass | 0 | 9108 | 2.31 |  | 9109503 | 9109503 | 3 | x86_64/4, steal 0.0s | grust-portable-api |  |
-| lancedb | A3 | 200k | unsupported | 0 | 0 | 1.49 |  |  |  | 3 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| lancedb | A4 | 200k | pass | 0 | 5127 | 3.18 |  | 193407 | 246527 | 3 | x86_64/4 | grust-portable-api |  |
-| lancedb | A7 | 200k | unsupported | 0 | 0 | 0.93 |  |  |  | 3 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| lancedb | LOAD | 200k | pass | 0 | 12077 | 2.00 |  |  |  | 3 | x86_64/4 | grust-portable-api |  |
-| postgres | A1 | 200k | pass | 0 | 10 | 0.06 | 0 | 1426 | 1426 | 1 | x86_64/4 | grust-portable-api |  |
-| postgres | A1 | 50k | pass | 0 | 128 | 0.02 | 17 | 1460 | 1460 | 31 | aarch64/10 |  |  |
-| postgres | A2 | 200k | pass | 0 | 77 | 0.23 | 84 | 69567 | 69567 | 1 | x86_64/4 | grust-portable-api |  |
-| postgres | A3 | 200k | unsupported | 0 | 9 | 0.02 | 5 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| postgres | A4 | 200k | pass | 0 | 194 | 0.23 | 67 | 4915 | 8031 | 1 | x86_64/4 | grust-portable-api |  |
-| postgres | A4 | 50k | pass | 0 | 231 | 0.07 | 74 | 1470 | 3129 | 31 | aarch64/10 |  |  |
-| postgres | A7 | 200k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| postgres | LOAD | 200k | pass | 0 | 9465 | 0.03 | 8179 |  |  | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
-| postgres | LOAD | 50k | pass | 0 | 1500 | 0.07 | 1177 |  |  | 31 | aarch64/10 |  |  |
-| surreal-http | A1 | 10k | pass | 0 | 218 | 0.13 | 189 | 207615 | 207615 | 1 | x86_64/4 | grust-portable-api |  |
-| surreal-http | A2 | 10k | pass | 0 | 20668 | 0.14 | 18787 | 20660223 | 20660223 | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
-| surreal-http | A3 | 10k | unsupported | 0 | 10 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| surreal-http | A4 | 10k | pass | 0 | 4080 | 0.03 | 14893 | 147839 | 178943 | 1 | x86_64/4 | grust-portable-api |  |
-| surreal-http | A7 | 10k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| surreal-http | LOAD | 10k | pass | 0 | 424341 | 0.00 | 433391 |  |  | 1 | x86_64/4, steal 0.8s | grust-portable-api |  |
-| surreal-sdk | A1 | 10k | pass | 0 | 129 | 0.35 | 85 | 120063 | 120063 | 1 | x86_64/4 | grust-portable-api |  |
-| surreal-sdk | A2 | 10k | pass | 0 | 11216 | 0.39 | 7612 | 11214847 | 11214847 | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
-| surreal-sdk | A3 | 10k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| surreal-sdk | A4 | 10k | pass | 0 | 2779 | 0.04 | 9230 | 90751 | 96639 | 1 | x86_64/4 | grust-portable-api |  |
-| surreal-sdk | A7 | 10k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| surreal-sdk | LOAD | 10k | pass | 0 | 435530 | 0.00 | 444907 |  |  | 1 | x86_64/4, steal 0.5s | grust-portable-api |  |
-| falkor | A1 | 200k | pass | 0 | 32 | 0.02 | 42 | 23471 | 23471 | 1 | x86_64/4 | harness-native-cypher |  |
-| falkor | A1 | 200k | pass | 0 | 33 | 0.03 | 42 | 24639 | 24639 | 1 | x86_64/4 | harness-native-cypher (resultset_size=-1) |  |
-| falkor | A1 | 200k | pass | 0 | 32 | 0.02 | 41 | 23007 | 23007 | 2 | x86_64/4 | harness-native-cypher (resultset_size=10000) |  |
-| falkor | A2 | 200k | pass | 0 | 111 | 0.15 | 57 | 101759 | 101759 | 1 | x86_64/4 | harness-native-cypher |  |
-| falkor | A2 | 200k | pass | 0 | 110 | 0.15 | 59 | 101183 | 101183 | 1 | x86_64/4 | harness-native-cypher (resultset_size=-1) |  |
-| falkor | A2 | 200k | pass | 0 | 107 | 0.15 | 57 | 97087 | 97087 | 2 | x86_64/4 | harness-native-cypher (resultset_size=10000) |  |
-| falkor | A3 | 200k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 1 | x86_64/4 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
-| falkor | A3 | 200k | unsupported | 0 | 10 | 0.02 | 0 |  |  | 1 | x86_64/4 | harness-native-cypher (resultset_size=-1) | bounded read policy is exercised through the reference executor on the memory backend |
-| falkor | A3 | 200k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 2 | x86_64/4 | harness-native-cypher (resultset_size=10000) | bounded read policy is exercised through the reference executor on the memory backend |
-| falkor | A4 | 200k | pass | 0 | 1541 | 0.02 | 1619 | 44031 | 59391 | 1 | x86_64/4 | harness-native-cypher |  |
-| falkor | A4 | 200k | pass | 0 | 1605 | 0.01 | 1652 | 44767 | 62591 | 1 | x86_64/4 | harness-native-cypher (resultset_size=-1) |  |
-| falkor | A4 | 200k | pass | 0 | 1556 | 0.02 | 1629 | 43775 | 59519 | 2 | x86_64/4, steal 0.0s | harness-native-cypher (resultset_size=10000) |  |
-| falkor | A7 | 200k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 1 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
-| falkor | A7 | 200k | unsupported | 0 | 8 | 0.03 | 0 |  |  | 1 | x86_64/4 | harness-native-cypher (resultset_size=-1) | backend does not implement GraphCommitStore |
-| falkor | A7 | 200k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 2 | x86_64/4 | harness-native-cypher (resultset_size=10000) | backend does not implement GraphCommitStore |
-| falkor | LOAD | 200k | pass | 0 | 6564 | 0.03 | 6505 |  |  | 1 | x86_64/4 | harness-native-cypher |  |
-| falkor | LOAD | 200k | pass | 0 | 6611 | 0.02 | 6609 |  |  | 1 | x86_64/4, steal 0.0s | harness-native-cypher (resultset_size=-1) |  |
-| falkor | LOAD | 200k | pass | 0 | 6632 | 0.03 | 6605 |  |  | 2 | x86_64/4 | harness-native-cypher (resultset_size=10000) |  |
-| helix-http | A1 | 10k | pass | 0 | 30 | 0.03 | 20 | 21407 | 21407 | 1 | x86_64/4 | grust-portable-api |  |
-| helix-http | A2 | 10k | pass | 0 | 2002 | 0.01 | 1905 | 1993727 | 1993727 | 1 | x86_64/4 | grust-portable-api |  |
-| helix-http | A3 | 10k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| helix-http | A4 | 10k | pass | 0 | 7992 | 0.01 | 6573 | 302335 | 346367 | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
-| helix-http | A7 | 10k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| helix-http | LOAD | 10k | pass | 0 | 377497 | 0.00 | 373689 |  |  | 1 | x86_64/4, steal 0.7s | grust-portable-api |  |
-| helix-http | LOAD | 200k | fail | 1 | 63282 | 0.01 | 90474 |  |  | 1 | x86_64/4, steal 0.1s |  | backend error: Helix query failed with status 408 Request Timeout earlier fail (gates=1) in 20260905T160243Z: backend error: Helix query failed with status 408 Request Timeout; earlier fail (gates=1) in 20260905T163559Z: backend error: Helix query failed with status 408 Request Timeout; earlier fail (gates=1) in 20260906T071652Z: backend error: Helix query failed with status 408 Request Timeout |
-| helix-sdk | A1 | 10k | fail | 1 | 8 | 0.03 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | khop failed: serialization error: invalid Helix SDK read: unknown variant `Read`, expected `read` or `write` |
-| helix-sdk | A2 | 10k | fail | 1 | 7 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | deep traversal failed: serialization error: invalid Helix SDK read: unknown variant `Read`, expected `read` or `write` |
-| helix-sdk | A3 | 10k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| helix-sdk | A4 | 10k | fail | 1 | 8 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | could not read hub degree: serialization error: invalid Helix SDK read: unknown variant `Read`, expected `read` or `writ |
-| helix-sdk | A7 | 10k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| helix-sdk | LOAD | 10k | fail | 1 | 0 |  |  |  |  |  | x86_64/4 |  | open failed: backend error: Helix SDK replace/drop failed earlier pass (gates=0) in 20260905T162338Z: ; earlier fail (gates=1) in 20260906T071648Z: open failed: backend error: Helix SDK replace/drop failed |
-| helix-sdk | LOAD | 200k | fail | 1 | 0 |  |  |  |  |  | x86_64/4 |  | open failed: backend error: Helix SDK replace/drop failed earlier fail (gates=1) in 20260905T160543Z: backend error: Helix SDK edge write failed; earlier fail (gates=1) in 20260905T163851Z: backend error: Helix SDK edge write failed; earlier fail (gates=1) in 20260906T071944Z: open failed: backend error: Helix SDK replace/drop failed |
-| neo4j | A1 | 200k | pass | 0 | 15 | 0.05 | 5 | 5403 | 5403 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j | A2 | 200k | pass | 0 | 218 | 0.08 | 332 | 210175 | 210175 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j | A3 | 200k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 2 | x86_64/4 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
-| neo4j | A4 | 200k | pass | 0 | 379 | 0.08 | 1017 | 13911 | 28735 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j | A7 | 200k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 2 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
-| neo4j | LOAD | 200k | pass | 0 | 7476 | 0.04 | 5781 |  |  | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j-http | A1 | 200k | pass | 0 | 60 | 0.01 | 144 | 50655 | 50655 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j-http | A2 | 200k | pass | 0 | 500 | 0.05 | 1010 | 491263 | 491263 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j-http | A3 | 200k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 2 | x86_64/4 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
-| neo4j-http | A4 | 200k | pass | 0 | 614 | 0.05 | 1832 | 19663 | 91199 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j-http | A7 | 200k | unsupported | 0 | 9 | 0.02 | 18 |  |  | 2 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
-| neo4j-http | LOAD | 200k | pass | 0 | 5806 | 0.04 | 7526 |  |  | 2 | x86_64/4 | harness-native-cypher |  |
+| lancedb | A1 | full | pass | 0 | 9268 | 2.92 |  | 3084287 | 3110911 | 9 | x86_64/16 | grust-portable-api |  |
+| lancedb | A12 | full | pass | 0 | 63187 | 13.79 |  | 2063359 | 2635775 | 20 | x86_64/16, steal 0.0s | grust-portable-api |  |
+| lancedb | A2 | full | pass | 0 | 3993081 | 3.06 |  | 3600809983 | 3600809983 | 3 | x86_64/16, steal 0.2s | grust-portable-api |  |
+| lancedb | A3 | full | unsupported | 0 | 0 | 0.75 |  |  |  | 3 | x86_64/16 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| lancedb | A4 | full | pass | 0 | 510569 | 13.72 |  | 2523135 | 3801087 | 20 | x86_64/16, steal 0.0s | grust-portable-api |  |
+| lancedb | A7 | full | unsupported | 0 | 0 | 0.77 |  |  |  | 20 | x86_64/16 | grust-portable-api | backend does not implement GraphCommitStore |
+| lancedb | LOAD | full | pass | 0 | 22854 | 3.01 |  |  |  | 10 | x86_64/16 | grust-portable-api |  |
+
+## soc-LiveJournal1
+
+| Backend | Scenario | Slice | Outcome | Gates | Wall ms | Client CPU | Server CPU ms | p50 µs | p99 µs | Load 1m | Host | Path | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| lancedb | LOAD | full | pass | 0 | 2192458 | 4.72 |  |  |  | 6 | x86_64/16, steal 0.1s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
+| postgres | A1 | full | pass | 0 | 58578 | 0.23 | 42436 | 17186815 | 24363007 | 2 | x86_64/16, steal 0.0s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
+| postgres | LOAD | full | pass | 0 | 5362618 | 0.01 | 4276456 |  |  | 2 | x86_64/16, steal 0.3s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
+| memgraph | LOAD | full | fail | 1 | 2485266 | 0.12 | 661707 |  |  | 0 | x86_64/16, steal 0.2s |  | backend error: neo4j: Neo4j error `Memgraph.TransientError.MemgraphError.MemgraphError`: Memory limit exceeded! Current use is 5.00GiB, while the maximum allowed size for allocation is set to 5.00GiB. |
 
 ## web-Google
 
 | Backend | Scenario | Slice | Outcome | Gates | Wall ms | Client CPU | Server CPU ms | p50 µs | p99 µs | Load 1m | Host | Path | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| memory | A1 | 200k | pass | 0 | 0 |  |  | 399 | 399 |  | aarch64/10 |  |  |
-| memory | A2 | 200k | pass | 0 | 34 |  |  | 120 | 120 |  | aarch64/10 |  |  |
-| memory | A3 | 200k | pass | 0 | 29 |  |  | 4 | 17 |  | aarch64/10 |  |  |
-| memory | A4 | 200k | pass | 0 | 0 |  |  | 4 | 32 |  | aarch64/10 |  |  |
-| memory | A7 | 200k | unsupported | 0 | 0 |  |  |  |  |  | aarch64/10 |  | backend does not implement GraphCommitStore |
-| turso-wal | A1 | 200k | pass | 0 | 2 |  |  | 2387 | 2387 |  | aarch64/10 |  |  |
-| turso-wal | A2 | 200k | pass | 0 | 2 |  |  | 2821 | 2821 |  | aarch64/10 |  |  |
-| turso-wal | A3 | 200k | unsupported | 0 | 0 |  |  |  |  |  | aarch64/10 |  | bounded read policy is exercised through the reference executor on the memory backend |
-| turso-wal | A4 | 200k | pass | 0 | 5 |  |  | 23 | 391 |  | aarch64/10 |  |  |
-| turso-wal | A7 | 200k | pass | 0 | 8 |  |  |  |  |  | aarch64/10 |  |  |
-| turso-mvcc | A1 | 200k | pass | 0 | 2 |  |  | 2505 | 2505 |  | aarch64/10 |  |  |
-| turso-mvcc | A2 | 200k | pass | 0 | 3 |  |  | 3285 | 3285 |  | aarch64/10 |  |  |
-| turso-mvcc | A3 | 200k | unsupported | 0 | 0 |  |  |  |  |  | aarch64/10 |  | bounded read policy is exercised through the reference executor on the memory backend |
-| turso-mvcc | A4 | 200k | pass | 0 | 15 |  |  | 357 | 2631 |  | aarch64/10 |  |  |
-| turso-mvcc | A7 | 200k | pass | 0 | 22 |  |  |  |  |  | aarch64/10 |  |  |
+| lancedb | A1 | full | pass | 0 | 244860 | 2.98 |  | 81461247 | 83034111 | 4 | x86_64/16, steal 0.0s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
+| lancedb | LOAD | full | pass | 0 | 18449 | 2.98 |  |  |  | 11 | x86_64/16 | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
 
 ## wiki-Talk
 
 | Backend | Scenario | Slice | Outcome | Gates | Wall ms | Client CPU | Server CPU ms | p50 µs | p99 µs | Load 1m | Host | Path | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| memory | A1 | 200k | pass | 0 | 4 | 1.00 |  | 3259 | 3259 | 1 | x86_64/4 | grust-portable-api |  |
-| memory | A1 | full | pass | 0 | 731 |  |  | 75071 | 571391 |  | aarch64/10 |  |  |
-| memory | A2 | 200k | pass | 0 | 187 | 1.00 |  | 6 | 6 | 1 | x86_64/4 | grust-portable-api |  |
-| memory | A2 | full | pass | 0 | 2477 |  |  | 90 | 90 |  | aarch64/10 |  |  |
-| memory | A3 | 200k | pass | 0 | 108 | 1.00 |  | 5 | 21 | 1 | x86_64/4 | grust-portable-api |  |
-| memory | A3 | full | pass | 0 | 1018 |  |  | 11 | 19 |  | aarch64/10 |  |  |
-| memory | A4 | 200k | pass | 0 | 9 | 1.50 |  | 5 | 103 | 1 | x86_64/4 | grust-portable-api |  |
-| memory | A4 | full | pass | 0 | 107 |  |  | 39 | 256 |  | aarch64/10 |  |  |
-| memory | A7 | 200k | unsupported | 0 | 0 | 49.53 |  |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| memory | A7 | full | unsupported | 0 | 0 |  |  |  |  |  | aarch64/10 |  | backend does not implement GraphCommitStore |
-| memory | LOAD | 200k | pass | 0 | 829 | 1.00 |  |  |  | 1 | x86_64/4 | grust-portable-api |  |
-| turso-wal | A1 | 200k | pass | 0 | 58 | 1.00 |  | 57759 | 57759 | 1 | x86_64/4 | grust-portable-api |  |
-| turso-wal | A1 | full | pass | 0 | 891 |  |  | 289535 | 305663 |  | aarch64/10 |  |  |
-| turso-wal | A2 | 200k | pass | 0 | 0 | 0.99 |  | 300 | 300 | 1 | x86_64/4 | grust-portable-api |  |
-| turso-wal | A2 | full | pass | 0 | 0 |  |  | 359 | 359 |  | aarch64/10 |  |  |
-| turso-wal | A3 | 200k | unsupported | 0 | 0 | 0.96 |  |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| turso-wal | A3 | full | unsupported | 0 | 0 |  |  |  |  |  | aarch64/10 |  | bounded read policy is exercised through the reference executor on the memory backend |
-| turso-wal | A4 | 200k | pass | 0 | 282 | 0.28 |  | 22 | 9695 | 1 | x86_64/4 | grust-portable-api |  |
-| turso-wal | A4 | full | pass | 0 | 296 |  |  | 29 | 427 |  | aarch64/10 |  |  |
-| turso-wal | A7 | 200k | pass | 0 | 75 | 0.94 |  |  |  | 1 | x86_64/4 | grust-portable-api | earlier fail (gates=32) in 20260904T202851Z: hub out-degree 12249 != expected 12217 |
-| turso-wal | A7 | full | pass | 0 | 259 |  |  |  |  |  | aarch64/10 |  |  |
-| turso-wal | LOAD | 200k | pass | 0 | 6398 | 0.99 |  |  |  | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
-| turso-mvcc | A1 | 200k | pass | 0 | 66 | 1.00 |  | 65535 | 65535 | 1 | x86_64/4 | grust-portable-api |  |
-| turso-mvcc | A1 | full | pass | 0 | 1594 |  |  | 432639 | 722943 |  | aarch64/10 |  |  |
-| turso-mvcc | A2 | 200k | pass | 0 | 1 | 1.00 |  | 905 | 905 | 1 | x86_64/4 | grust-portable-api |  |
-| turso-mvcc | A2 | full | pass | 0 | 0 |  |  | 403 | 403 |  | aarch64/10 |  |  |
-| turso-mvcc | A3 | 200k | unsupported | 0 | 0 | 0.97 |  |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| turso-mvcc | A3 | full | unsupported | 0 | 0 |  |  |  |  |  | aarch64/10 |  | bounded read policy is exercised through the reference executor on the memory backend |
-| turso-mvcc | A4 | 200k | pass | 0 | 1361 | 2.62 |  | 29471 | 297215 | 1 | x86_64/4 | grust-portable-api |  |
-| turso-mvcc | A4 | full | pass | 0 | 786 |  |  | 901 | 13279 |  | aarch64/10 |  |  |
-| turso-mvcc | A7 | 200k | pass | 0 | 100 | 1.05 |  |  |  | 1 | x86_64/4 | grust-portable-api | earlier fail (gates=100) in 20260904T202851Z: hub out-degree 12317 != expected 12217 |
-| turso-mvcc | A7 | full | pass | 0 | 376 |  |  |  |  |  | aarch64/10 |  |  |
-| turso-mvcc | LOAD | 200k | pass | 0 | 25242 | 0.99 |  |  |  | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
-| ladybug | A1 | 200k | pass | 0 | 19507 | 1.05 |  | 19513343 | 19513343 | 1 | x86_64/4 | grust-portable-api |  |
-| ladybug | A1 | 200k | pass | 0 | 41 | 1.05 |  | 40127 | 40127 | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
-| ladybug | A1 | 200k | pass | 0 | 47 | 1.05 |  | 40767 | 40767 | 2 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=true) |  |
-| ladybug | A2 | 200k | pass | 0 | 13 | 1.08 |  | 13575 | 13575 | 1 | x86_64/4 | grust-portable-api |  |
-| ladybug | A2 | 200k | pass | 0 | 11 | 0.89 |  | 11127 | 11127 | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
-| ladybug | A2 | 200k | pass | 0 | 10 | 1.00 |  | 10599 | 10599 | 2 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=true) |  |
-| ladybug | A3 | 200k | unsupported | 0 | 0 | 0.83 |  |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| ladybug | A3 | 200k | unsupported | 0 | 0 | 0.97 |  |  |  | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) | bounded read policy is exercised through the reference executor on the memory backend |
-| ladybug | A3 | 200k | unsupported | 0 | 0 | 0.97 |  |  |  | 2 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=true) | bounded read policy is exercised through the reference executor on the memory backend |
-| ladybug | A4 | 200k | pass | 0 | 3861 | 0.42 |  | 37535 | 974335 | 1 | x86_64/4 | grust-portable-api |  |
-| ladybug | A4 | 200k | pass | 0 | 3972 | 0.37 |  | 38847 | 1946623 | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
-| ladybug | A4 | 200k | pass | 0 | 1087 | 0.64 |  | 2001 | 53535 | 2 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=true) |  |
-| ladybug | A7 | 200k | unsupported | 0 | 0 | 0.96 |  |  |  | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) | backend does not implement GraphCommitStore |
-| ladybug | A7 | 200k | unsupported | 0 | 0 | 0.96 |  |  |  | 2 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=true) | backend does not implement GraphCommitStore |
-| ladybug | LOAD | 200k | pass | 0 | 18380802 | 0.90 |  |  |  | 1 | x86_64/4 | grust-portable-api |  |
-| ladybug | LOAD | 200k | pass | 0 | 23340 | 1.16 |  |  |  | 1 | x86_64/4, steal 0.0s | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
-| ladybug | LOAD | 200k | pass | 0 | 23288 | 1.15 |  |  |  | 2 | x86_64/4, steal 0.0s | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=true) |  |
-| lancedb | A1 | 200k | pass | 0 | 2484 | 1.73 |  | 2484223 | 2484223 | 2 | x86_64/4 | grust-portable-api |  |
-| lancedb | A2 | 200k | pass | 0 | 230 | 2.16 |  | 230527 | 230527 | 2 | x86_64/4 | grust-portable-api |  |
-| lancedb | A3 | 200k | unsupported | 0 | 0 | 0.95 |  |  |  | 2 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| lancedb | A4 | 200k | pass | 0 | 6501 | 3.17 |  | 252415 | 296447 | 3 | x86_64/4 | grust-portable-api |  |
-| lancedb | A7 | 200k | unsupported | 0 | 0 | 0.93 |  |  |  | 3 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| lancedb | LOAD | 200k | pass | 0 | 15223 | 2.00 |  |  |  | 2 | x86_64/4 | grust-portable-api |  |
-| postgres | A1 | 200k | pass | 0 | 131 | 0.27 | 87 | 120127 | 120127 | 1 | x86_64/4 | grust-portable-api |  |
-| postgres | A2 | 200k | pass | 0 | 12 | 0.10 | 0 | 2711 | 2711 | 1 | x86_64/4 | grust-portable-api |  |
-| postgres | A3 | 200k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| postgres | A4 | 200k | pass | 0 | 238 | 0.31 | 82 | 5015 | 8327 | 1 | x86_64/4 | grust-portable-api |  |
-| postgres | A7 | 200k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| postgres | LOAD | 200k | pass | 0 | 11190 | 0.03 | 9489 |  |  | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
-| surreal-http | A1 | 10k | fail | 1 | 244 | 0.18 | 181 |  |  | 1 | x86_64/4 | grust-portable-api | khop failed: backend error: SurrealDB read failed with status 400 Bad Request: {"code":400,"details":"Request problems d earlier fail (gates=1) in 20260905T082604Z: khop failed: backend error: SurrealDB read failed with status 400 Bad Request: {"code":400,"details":"Request problems d; earlier fail (gates=1) in 20260906T062842Z: khop failed: backend error: SurrealDB read failed with status 400 Bad Request: {"code":400,"details":"Request problems d |
-| surreal-http | A2 | 10k | pass | 0 | 422 | 0.15 | 368 | 411903 | 411903 | 1 | x86_64/4 | grust-portable-api |  |
-| surreal-http | A3 | 10k | unsupported | 0 | 11 | 0.03 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| surreal-http | A4 | 10k | pass | 0 | 4110 | 0.03 | 14842 | 149247 | 179711 | 1 | x86_64/4 | grust-portable-api |  |
-| surreal-http | A7 | 10k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| surreal-http | LOAD | 10k | pass | 0 | 465396 | 0.00 | 474690 |  |  | 1 | x86_64/4, steal 0.7s | grust-portable-api |  |
-| surreal-sdk | A1 | 10k | fail | 1 | 135 | 0.46 | 74 |  |  | 1 | x86_64/4 | grust-portable-api | khop failed: backend error: SurrealDB SDK read failed: Parse error: Exceeded expression recursion depth limit
- --> [1:48 earlier fail (gates=1) in 20260905T084146Z: khop failed: backend error: SurrealDB SDK read failed: Parse error: Exceeded expression recursion depth limit
- --> [1:48; earlier fail (gates=1) in 20260906T064421Z: khop failed: backend error: SurrealDB SDK read failed: Parse error: Exceeded expression recursion depth limit
- --> [1:48 |
-| surreal-sdk | A2 | 10k | pass | 0 | 245 | 0.41 | 155 | 236671 | 236671 | 1 | x86_64/4 | grust-portable-api |  |
-| surreal-sdk | A3 | 10k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| surreal-sdk | A4 | 10k | pass | 0 | 2885 | 0.05 | 9226 | 91455 | 103487 | 1 | x86_64/4 | grust-portable-api |  |
-| surreal-sdk | A7 | 10k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| surreal-sdk | LOAD | 10k | pass | 0 | 480049 | 0.00 | 489641 |  |  | 1 | x86_64/4, steal 0.7s | grust-portable-api |  |
-| falkor | A1 | 200k | fail | 1 | 76 | 0.24 | 57 | 66367 | 66367 | 1 | x86_64/4 | harness-native-cypher | layers [10000] != oracle [12215] earlier fail (gates=1) in 20260905T053739Z: layers [10000] != oracle [12215]; earlier pass (gates=0) in 20260905T060047Z: ; earlier pass (gates=0) in 20260905T085736Z:  |
-| falkor | A1 | 200k | pass | 0 | 78 | 0.29 | 91 | 69631 | 69631 | 1 | x86_64/4 | harness-native-cypher (resultset_size=-1) |  |
-| falkor | A1 | 200k | fail | 1 | 80 | 0.24 | 57 | 68287 | 68287 | 2 | x86_64/4 | harness-native-cypher (resultset_size=10000) | layers [10000] != oracle [12215] earlier fail (gates=1) in 20260905T164202Z: layers [10000] != oracle [12215]; earlier fail (gates=1) in 20260906T070349Z: layers [10000] != oracle [12215] |
-| falkor | A2 | 200k | pass | 0 | 13 | 0.04 | 15 | 4319 | 4319 | 1 | x86_64/4 | harness-native-cypher |  |
-| falkor | A2 | 200k | pass | 0 | 13 | 0.05 | 2 | 3953 | 3953 | 1 | x86_64/4 | harness-native-cypher (resultset_size=-1) |  |
-| falkor | A2 | 200k | pass | 0 | 13 | 0.05 | 2 | 3539 | 3539 | 2 | x86_64/4 | harness-native-cypher (resultset_size=10000) |  |
-| falkor | A3 | 200k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
-| falkor | A3 | 200k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 1 | x86_64/4 | harness-native-cypher (resultset_size=-1) | bounded read policy is exercised through the reference executor on the memory backend |
-| falkor | A3 | 200k | unsupported | 0 | 9 | 0.06 | 0 |  |  | 2 | x86_64/4 | harness-native-cypher (resultset_size=10000) | bounded read policy is exercised through the reference executor on the memory backend |
-| falkor | A4 | 200k | pass | 0 | 2962 | 0.01 | 3148 | 85631 | 125183 | 1 | x86_64/4 | harness-native-cypher |  |
-| falkor | A4 | 200k | pass | 0 | 3076 | 0.01 | 3238 | 88575 | 135935 | 1 | x86_64/4 | harness-native-cypher (resultset_size=-1) |  |
-| falkor | A4 | 200k | pass | 0 | 3016 | 0.01 | 3196 | 86719 | 115839 | 2 | x86_64/4 | harness-native-cypher (resultset_size=10000) |  |
-| falkor | A7 | 200k | unsupported | 0 | 10 | 0.02 | 0 |  |  | 1 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
-| falkor | A7 | 200k | unsupported | 0 | 10 | 0.02 | 0 |  |  | 1 | x86_64/4 | harness-native-cypher (resultset_size=-1) | backend does not implement GraphCommitStore |
-| falkor | A7 | 200k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 2 | x86_64/4 | harness-native-cypher (resultset_size=10000) | backend does not implement GraphCommitStore |
-| falkor | LOAD | 200k | pass | 0 | 7427 | 0.04 | 7293 |  |  | 1 | x86_64/4 | harness-native-cypher |  |
-| falkor | LOAD | 200k | pass | 0 | 7501 | 0.04 | 7911 |  |  | 1 | x86_64/4, steal 0.0s | harness-native-cypher (resultset_size=-1) |  |
-| falkor | LOAD | 200k | pass | 0 | 7557 | 0.04 | 7964 |  |  | 2 | x86_64/4, steal 0.0s | harness-native-cypher (resultset_size=10000) |  |
-| helix-http | A1 | 10k | pass | 0 | 61 | 0.14 | 42 | 52255 | 52255 | 1 | x86_64/4 | grust-portable-api |  |
-| helix-http | A2 | 10k | pass | 0 | 39 | 0.02 | 29 | 30143 | 30143 | 1 | x86_64/4 | grust-portable-api |  |
-| helix-http | A3 | 10k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| helix-http | A4 | 10k | pass | 0 | 8165 | 0.01 | 6225 | 302335 | 406271 | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
-| helix-http | A7 | 10k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| helix-http | LOAD | 10k | pass | 0 | 303935 | 0.00 | 297419 |  |  | 1 | x86_64/4, steal 0.9s | grust-portable-api |  |
-| helix-http | LOAD | 200k | fail | 1 | 96378 | 0.02 | 36770 |  |  | 1 | x86_64/4, steal 0.3s |  | backend error: Helix query failed with status 408 Request Timeout earlier fail (gates=1) in 20260905T160243Z: backend error: Helix query failed with status 408 Request Timeout; earlier fail (gates=1) in 20260905T163559Z: backend error: Helix query failed with status 408 Request Timeout; earlier fail (gates=1) in 20260906T071652Z: backend error: Helix query failed with status 408 Request Timeout |
-| helix-sdk | A1 | 10k | fail | 1 | 9 | 0.05 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | khop failed: serialization error: invalid Helix SDK read: unknown variant `Read`, expected `read` or `write` |
-| helix-sdk | A2 | 10k | fail | 1 | 8 | 0.03 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | deep traversal failed: serialization error: invalid Helix SDK read: unknown variant `Read`, expected `read` or `write` |
-| helix-sdk | A3 | 10k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| helix-sdk | A4 | 10k | fail | 1 | 7 | 0.03 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | could not read hub degree: serialization error: invalid Helix SDK read: unknown variant `Read`, expected `read` or `writ |
-| helix-sdk | A7 | 10k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| helix-sdk | LOAD | 10k | fail | 1 | 0 |  |  |  |  |  | x86_64/4 |  | open failed: backend error: Helix SDK replace/drop failed earlier pass (gates=0) in 20260905T162338Z: ; earlier fail (gates=1) in 20260906T071648Z: open failed: backend error: Helix SDK replace/drop failed |
-| helix-sdk | LOAD | 200k | fail | 1 | 0 |  |  |  |  |  | x86_64/4 |  | open failed: backend error: Helix SDK replace/drop failed earlier fail (gates=1) in 20260905T160543Z: backend error: Helix SDK edge write failed; earlier fail (gates=1) in 20260905T163851Z: backend error: Helix SDK edge write failed; earlier fail (gates=1) in 20260906T071944Z: open failed: backend error: Helix SDK replace/drop failed |
-| neo4j | A1 | 200k | pass | 0 | 425 | 0.09 | 1149 | 415743 | 415743 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j | A2 | 200k | pass | 0 | 83 | 0.01 | 277 | 73727 | 73727 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j | A3 | 200k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 2 | x86_64/4 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
-| neo4j | A4 | 200k | pass | 0 | 785 | 0.10 | 2308 | 16111 | 164479 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j | A7 | 200k | unsupported | 0 | 10 | 0.02 | 19 |  |  | 2 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
-| neo4j | LOAD | 200k | pass | 0 | 11806 | 0.03 | 19614 |  |  | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j-http | A1 | 200k | pass | 0 | 466 | 0.07 | 1314 | 456959 | 456959 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j-http | A2 | 200k | pass | 0 | 93 | 0.01 | 299 | 79743 | 79743 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j-http | A3 | 200k | unsupported | 0 | 10 | 0.02 | 0 |  |  | 2 | x86_64/4 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
-| neo4j-http | A4 | 200k | pass | 0 | 1185 | 0.06 | 4056 | 27135 | 173695 | 2 | x86_64/4 | harness-native-cypher |  |
-| neo4j-http | A7 | 200k | unsupported | 0 | 10 | 0.08 | 26 |  |  | 2 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
-| neo4j-http | LOAD | 200k | pass | 0 | 10246 | 0.03 | 22750 |  |  | 2 | x86_64/4 | harness-native-cypher |  |
+| lancedb | A1 | full | pass | 0 | 5837 | 1.46 |  | 1917951 | 2021375 | 3 | x86_64/16 | grust-portable-api |  |
+| lancedb | A12 | full | pass | 0 | 63314 | 13.70 |  | 2068479 | 2873343 | 18 | x86_64/16 | grust-portable-api |  |
+| lancedb | A2 | full | pass | 0 | 355 | 3.23 |  | 354815 | 354815 | 3 | x86_64/16 | grust-portable-api |  |
+| lancedb | A3 | full | unsupported | 0 | 0 | 0.83 |  |  |  | 3 | x86_64/16 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| lancedb | A4 | full | pass | 0 | 504244 | 13.71 |  | 2476031 | 3860479 | 21 | x86_64/16, steal 0.0s | grust-portable-api |  |
+| lancedb | A7 | full | unsupported | 0 | 0 | 0.95 |  |  |  | 21 | x86_64/16 | grust-portable-api | backend does not implement GraphCommitStore |
+| lancedb | LOAD | full | pass | 0 | 21135 | 2.84 |  |  |  | 3 | x86_64/16 | grust-portable-api |  |
 
-Latest-cell hard-gate total: **16** across 252 cells from 68 runs; 25 earlier failing cell(s) are kept in the Notes column of their superseding row.
+Latest-cell hard-gate total: **12** across 40 cells from 18 runs; 1 earlier failing cell(s) are kept in the Notes column of their superseding row.
