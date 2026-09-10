@@ -41,7 +41,7 @@ DATASETS=(
   "GAP-road|L|https://sparse.tamu.edu/MM/GAP/GAP-road.tar.gz|high-diameter,scale"
 )
 
-sha256() { shasum -a 256 "$1" | cut -d' ' -f1; }
+sha256() { (sha256sum "$1" 2>/dev/null || shasum -a 256 "$1") | cut -d' ' -f1; }
 
 entries=()
 for row in "${DATASETS[@]}"; do
@@ -57,7 +57,9 @@ for row in "${DATASETS[@]}"; do
     curl -fL --retry 5 --retry-delay 5 -o "$file.part" "$url"
     mv "$file.part" "$file"
   fi
-  bytes=$(stat -f %z "$file" 2>/dev/null || stat -c %s "$file")
+  # GNU stat first: on Linux `stat -f %z` succeeds and prints a filesystem
+  # status block, which wrote an unparseable MANIFEST.json on 2026-09-10.
+  bytes=$(stat -c %s "$file" 2>/dev/null || stat -f %z "$file")
   entries+=("{\"name\":\"$name\",\"tier\":\"$tier\",\"url\":\"$url\",\"file\":\"${url##*/}\",\"bytes\":$bytes,\"sha256\":\"$(sha256 "$file")\",\"pathology\":\"$pathology\"}")
 done
 
@@ -75,5 +77,7 @@ manifest="$dest/MANIFEST.json"
   echo
   echo "  ]"
   echo "}"
-} > "$manifest"
+} > "$manifest.tmp"
+python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$manifest.tmp" || { echo "manifest would not parse; kept the old one, see $manifest.tmp" >&2; exit 1; }
+mv "$manifest.tmp" "$manifest"
 echo "wrote $manifest (${#entries[@]} datasets)"
