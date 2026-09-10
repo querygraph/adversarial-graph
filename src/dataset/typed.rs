@@ -166,6 +166,7 @@ impl TypedGraphBuilder {
             nodes: graph.nodes.len(),
             edges: graph.edges.len(),
             duplicate_edges_dropped: self.duplicates,
+            parallel_edges: 0,
             dangling_edges_dropped: self.dangling,
             self_loops: self.self_loops,
             truncated_at: self.truncated_at,

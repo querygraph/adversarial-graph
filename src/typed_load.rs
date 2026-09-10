@@ -36,16 +36,23 @@ impl<'g> LoadPlan<'g> {
         }
         let mut edges: BTreeMap<EdgeShape, Vec<&Edge>> = BTreeMap::new();
         for edge in &graph.edges {
-            let (Some(from), Some(to)) = (
-                label_of.get(edge.from.as_str()),
-                label_of.get(edge.to.as_str()),
-            ) else {
-                continue;
+            // An endpoint the batch does not carry is a vertex the store
+            // already holds under the untyped label: the typed loaders
+            // always materialize a whole graph, so the only edge-only
+            // batches are the compact reference's, whose vertices are all
+            // `V`. Until 2026-09-10 such an edge was skipped here, and every
+            // compact tier loaded its vertices and none of its edges into
+            // the Bolt, HTTP and FalkorDB stores while LOAD passed.
+            let label = |id: &str| {
+                label_of
+                    .get(id)
+                    .copied()
+                    .unwrap_or(crate::dataset::NODE_LABEL)
             };
             let shape = EdgeShape {
                 relationship: edge.label.as_str().to_string(),
-                from_label: (*from).to_string(),
-                to_label: (*to).to_string(),
+                from_label: label(edge.from.as_str()).to_string(),
+                to_label: label(edge.to.as_str()).to_string(),
             };
             edges.entry(shape).or_default().push(edge);
         }
@@ -120,6 +127,41 @@ mod tests {
             ]
         );
         assert_eq!(index_name("TagClass"), "ag_id_tagclass");
+    }
+
+    #[test]
+    fn an_edge_only_batch_resolves_its_endpoints_to_the_untyped_label() {
+        // The compact reference's edge chunks: no vertices in the batch.
+        let graph = Graph::new(
+            vec![],
+            vec![
+                Edge::new(crate::dataset::EDGE_LABEL, "1", "2", Props::new()),
+                Edge::new(crate::dataset::EDGE_LABEL, "2", "3", Props::new()),
+            ],
+        );
+        let plan = LoadPlan::of(&graph);
+        assert_eq!(plan.node_labels().count(), 0);
+        let shapes: Vec<(String, usize)> = plan
+            .edges_by_shape()
+            .map(|(s, e)| {
+                (
+                    format!("{}:{}->{}", s.relationship, s.from_label, s.to_label),
+                    e.len(),
+                )
+            })
+            .collect();
+        assert_eq!(shapes, [("E:V->V".to_string(), 2)], "no edge is dropped");
+        // A typed batch that carries one endpoint still resolves the other.
+        let mixed = Graph::new(
+            vec![Node::new("Person", "p1", Props::new())],
+            vec![Edge::new("KNOWS", "p1", "p2", Props::new())],
+        );
+        let shape = LoadPlan::of(&mixed)
+            .edges_by_shape()
+            .map(|(s, _)| format!("{}:{}->{}", s.relationship, s.from_label, s.to_label))
+            .next()
+            .unwrap();
+        assert_eq!(shape, "KNOWS:Person->V");
     }
 }
 

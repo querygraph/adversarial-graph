@@ -7,12 +7,13 @@
 //! self-loop and truncation rules, and report the schema they produced.
 
 pub mod icij;
+pub mod pairs;
 pub mod snb;
 pub mod typed;
 
 use std::collections::{BTreeMap, HashSet};
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
+use std::io::Read;
 use std::path::Path;
 
 use flate2::read::GzDecoder;
@@ -23,6 +24,11 @@ pub use typed::DatasetSchema;
 pub const NODE_LABEL: &str = "V";
 pub const EDGE_LABEL: &str = "E";
 pub const SNAP_FORMAT: &str = "snap-edge-list";
+/// `from to timestamp` per line, every line an interaction: parallel edges
+/// are kept (sx-stackoverflow, wiki-talk-temporal).
+pub const SNAP_TEMPORAL_FORMAT: &str = "snap-temporal-edge-list";
+/// A Matrix Market coordinate file in a SuiteSparse tarball (GAP-road).
+pub const MATRIX_MARKET_FORMAT: &str = "matrix-market";
 
 /// Summary of what a loader saw, recorded in the report for provenance.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -33,6 +39,8 @@ pub struct LoadStats {
     pub nodes: usize,
     pub edges: usize,
     pub duplicate_edges_dropped: usize,
+    /// Repeated pairs kept as edges of their own (the temporal formats).
+    pub parallel_edges: usize,
     pub dangling_edges_dropped: usize,
     pub self_loops: usize,
     pub truncated_at: Option<usize>,
@@ -44,6 +52,10 @@ pub struct LoadStats {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatasetFormat {
     Snap,
+    /// `sx-*`: SNAP temporal networks, one line per interaction.
+    SnapTemporal,
+    /// `*.tar.gz`: a SuiteSparse Matrix Market tarball.
+    MatrixMarket,
     LdbcSnbCsvBasic,
     IcijOffshoreLeaks,
 }
@@ -54,8 +66,22 @@ impl DatasetFormat {
             Self::LdbcSnbCsvBasic
         } else if file.starts_with("full-oldb") && file.ends_with(".zip") {
             Self::IcijOffshoreLeaks
+        } else if file.starts_with("sx-") {
+            Self::SnapTemporal
+        } else if file.ends_with(".tar.gz") {
+            Self::MatrixMarket
         } else {
             Self::Snap
+        }
+    }
+
+    /// The pair source an untyped format reads through.
+    pub fn pairs(self) -> Option<pairs::PairFormat> {
+        match self {
+            Self::Snap => Some(pairs::PairFormat::SnapEdgeList),
+            Self::SnapTemporal => Some(pairs::PairFormat::SnapTemporal),
+            Self::MatrixMarket => Some(pairs::PairFormat::MatrixMarket),
+            Self::LdbcSnbCsvBasic | Self::IcijOffshoreLeaks => None,
         }
     }
 }
@@ -90,16 +116,19 @@ pub fn load_dataset(
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or_default();
-    match DatasetFormat::of(file) {
-        DatasetFormat::Snap if compact => {
-            let (graph, stats) = crate::compact::load_snap_compact(path, limit)?;
-            let schema = DatasetSchema::untyped(&stats);
-            Ok((LoadedGraph::Compact(graph), stats, schema))
-        }
-        DatasetFormat::Snap => {
-            let (graph, stats) = load_snap_edge_list(path, limit)?;
-            let schema = DatasetSchema::of(&graph);
-            Ok((LoadedGraph::Full(std::sync::Arc::new(graph)), stats, schema))
+    let format = DatasetFormat::of(file);
+    match format {
+        DatasetFormat::Snap | DatasetFormat::SnapTemporal | DatasetFormat::MatrixMarket => {
+            let pairs = format.pairs().expect("an untyped format");
+            if compact {
+                let (graph, stats) = crate::compact::load_snap_compact(path, limit, pairs)?;
+                let schema = DatasetSchema::untyped(&stats);
+                Ok((LoadedGraph::Compact(graph), stats, schema))
+            } else {
+                let (graph, stats) = load_snap_edge_list(path, limit, pairs)?;
+                let schema = DatasetSchema::of(&graph);
+                Ok((LoadedGraph::Full(std::sync::Arc::new(graph)), stats, schema))
+            }
         }
         DatasetFormat::LdbcSnbCsvBasic => snb::load(path, limit)
             .map(|(g, s, d)| (LoadedGraph::Full(std::sync::Arc::new(g)), s, d)),
@@ -117,42 +146,40 @@ pub fn open_maybe_gz(path: &Path) -> std::io::Result<Box<dyn Read>> {
     }
 }
 
-/// Load a SNAP-style edge list (`#` comments, whitespace-separated `from to`
-/// per line). Exact duplicate edges are dropped and counted so that the
-/// oracle and every backend see the same multiset; self-loops are kept and
-/// counted. `limit` truncates after that many edges for smoke runs.
+/// Load an untyped edge-pair file (`dataset::pairs`) into a `Graph`.
+/// Exact duplicate edges are dropped and counted so that the oracle and
+/// every backend see the same multiset -- except under a temporal format,
+/// where a repeated pair is a parallel edge, kept and counted as such;
+/// self-loops are kept and counted. `limit` truncates after that many
+/// edges for smoke runs.
 pub fn load_snap_edge_list(
     path: &Path,
     limit: Option<usize>,
+    format: pairs::PairFormat,
 ) -> std::io::Result<(Graph, LoadStats)> {
-    let reader = BufReader::with_capacity(1 << 20, open_maybe_gz(path)?);
+    let mut source = pairs::PairSource::open(path, format)?;
+    let keep_parallel = format.keeps_parallel_edges();
     let mut nodes: HashSet<String> = HashSet::new();
     let mut seen: HashSet<(String, String)> = HashSet::new();
     let mut edges: Vec<Edge> = Vec::new();
-    let mut lines = 0usize;
     let mut duplicates = 0usize;
+    let mut parallel = 0usize;
     let mut self_loops = 0usize;
     let mut truncated_at = None;
-    for line in reader.lines() {
-        let line = line?;
-        lines += 1;
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let mut parts = line.split(['\t', ' ', ',']);
-        let (Some(from), Some(to)) = (parts.next(), parts.next()) else {
-            continue;
-        };
+    while let Some((from, to)) = source.next_pair()? {
         if from == to {
             self_loops += 1;
         }
-        if !seen.insert((from.to_string(), to.to_string())) {
-            duplicates += 1;
-            continue;
+        if !seen.insert((from.clone(), to.clone())) {
+            if keep_parallel {
+                parallel += 1;
+            } else {
+                duplicates += 1;
+                continue;
+            }
         }
-        nodes.insert(from.to_string());
-        nodes.insert(to.to_string());
+        nodes.insert(from.clone());
+        nodes.insert(to.clone());
         edges.push(Edge::new(EDGE_LABEL, from, to, Props::new()));
         if let Some(max) = limit
             && edges.len() >= max
@@ -161,6 +188,7 @@ pub fn load_snap_edge_list(
             break;
         }
     }
+    let lines = source.lines;
     let mut node_ids: Vec<String> = nodes.into_iter().collect();
     node_ids.sort_unstable();
     let node_records: Vec<Node> = node_ids
@@ -169,11 +197,12 @@ pub fn load_snap_edge_list(
         .collect();
     let stats = LoadStats {
         file: path.display().to_string(),
-        format: SNAP_FORMAT.to_string(),
+        format: format.name().to_string(),
         lines,
         nodes: node_records.len(),
         edges: edges.len(),
         duplicate_edges_dropped: duplicates,
+        parallel_edges: parallel,
         dangling_edges_dropped: 0,
         self_loops,
         truncated_at,
@@ -212,5 +241,32 @@ mod tests {
             DatasetFormat::of("full-oldb.LATEST.zip"),
             DatasetFormat::IcijOffshoreLeaks
         );
+        assert_eq!(
+            DatasetFormat::of("sx-stackoverflow.txt.gz"),
+            DatasetFormat::SnapTemporal
+        );
+        assert_eq!(
+            DatasetFormat::of("GAP-road.tar.gz"),
+            DatasetFormat::MatrixMarket
+        );
+        assert_eq!(
+            DatasetFormat::of("com-orkut.ungraph.txt.gz"),
+            DatasetFormat::Snap
+        );
+    }
+
+    #[test]
+    fn a_temporal_list_loads_its_parallel_edges() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("sx-t.txt");
+        std::fs::write(&p, "1 2 10\n1 2 20\n2 3 30\n2 3 30\n").unwrap();
+        let (g, s) = load_snap_edge_list(&p, None, pairs::PairFormat::SnapTemporal).unwrap();
+        assert_eq!(g.edges.len(), 4);
+        assert_eq!(s.parallel_edges, 2);
+        assert_eq!(s.duplicate_edges_dropped, 0);
+        assert_eq!(s.format, SNAP_TEMPORAL_FORMAT);
+        let (g, s) = load_snap_edge_list(&p, None, pairs::PairFormat::SnapEdgeList).unwrap();
+        assert_eq!(g.edges.len(), 2);
+        assert_eq!(s.duplicate_edges_dropped, 2);
     }
 }

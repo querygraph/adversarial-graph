@@ -368,9 +368,18 @@ async fn conform(
         };
         println!("  CAPABILITY  edge batch without its endpoints: {accepted}");
         let declared = kind.edge_batches_carry_endpoints();
+        // An adapter that takes the batch and reads the edge back needs no
+        // endpoints; one that refuses it must be declared. "accepted but
+        // read back 0 edges" is neither, and passed this check until
+        // 2026-09-10 (three Bolt/HTTP adapters, every compact tier empty).
+        let shaped = if declared {
+            accepted.starts_with("refused")
+        } else {
+            accepted == "accepted"
+        };
         tally.check(
             "compact edge chunks are shaped for this adapter",
-            Ok(declared == accepted.starts_with("refused")),
+            Ok(shaped),
             &format!("adapter {accepted}, harness declares carry_endpoints={declared}"),
         );
 

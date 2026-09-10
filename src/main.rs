@@ -388,6 +388,16 @@ async fn run(root: &Path, args: &Args) {
                     }
                     load_result.observe("nodes", rep.nodes);
                     load_result.observe("edges", rep.edges);
+                    // A load the store reports short is not a load: the
+                    // compact path once delivered every vertex and no edge to
+                    // three stores while this row read "pass".
+                    if rep.nodes != stats.nodes || rep.edges != stats.edges {
+                        load_result.gates.lost_write += 1;
+                        load_result.notes.push(format!(
+                            "the store reported {} of {} nodes and {} of {} edges offered",
+                            rep.nodes, stats.nodes, rep.edges, stats.edges
+                        ));
+                    }
                     load_result.observe(
                         "edges_per_s",
                         rep.edges as f64 / t.elapsed().as_secs_f64().max(1e-9),

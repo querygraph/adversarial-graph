@@ -330,8 +330,9 @@ mod tests {
         }
         text.push_str("a b\nd e\ne f\nf d\nf f\ng a\nh h\n");
         std::fs::write(&p, text).unwrap();
-        let (graph, _) = crate::dataset::load_snap_edge_list(&p, None).unwrap();
-        let (compact, _) = crate::compact::load_snap_compact(&p, None).unwrap();
+        let fmt = crate::dataset::pairs::PairFormat::SnapEdgeList;
+        let (graph, _) = crate::dataset::load_snap_edge_list(&p, None, fmt).unwrap();
+        let (compact, _) = crate::compact::load_snap_compact(&p, None, fmt).unwrap();
         let full = Oracle::new(&graph).unwrap();
         let small = Oracle::compact(&compact, DatasetSchema::of(&graph));
         assert_eq!(full.node_count(), small.node_count());

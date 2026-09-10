@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- The compact reference now loads its edges into the Bolt, HTTP and
+  FalkorDB stores. Their loaders group edges by the labels of the vertices
+  in the same batch and skipped an edge whose endpoint the batch did not
+  carry, which is every edge of the compact loader's edge-only chunks: on
+  2026-09-10 com-Orkut, soc-Pokec and soc-LiveJournal1 loaded every vertex
+  and no edge into Neo4j while LOAD read "pass" and A1 found zero
+  neighbours. An absent endpoint now resolves to the untyped label `V`
+  (`typed_load::LoadPlan`). A load the store reports short of the loader's
+  node or edge count is a `lost_write` gate, and the conformance probe
+  "compact edge chunks are shaped for this adapter" fails on "accepted but
+  read back 0 edges" instead of passing it. The bundles from that window
+  are set aside as `reports-void-20260910/` on each host.
+- Two more untyped formats through one edge-pair source
+  (`dataset::pairs`): a Matrix Market coordinate file inside a SuiteSparse
+  tarball (GAP-road; `symmetric` expands to both directions, as SNAP's road
+  networks list theirs), and SNAP temporal edge lists (`sx-*`: `from to
+  timestamp`), whose repeated pairs are parallel edges kept as such and
+  counted in the new `parallel_edges` load stat -- the multigraph is the
+  tier's pathology. Both loaders, materialized and compact, read the same
+  source, so a row's load stats do not depend on the path.
+
 - A8 records a store's own declared resource cap as a refusal, not a
   crash: Memgraph's `--memory-limit`, Neo4j's transaction memory pool,
   FalkorDB's `QUERY_MEM_CAPACITY`, matched on the store's typed message

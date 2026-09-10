@@ -13,7 +13,8 @@ use std::collections::{BTreeMap, HashMap};
 
 use grust::{Edge, Graph, Node, Props};
 
-use crate::dataset::{EDGE_LABEL, LoadStats, NODE_LABEL, SNAP_FORMAT};
+use crate::dataset::pairs::PairFormat;
+use crate::dataset::{EDGE_LABEL, LoadStats, NODE_LABEL};
 
 /// Interned vertices and a CSR over the out-edges. Node index = position in
 /// `ids`, which is sorted, so the sample and hub choices match the `Graph`
@@ -141,13 +142,13 @@ impl CompactGraph {
 pub fn load_snap_compact(
     path: &std::path::Path,
     limit: Option<usize>,
+    format: PairFormat,
 ) -> std::io::Result<(CompactGraph, LoadStats)> {
-    use std::io::BufRead;
-    let reader = std::io::BufReader::with_capacity(1 << 20, crate::dataset::open_maybe_gz(path)?);
+    let mut source = crate::dataset::pairs::PairSource::open(path, format)?;
+    let keep_parallel = format.keeps_parallel_edges();
     let mut intern: HashMap<String, u32> = HashMap::new();
     let mut ids: Vec<String> = Vec::new();
     let mut pairs: Vec<(u32, u32)> = Vec::new();
-    let mut lines = 0usize;
     let mut self_loops = 0usize;
     let mut truncated_at = None;
     let id_of = |s: &str, intern: &mut HashMap<String, u32>, ids: &mut Vec<String>| -> u32 {
@@ -159,22 +160,12 @@ pub fn load_snap_compact(
         intern.insert(s.to_string(), i);
         i
     };
-    for line in reader.lines() {
-        let line = line?;
-        lines += 1;
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let mut parts = line.split(['\t', ' ', ',']);
-        let (Some(from), Some(to)) = (parts.next(), parts.next()) else {
-            continue;
-        };
+    while let Some((from, to)) = source.next_pair()? {
         if from == to {
             self_loops += 1;
         }
-        let f = id_of(from, &mut intern, &mut ids);
-        let t = id_of(to, &mut intern, &mut ids);
+        let f = id_of(&from, &mut intern, &mut ids);
+        let t = id_of(&to, &mut intern, &mut ids);
         pairs.push((f, t));
         if let Some(max) = limit
             && pairs.len() >= max
@@ -183,15 +174,24 @@ pub fn load_snap_compact(
             break;
         }
     }
+    let lines = source.lines;
     drop(intern);
     // Dedup exactly as the Graph loader does (first occurrence kept): sort a
     // permutation by (from,to) string order? The Graph loader dedups on the
     // raw strings, and truncation counts kept edges; both hold here because
-    // interning is injective on the strings.
+    // interning is injective on the strings. Under a temporal format the
+    // repeats are parallel edges and stay; the CSR simply lists a target
+    // more than once.
     let before = pairs.len();
     pairs.sort_unstable();
-    pairs.dedup();
-    let duplicates = before - pairs.len();
+    let (duplicates, parallel) = if keep_parallel {
+        let mut distinct = pairs.clone();
+        distinct.dedup();
+        (0, before - distinct.len())
+    } else {
+        pairs.dedup();
+        (before - pairs.len(), 0)
+    };
     // Renumber so that index order == sorted id order, matching the Graph
     // loader's `node_ids.sort_unstable()`.
     let mut order: Vec<u32> = (0..ids.len() as u32).collect();
@@ -220,11 +220,12 @@ pub fn load_snap_compact(
     drop(pairs);
     let stats = LoadStats {
         file: path.display().to_string(),
-        format: SNAP_FORMAT.to_string(),
+        format: format.name().to_string(),
         lines,
         nodes: n,
         edges: edge_count,
         duplicate_edges_dropped: duplicates,
+        parallel_edges: parallel,
         dangling_edges_dropped: 0,
         self_loops,
         truncated_at,
@@ -251,7 +252,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path().join("g.txt");
         std::fs::write(&p, "# c\n3 1\n1 2\n1 2\n2 3\n3 3\n1 3\n").unwrap();
-        let (g, s) = load_snap_compact(&p, None).unwrap();
+        let (g, s) = load_snap_compact(&p, None, PairFormat::SnapEdgeList).unwrap();
         assert_eq!(g.ids, vec!["1", "2", "3"]);
         assert_eq!(s.edges, 5);
         assert_eq!(s.duplicate_edges_dropped, 1);
@@ -276,5 +277,17 @@ mod tests {
         assert_eq!(prefix.nodes.len(), 3);
         assert_eq!(g.index_of("2"), Some(1));
         assert_eq!(g.index_of("9"), None);
+        // The temporal format keeps the repeated 1->2 as a parallel edge.
+        let (g, s) = load_snap_compact(&p, None, PairFormat::SnapTemporal).unwrap();
+        assert_eq!(s.edges, 6);
+        assert_eq!(s.parallel_edges, 1);
+        assert_eq!(s.duplicate_edges_dropped, 0);
+        assert_eq!(g.out(0), &[1, 1, 2]);
+        assert_eq!(
+            g.edge_chunks(4, false)
+                .map(|c| c.edges.len())
+                .sum::<usize>(),
+            6
+        );
     }
 }
