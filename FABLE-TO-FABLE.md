@@ -3197,6 +3197,21 @@ behind lakecat's queue.
 
 The crawlers are paused on each host for the length of its window and
 restored by the trap; the fleet watch reports them as inactive
-meanwhile. Still owed: the site's typed publication; the Surreal and
-Helix adapter fixes in grust (§45 item 8); a typed loader and query set
-for soc-Pokec-profiles; the L tier's two absent datasets.
+meanwhile.
+
+### Published, 12:31 UTC
+
+The typed tiers are on the site as four dated publications,
+`2026-09-09-lakecat`, `-eigen`, `-grust` and `-quegee` (site commit
+`97eda7b`, pushed on the user's word): every 2026-09-09 typed run at its
+own revision, the superseded attempts excluded and named in the host
+lines, the four manifests pinned at the bundling harness `a8b8f02`, and
+A5, A6 and A8 added to the page's scenario-family table. The site's own
+verifier passes all sixteen publications. `RESULTS.md` is now generated
+from every host's run directory (266 bundles, 763 cells).
+
+Still owed: the Surreal and Helix adapter fixes in grust (§45 item 8,
+now three defects: the edge-load path, the 60 s request timeout, the
+traversal rendering that exceeds SurrealQL's parser depth); a typed
+loader and query set for soc-Pokec-profiles. twitter-2010 and
+com-Friendster are on quegee, digests verified.
