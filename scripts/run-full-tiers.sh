@@ -149,8 +149,19 @@ for b in "${BACKENDS[@]}"; do
     echo "## $b: starting $svc"; docker compose --profile external up -d "$svc" >/dev/null 2>&1
     if ! wait_ready "$svc"; then echo "## $b: skipped, service never became ready; no bundle"; docker compose --profile external stop "$svc" >/dev/null 2>&1 || true; continue; fi
   fi
+  first_pair=1
   for d in "${DS[@]}"; do
     wait_for_window "$svc"
+    # Every pair starts from a fresh container: the harness clears a store
+    # at open, but a store left at its memory limit by the previous tier
+    # (Memgraph at GAP-road, 2026-09-10) drops the connection under the
+    # clear, and the next tier fails at open on the residue.
+    if [ -n "$svc" ] && [ "$first_pair" -eq 0 ]; then
+      docker compose --profile external rm -f -s "$svc" >/dev/null 2>&1 || true
+      docker compose --profile external up -d "$svc" >/dev/null 2>&1
+      if ! wait_ready "$svc"; then echo "## $b $d: $svc not ready after a fresh start; the pair is not started"; continue; fi
+    fi
+    first_pair=0
     echo "## $b $d: start $(date -u +%H:%M:%SZ)"
     # The pair's own output is kept so the decision below reads the
     # harness's completion marker, not the exit code: `ag run` exits 1 when a
