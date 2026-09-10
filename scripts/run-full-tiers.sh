@@ -16,12 +16,21 @@ service_for() { case "$1" in postgres) echo postgres;; surreal-*) echo surreal;;
 # a ladder that waits forever: every probe runs under AG_READY_TIMEOUT
 # (default 600 s) and a miss is logged with the service and the deadline.
 READY_TIMEOUT="${AG_READY_TIMEOUT:-600}"
+# PostgreSQL and AGE answer pg_isready during the image's first-boot
+# initialization and then restart the server; a pair opened in that window
+# saw "connection closed" and failed at open (lakecat, 2026-09-10, both age
+# tiers in the same second). Readiness is a real query, twice, 3 s apart.
+pg_ready() { # $1 = compose service
+  docker compose exec -T "$1" psql -U postgres -d graph -tAc 'select 1' 2>/dev/null | grep -qx 1 || return 1
+  sleep 3
+  docker compose exec -T "$1" psql -U postgres -d graph -tAc 'select 1' 2>/dev/null | grep -qx 1
+}
 ready_probe() { case "$1" in
-  postgres) docker compose exec -T postgres pg_isready -U postgres -d graph >/dev/null 2>&1;;
+  postgres) pg_ready postgres;;
   falkor) docker compose exec -T falkor redis-cli ping 2>/dev/null | grep -q PONG;;
   neo4j) curl -sf -m 2 http://127.0.0.1:17474 >/dev/null;;
   memgraph) echo 'RETURN 1;' | docker compose exec -T memgraph mgconsole >/dev/null 2>&1;;
-  age) docker compose exec -T age pg_isready -U postgres -d graph >/dev/null 2>&1;;
+  age) pg_ready age;;
   surreal) curl -sf -m 2 http://127.0.0.1:18000/health >/dev/null 2>&1;;
   helix) curl -sf -m 2 http://127.0.0.1:18082/health >/dev/null 2>&1;;
   *) return 0;;
