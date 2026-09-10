@@ -459,13 +459,49 @@ async fn run(root: &Path, args: &Args) {
                     );
                 }
                 Err(e) => {
-                    eprintln!("   load failed: {e}");
-                    if load_timed_out {
+                    let text = e.to_string();
+                    eprintln!(
+                        "   load failed: {}",
+                        text.chars().take(300).collect::<String>()
+                    );
+                    // A multigraph refused by a structural edge key: the
+                    // Grust SQL adapters upsert an edge on (from, label, to),
+                    // and PostgreSQL rejects a batch that repeats that key
+                    // ("ON CONFLICT DO UPDATE command cannot affect row a
+                    // second time"). The store said no, typed, and is up:
+                    // parallel edges are not preserved on this route, which
+                    // is the tier's pathology answered, not a crash.
+                    let structural_key_refusal = stats.parallel_edges > 0
+                        && text.contains("ON CONFLICT (from_id, label, to_id)");
+                    if structural_key_refusal {
+                        load_result.unsupported(
+                            "parallel edges are not preserved: the adapter keys an edge on (from, label, to) and PostgreSQL refuses a batch that repeats the key (ON CONFLICT DO UPDATE cannot affect a row a second time)",
+                        );
+                    } else if load_timed_out {
                         load_result.gates.hang_or_timeout_without_refusal += 1;
                     } else {
                         load_result.gates.oom_or_crash += 1;
                     }
-                    load_result.notes.push(e.to_string());
+                    // The adapters put the whole statement in the message;
+                    // the row keeps its head and tail, not 20 KB of VALUES.
+                    let note = if text.chars().count() > 1_200 {
+                        let head: String = text.chars().take(800).collect();
+                        let tail: String = text
+                            .chars()
+                            .rev()
+                            .take(300)
+                            .collect::<Vec<_>>()
+                            .into_iter()
+                            .rev()
+                            .collect();
+                        format!(
+                            "{head} … [{} chars elided] … {tail}",
+                            text.chars().count() - 1_100
+                        )
+                    } else {
+                        text
+                    };
+                    load_result.notes.push(note);
                     // The container's own state, when there is one: an HTTP
                     // or Bolt error after the kernel took the store at its
                     // memory limit reads as a transport failure otherwise.

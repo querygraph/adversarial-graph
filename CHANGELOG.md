@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- A multigraph refused by a structural edge key is `unsupported`, not a
+  crash: the Grust SQL adapters upsert an edge on (from, label, to), and
+  PostgreSQL rejects a batch that repeats the key, so sx-stackoverflow's
+  parallel edges are not preserved on that route. The load row says so.
+  A load-failure note keeps the message's head and tail rather than the
+  adapter's whole statement (20 KB of VALUES on that row).
+
 - The load has its own budget (`AG_LOAD_BUDGET_S`, the ladder passes its
   `--cap`), separate from the families' time: a load that does not finish
   inside it is a LOAD row with the `hang_or_timeout_without_refusal` gate
