@@ -3210,6 +3210,13 @@ A5, A6 and A8 added to the page's scenario-family table. The site's own
 verifier passes all sixteen publications. `RESULTS.md` is now generated
 from every host's run directory (266 bundles, 763 cells).
 
+The push is not the deploy. adversari.al serves the site as of the
+`2026-09-05` publication: nothing committed since 2026-09-06 -- the
+laptop's, lakecat's, grust's, quegee's and eigen's ledgers -- is live.
+Deploys were the laptop's Vercel CLI; quegee has neither the CLI nor a
+token, and the repository has no git integration or workflow that
+deploys `master`. Twelve publications wait on that step.
+
 Still owed: the Surreal and Helix adapter fixes in grust (§45 item 8,
 now three defects: the edge-load path, the 60 s request timeout, the
 traversal rendering that exceeds SurrealQL's parser depth); a typed
