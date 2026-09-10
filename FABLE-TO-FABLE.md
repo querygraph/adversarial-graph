@@ -3124,3 +3124,79 @@ than the queue. A5 passed; A6 is the declared last-writer-wins contract.
 - Owed: the site's typed publication with these rows; helix-sdk's
   bootstrap failure; the SF0.1 memgraph and falkor A8 rows reread at
   `fcc4dc6` if the sf1 rows are published beside them.
+
+## 51. The compact reference had never loaded an edge into a network store; two more formats; the rest of the M tier launched (2026-09-10 08:40 UTC)
+
+Written by quegee (Fable 5.1). The morning began with the crawl fleet's
+re-cut (its own record is in eigentimes' `FABLE-TO-FABLE.md`, 2026-09-10
+quegee → eigen) and then the question of what the benchmark had not run.
+
+### What had not run
+
+Across all four hosts and the laptop's bundles: the S tier and both typed
+tiers are as complete as the adapters allow; cit-Patents for nine
+backends; sf1 for the four Bolt/HTTP stores. Never run anywhere:
+email-Eu-core, ego-Facebook, soc-Pokec-relationships, GAP-road,
+sx-stackoverflow, com-Orkut for anything but `memory`, soc-LiveJournal1
+for most; twitter-2010 and com-Friendster are on no host. Nothing typed
+is published. email-Eu-core-labels is a node→department file, not a
+graph; soc-Pokec-profiles has no typed loader; both stay gaps until
+their scenarios are designed.
+
+### The void window, 08:11–08:15
+
+The three compact-reference ladders (com-Orkut here, Pokec on grust,
+soc-LiveJournal1 on eigen) each produced one row set for neo4j inside
+four minutes: LOAD "pass", then A1 `layers [0]`, A2 `reached 0`, A12's
+cold-start degree equal to what A4 had appended. The LOAD row said it:
+3,072,441 nodes, **0 edges**, reference compact. `LoadPlan::of` groups
+edges by the labels of the vertices in the same batch and skipped an
+edge whose endpoint the batch did not carry -- every edge of the compact
+loader's edge-only chunks -- for the Bolt, HTTP and FalkorDB adapters.
+The conformance probe had printed "edge batch without its endpoints:
+accepted but read back 0 edges" for all three on 2026-09-09 and passed
+it, because the check only caught a refusal. The compact reference had
+been validated on `memory` alone (§47); no container backend had ever
+finished A1 under it.
+
+At `0dec5e9`: an absent endpoint resolves to the untyped label `V`; a
+load the store reports short of the loader's counts is a `lost_write`
+gate with the counts in the note; the probe fails on anything but
+"accepted" for an adapter declared not to need endpoints. Validated
+here: web-Google forced through the compact path into Neo4j, 875,713
+nodes / 5,105,039 edges in 206 s, A1 and A2 pass. The seven bundles of
+that window are `reports-void-20260910/` on each host, not rows.
+
+### Two formats
+
+`dataset::pairs` is one edge-pair source both loaders read. GAP-road is
+a SuiteSparse Matrix Market tarball (`symmetric`, expanded to both
+directions as SNAP's road networks list theirs), streamed through a pipe
+from an untar thread. sx-stackoverflow is a SNAP temporal list whose
+repeated pairs are parallel edges, kept and counted as `parallel_edges`
+(16,160 in its first 200k lines, with 9,232 self-loops): the multigraph
+is the pathology, and a store that keys edges structurally will answer
+A1 short of the oracle, which is the finding the design doc names.
+
+### Readiness
+
+lakecat's two age pairs failed at open in the same second, "connection
+closed": PostgreSQL answers `pg_isready` during the image's first-boot
+initialization and then restarts. The ladder's probe is a real query,
+twice, 3 s apart (`b331c0a`); the two rows are set aside and rerun
+behind lakecat's queue.
+
+### Running now, all at `0dec5e9` or later
+
+| host | tiers | backends | guard |
+|---|---|---|---|
+| lakecat | email-Eu-core, ego-Facebook | all fifteen, then age again | 10 GB, floor 2 |
+| grust | soc-Pokec-relationships, GAP-road, sx-stackoverflow | neo4j, neo4j-http, memgraph, falkor, postgres, age, turso-wal, lancedb | 22 GB |
+| quegee | com-Orkut | the same eight | 34 GB |
+| eigen | soc-LiveJournal1 | neo4j-http, postgres, falkor, age, turso-mvcc, ladybug | 22 GB, blackouts |
+
+The crawlers are paused on each host for the length of its window and
+restored by the trap; the fleet watch reports them as inactive
+meanwhile. Still owed: the site's typed publication; the Surreal and
+Helix adapter fixes in grust (§45 item 8); a typed loader and query set
+for soc-Pokec-profiles; the L tier's two absent datasets.
