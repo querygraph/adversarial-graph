@@ -60,8 +60,8 @@ pub struct ContainerUsage {
 /// Engine API (`GET /containers/{name}/stats?stream=false`), which works for
 /// distroless images that have no shell for `docker exec`. Zero when the
 /// daemon is unreachable.
-pub fn container_usage(name: &str) -> ContainerUsage {
-    let sock = std::env::var("DOCKER_SOCK").ok().unwrap_or_else(|| {
+fn docker_sock() -> String {
+    std::env::var("DOCKER_SOCK").ok().unwrap_or_else(|| {
         let home = std::env::var("HOME").unwrap_or_default();
         let desktop = format!("{home}/.docker/run/docker.sock");
         if std::path::Path::new(&desktop).exists() {
@@ -69,7 +69,45 @@ pub fn container_usage(name: &str) -> ContainerUsage {
         } else {
             "/var/run/docker.sock".to_string()
         }
-    });
+    })
+}
+
+/// The container's own account of itself after a failure, from
+/// `GET /containers/{name}/json`: "container <name>: exited, exit 137,
+/// OOMKilled" -- the kernel taking a store under its memory limit is the
+/// store's declared envelope, not a transport error, and the row should
+/// say which. `None` when the daemon is unreachable or the container is
+/// gone.
+pub fn container_state(name: &str) -> Option<String> {
+    let out = Command::new("curl")
+        .args([
+            "-s",
+            "--max-time",
+            "10",
+            "--unix-socket",
+            &docker_sock(),
+            &format!("http://localhost/containers/{name}/json"),
+        ])
+        .output()
+        .ok()?;
+    let json = serde_json::from_slice::<serde_json::Value>(&out.stdout).ok()?;
+    let state = json.get("State")?;
+    let status = state["Status"].as_str()?;
+    let mut text = format!("container {name}: {status}");
+    if status != "running" {
+        text.push_str(&format!(
+            ", exit {}",
+            state["ExitCode"].as_i64().unwrap_or(-1)
+        ));
+    }
+    if state["OOMKilled"].as_bool() == Some(true) {
+        text.push_str(", OOMKilled");
+    }
+    Some(text)
+}
+
+pub fn container_usage(name: &str) -> ContainerUsage {
+    let sock = docker_sock();
     let out = Command::new("curl")
         .args([
             "-s",

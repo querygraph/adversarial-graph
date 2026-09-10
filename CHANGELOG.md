@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A load failure or a crash gate on a containerized backend records the
+  container's own state in the row's notes (`GET /containers/{name}/json`):
+  "container adversarial-graph-neo4j-1: exited, exit 137, OOMKilled". The
+  kernel taking a store at its memory limit read as a transport error
+  before (neo4j-http at soc-LiveJournal1 on eigen, 2026-09-10).
+
 - The compact reference now loads its edges into the Bolt, HTTP and
   FalkorDB stores. Their loaders group edges by the labels of the vertices
   in the same batch and skipped an edge whose endpoint the batch did not

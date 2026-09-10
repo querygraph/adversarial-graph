@@ -407,6 +407,13 @@ async fn run(root: &Path, args: &Args) {
                     eprintln!("   load failed: {e}");
                     load_result.gates.oom_or_crash += 1;
                     load_result.notes.push(e.to_string());
+                    // The container's own state, when there is one: an HTTP
+                    // or Bolt error after the kernel took the store at its
+                    // memory limit reads as a transport failure otherwise.
+                    if let Some(state) = kind.container().and_then(probe::container_state) {
+                        eprintln!("   {state}");
+                        load_result.notes.push(state);
+                    }
                 }
             }
             load_result.wall_ms = t.elapsed().as_millis();
@@ -450,7 +457,13 @@ async fn run(root: &Path, args: &Args) {
                     smoke: args.smoke,
                     hub_writes: &hub_writes,
                 };
-                let result = scenarios::run(scenario, &ctx).await;
+                let mut result = scenarios::run(scenario, &ctx).await;
+                if result.gates.oom_or_crash > 0
+                    && let Some(state) = kind.container().and_then(probe::container_state)
+                    && state.contains("exit")
+                {
+                    result.notes.push(state);
+                }
                 eprintln!(
                     "   {:<3} {:<12} {:?}  gates={}  wall={}ms cpu={:.2} load1m={}{}  {}",
                     result.scenario,
