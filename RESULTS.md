@@ -188,20 +188,20 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | postgres | A4 | full | pass | 0 | 1120 | 0.30 | 1156 | 4451 | 6543 | 0 | x86_64/4, steal 0.0s | grust-portable-api |  |
 | postgres | A7 | full | unsupported | 0 | 9 | 0.02 | 9 |  |  | 0 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | postgres | LOAD | full | pass | 0 | 3408 | 0.03 | 3007 |  |  | 0 | x86_64/4, steal 0.1s | grust-portable-api |  |
-| surreal-http | A1 | full | pass | 0 | 809151 | 0.01 | 814764 | 271319039 | 276037631 | 1 | x86_64/4, steal 15.4s | grust-portable-api |  |
-| surreal-http | A12 | full | pass | 0 | 61592 | 0.03 | 241210 | 767999 | 1848319 | 3 | x86_64/4, steal 0.1s | grust-portable-api |  |
-| surreal-http | A2 | full | pass | 0 | 955665 | 0.01 | 961732 | 955777023 | 955777023 | 1 | x86_64/4, steal 17.9s | grust-portable-api |  |
-| surreal-http | A3 | full | unsupported | 0 | 11 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| surreal-http | A4 | full | pass | 0 | 52958 | 0.04 | 203576 | 254335 | 418047 | 3 | x86_64/4, steal 0.1s | grust-portable-api |  |
-| surreal-http | A7 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 3 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| surreal-http | LOAD | full | pass | 0 | 25836 | 0.02 | 29625 |  |  | 3 | x86_64/4, steal 0.3s | grust-portable-api | earlier fail (gates=1) in 20260910T092304Z: backend error: failed to POST SurrealQL: error sending request |
-| surreal-sdk | A1 | full | pass | 0 | 519623 | 0.01 | 524596 | 173539327 | 174456831 | 1 | x86_64/4, steal 7.7s | grust-portable-api |  |
-| surreal-sdk | A12 | full | pass | 0 | 61919 | 0.03 | 239525 | 617471 | 1669119 | 3 | x86_64/4, steal 0.1s | grust-portable-api |  |
-| surreal-sdk | A2 | full | pass | 0 | 630402 | 0.01 | 636027 | 630718463 | 630718463 | 1 | x86_64/4, steal 9.7s | grust-portable-api |  |
-| surreal-sdk | A3 | full | unsupported | 0 | 10 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| surreal-sdk | A4 | full | pass | 0 | 2211 | 0.26 | 3020 | 4255 | 8051 | 1 | x86_64/4 | grust-portable-api |  |
-| surreal-sdk | A7 | full | unsupported | 0 | 9 | 0.03 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| surreal-sdk | LOAD | full | pass | 0 | 20753 | 0.05 | 24090 |  |  | 2 | x86_64/4, steal 0.1s | grust-portable-api |  |
+| surreal-http | A1 | full | pass | 0 | 10581 | 0.26 | 7700 | 3522559 | 3545087 | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
+| surreal-http | A12 | full | pass | 0 | 60325 | 0.08 | 17115 | 1286 | 59743 | 1 | x86_64/4, steal 0.4s | grust-portable-api |  |
+| surreal-http | A2 | full | pass | 0 | 11927 | 0.27 | 8559 | 11919359 | 11919359 | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
+| surreal-http | A3 | full | unsupported | 0 | 10 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| surreal-http | A4 | full | pass | 0 | 1642 | 0.48 | 3884 | 6111 | 13207 | 1 | x86_64/4 | grust-portable-api |  |
+| surreal-http | A7 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
+| surreal-http | LOAD | full | pass | 0 | 21725 | 0.03 | 25376 |  |  | 1 | x86_64/4, steal 0.0s | grust-portable-api | earlier fail (gates=1) in 20260910T092304Z: backend error: failed to POST SurrealQL: error sending request |
+| surreal-sdk | A1 | full | pass | 0 | 9109 | 0.26 | 7131 | 3031039 | 3049471 | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
+| surreal-sdk | A12 | full | pass | 0 | 61186 | 0.10 | 13379 | 1030 | 56063 | 1 | x86_64/4, steal 0.7s | grust-portable-api |  |
+| surreal-sdk | A2 | full | pass | 0 | 10082 | 0.26 | 7763 | 10076159 | 10076159 | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
+| surreal-sdk | A3 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| surreal-sdk | A4 | full | pass | 0 | 2169 | 0.30 | 3357 | 5235 | 10111 | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
+| surreal-sdk | A7 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
+| surreal-sdk | LOAD | full | pass | 0 | 21945 | 0.04 | 25347 |  |  | 1 | x86_64/4, steal 0.1s | grust-portable-api |  |
 | falkor | A1 | full | pass | 0 | 1630 | 0.18 | 946 | 536575 | 555519 | 0 | x86_64/4 | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A12 | full | pass | 0 | 60026 | 0.03 | 6429 | 857 | 2793 | 0 | x86_64/4, steal 0.9s | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A2 | full | pass | 0 | 1977 | 0.18 | 1172 | 1969151 | 1969151 | 0 | x86_64/4, steal 0.0s | harness-native-cypher (resultset_size=10000) |  |
@@ -216,7 +216,13 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | helix-http | A4 | full | pass | 0 | 127340 | 0.01 | 384780 | 600063 | 809983 | 8 | x86_64/4, steal 0.2s | grust-portable-api |  |
 | helix-http | A7 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 8 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | helix-http | LOAD | full | pass | 0 | 3547337 | 0.00 | 3267695 |  |  | 1 | x86_64/4, steal 25.7s | grust-portable-api |  |
-| helix-sdk | LOAD | full | fail | 1 | 7200054 | 0.00 | 7330178 |  |  | 1 | x86_64/4, steal 107.1s |  | backend error: the load did not finish inside the 7200 s load budget (4039 nodes, 88234 edges offered); container adversarial-graph-helix-sdk-1: running earlier fail (gates=1) in 20260911T073623Z: open failed: backend error: Helix SDK replace/drop failed; earlier fail (gates=1) in 20260911T153901Z: open failed: backend error: Helix index request failed: error sending request for url (http://127.0.0.1:18082/v1/query) |
+| helix-sdk | A1 | full | pass | 0 | 3072 | 0.25 | 2183 | 1026559 | 1028095 | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
+| helix-sdk | A12 | full | pass | 0 | 65579 | 0.01 | 252629 | 5029887 | 5365759 | 4 | x86_64/4, steal 0.1s | grust-portable-api |  |
+| helix-sdk | A2 | full | pass | 0 | 3558 | 0.25 | 2535 | 3549183 | 3549183 | 1 | x86_64/4 | grust-portable-api |  |
+| helix-sdk | A3 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| helix-sdk | A4 | full | pass | 0 | 158875 | 0.01 | 556219 | 787967 | 1026559 | 3 | x86_64/4, steal 0.1s | grust-portable-api |  |
+| helix-sdk | A7 | full | unsupported | 0 | 10 | 0.02 | 0 |  |  | 3 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
+| helix-sdk | LOAD | full | pass | 0 | 103214 | 0.00 | 91577 |  |  | 1 | x86_64/4, steal 1.2s | grust-portable-api | earlier fail (gates=1) in 20260911T073623Z: open failed: backend error: Helix SDK replace/drop failed; earlier fail (gates=1) in 20260911T153901Z: open failed: backend error: Helix index request failed: error sending request for url (http://127.0.0.1:18082/v1/query); earlier fail (gates=1) in 20260911T160413Z: backend error: the load did not finish inside the 7200 s load budget (4039 nodes, 88234 edges offered); container adversarial-graph-helix-sdk-1: running |
 | neo4j | A1 | full | pass | 0 | 3198 | 0.19 | 4146 | 1079295 | 1161215 | 1 | x86_64/4 | harness-native-cypher |  |
 | neo4j | A12 | full | pass | 0 | 60078 | 0.04 | 9432 | 1125 | 21215 | 1 | x86_64/4, steal 0.6s | harness-native-cypher |  |
 | neo4j | A2 | full | pass | 0 | 3476 | 0.19 | 2663 | 3467263 | 3467263 | 1 | x86_64/4, steal 0.0s | harness-native-cypher |  |
@@ -292,26 +298,26 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | postgres | A4 | full | pass | 0 | 1137 | 0.30 | 1156 | 4511 | 7487 | 1 | x86_64/4 | grust-portable-api |  |
 | postgres | A7 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | postgres | LOAD | full | pass | 0 | 1074 | 0.02 | 867 |  |  | 1 | x86_64/4, steal 0.1s | grust-portable-api |  |
-| surreal-http | A1 | full | pass | 0 | 140188 | 0.01 | 139366 | 46759935 | 46792703 | 1 | x86_64/4, steal 3.4s | grust-portable-api |  |
-| surreal-http | A12 | full | pass | 0 | 60724 | 0.05 | 236231 | 321279 | 688127 | 4 | x86_64/4, steal 0.1s | grust-portable-api |  |
-| surreal-http | A2 | full | pass | 0 | 130697 | 0.01 | 130038 | 130744319 | 130744319 | 1 | x86_64/4, steal 2.9s | grust-portable-api |  |
-| surreal-http | A3 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| surreal-http | A4 | full | pass | 0 | 53184 | 0.04 | 205033 | 256383 | 414463 | 3 | x86_64/4, steal 0.1s | grust-portable-api |  |
-| surreal-http | A7 | full | unsupported | 0 | 11 | 0.02 | 0 |  |  | 3 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| surreal-http | LOAD | full | pass | 0 | 7885 | 0.03 | 8733 |  |  | 1 | x86_64/4, steal 0.0s | grust-portable-api | earlier fail (gates=1) in 20260910T090744Z: backend error: failed to POST SurrealQL: error sending request |
-| surreal-sdk | A1 | full | pass | 0 | 52363 | 0.02 | 52038 | 17465343 | 17514495 | 2 | x86_64/4, steal 0.2s | grust-portable-api | earlier fail (gates=1) in 20260910T093827Z: khop failed: backend error: SurrealDB SDK read failed: Parse error: Exceeded expression recursion depth limit
+| surreal-http | A1 | full | pass | 0 | 4079 | 0.25 | 3014 | 1345535 | 1376255 | 2 | x86_64/4 | grust-portable-api |  |
+| surreal-http | A12 | full | pass | 0 | 60284 | 0.08 | 14536 | 1337 | 47263 | 1 | x86_64/4, steal 0.4s | grust-portable-api |  |
+| surreal-http | A2 | full | pass | 0 | 3056 | 0.26 | 2178 | 3045375 | 3045375 | 2 | x86_64/4, steal 0.0s | grust-portable-api |  |
+| surreal-http | A3 | full | unsupported | 0 | 10 | 0.02 | 0 |  |  | 2 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| surreal-http | A4 | full | pass | 0 | 1606 | 0.52 | 3877 | 6063 | 14463 | 2 | x86_64/4 | grust-portable-api |  |
+| surreal-http | A7 | full | unsupported | 0 | 10 | 0.05 | 0 |  |  | 2 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
+| surreal-http | LOAD | full | pass | 0 | 6674 | 0.03 | 7407 |  |  | 2 | x86_64/4, steal 0.1s | grust-portable-api | earlier fail (gates=1) in 20260910T090744Z: backend error: failed to POST SurrealQL: error sending request |
+| surreal-sdk | A1 | full | pass | 0 | 3654 | 0.25 | 2965 | 1217535 | 1222655 | 1 | x86_64/4, steal 0.0s | grust-portable-api | earlier fail (gates=1) in 20260910T093827Z: khop failed: backend error: SurrealDB SDK read failed: Parse error: Exceeded expression recursion depth limit
  --> [1:4404]
   |
 1 | ...pe::record("record", "19") OR id = type::record("v", "19") OR id  |
-| surreal-sdk | A12 | full | pass | 0 | 61368 | 0.06 | 201774 | 123967 | 490751 | 3 | x86_64/4, steal 0.1s | grust-portable-api |  |
-| surreal-sdk | A2 | full | pass | 0 | 48973 | 0.02 | 48580 | 48988159 | 48988159 | 1 | x86_64/4, steal 0.4s | grust-portable-api | earlier fail (gates=1) in 20260910T093827Z: deep traversal failed: backend error: SurrealDB SDK read failed: Parse error: Exceeded expression recursion depth limit
+| surreal-sdk | A12 | full | pass | 0 | 60821 | 0.09 | 11818 | 1105 | 44863 | 1 | x86_64/4, steal 1.1s | grust-portable-api |  |
+| surreal-sdk | A2 | full | pass | 0 | 2681 | 0.26 | 2046 | 2672639 | 2672639 | 1 | x86_64/4 | grust-portable-api | earlier fail (gates=1) in 20260910T093827Z: deep traversal failed: backend error: SurrealDB SDK read failed: Parse error: Exceeded expression recursion depth limit
  --> [1:4394]
   |
 1 | ...pe::record("record", "320") OR id = type::record("v", " |
 | surreal-sdk | A3 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| surreal-sdk | A4 | full | pass | 0 | 1932 | 0.29 | 2735 | 4239 | 8247 | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
-| surreal-sdk | A7 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| surreal-sdk | LOAD | full | pass | 0 | 6026 | 0.05 | 6970 |  |  | 3 | x86_64/4, steal 0.1s | grust-portable-api |  |
+| surreal-sdk | A4 | full | pass | 0 | 2089 | 0.31 | 3414 | 5331 | 10031 | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
+| surreal-sdk | A7 | full | unsupported | 0 | 9 | 0.03 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
+| surreal-sdk | LOAD | full | pass | 0 | 6439 | 0.05 | 7408 |  |  | 1 | x86_64/4 | grust-portable-api |  |
 | falkor | A1 | full | pass | 0 | 561 | 0.20 | 469 | 172671 | 211711 | 1 | x86_64/4 | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A12 | full | pass | 0 | 60034 | 0.03 | 5571 | 781 | 2471 | 0 | x86_64/4, steal 0.3s | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A2 | full | pass | 0 | 519 | 0.18 | 566 | 509951 | 509951 | 1 | x86_64/4 | harness-native-cypher (resultset_size=10000) |  |
@@ -326,13 +332,13 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | helix-http | A4 | full | pass | 0 | 64391 | 0.02 | 124232 | 301823 | 556031 | 3 | x86_64/4, steal 0.2s | grust-portable-api |  |
 | helix-http | A7 | full | unsupported | 0 | 10 | 0.06 | 0 |  |  | 3 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | helix-http | LOAD | full | pass | 0 | 97491 | 0.01 | 88951 |  |  | 1 | x86_64/4, steal 3.1s | grust-portable-api |  |
-| helix-sdk | A1 | full | pass | 0 | 12191 | 0.04 | 11820 | 4057087 | 4077567 | 1 | x86_64/4, steal 0.1s | grust-portable-api |  |
-| helix-sdk | A12 | full | pass | 0 | 62408 | 0.01 | 241594 | 1570815 | 1721343 | 4 | x86_64/4, steal 0.1s | grust-portable-api |  |
-| helix-sdk | A2 | full | pass | 0 | 11431 | 0.03 | 11085 | 11427839 | 11427839 | 1 | x86_64/4, steal 0.1s | grust-portable-api |  |
-| helix-sdk | A3 | full | unsupported | 0 | 10 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
-| helix-sdk | A4 | full | pass | 0 | 84642 | 0.01 | 262518 | 409599 | 644095 | 3 | x86_64/4, steal 0.3s | grust-portable-api |  |
+| helix-sdk | A1 | full | pass | 0 | 1202 | 0.23 | 858 | 395263 | 402687 | 1 | x86_64/4 | grust-portable-api |  |
+| helix-sdk | A12 | full | pass | 0 | 62551 | 0.01 | 242543 | 1484799 | 1630207 | 4 | x86_64/4, steal 0.1s | grust-portable-api |  |
+| helix-sdk | A2 | full | pass | 0 | 969 | 0.24 | 692 | 958975 | 958975 | 1 | x86_64/4 | grust-portable-api |  |
+| helix-sdk | A3 | full | unsupported | 0 | 8 | 0.03 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| helix-sdk | A4 | full | pass | 0 | 80618 | 0.01 | 263766 | 405247 | 611327 | 3 | x86_64/4, steal 0.1s | grust-portable-api |  |
 | helix-sdk | A7 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 3 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
-| helix-sdk | LOAD | full | pass | 0 | 554928 | 0.00 | 560012 |  |  | 1 | x86_64/4, steal 5.9s | grust-portable-api | earlier fail (gates=1) in 20260911T073620Z: open failed: backend error: Helix SDK replace/drop failed; earlier fail (gates=1) in 20260911T153857Z: open failed: backend error: Helix index request failed: error sending request for url (http://127.0.0.1:18082/v1/query) |
+| helix-sdk | LOAD | full | pass | 0 | 24262 | 0.01 | 20089 |  |  | 1 | x86_64/4, steal 0.4s | grust-portable-api | earlier fail (gates=1) in 20260911T073620Z: open failed: backend error: Helix SDK replace/drop failed; earlier fail (gates=1) in 20260911T153857Z: open failed: backend error: Helix index request failed: error sending request for url (http://127.0.0.1:18082/v1/query) |
 | neo4j | A1 | full | pass | 0 | 2716 | 0.09 | 5508 | 736767 | 1324031 | 1 | x86_64/4, steal 0.0s | harness-native-cypher |  |
 | neo4j | A12 | full | pass | 0 | 60076 | 0.04 | 19045 | 1222 | 18847 | 1 | x86_64/4, steal 0.2s | harness-native-cypher |  |
 | neo4j | A2 | full | pass | 0 | 1548 | 0.13 | 2265 | 1539071 | 1539071 | 1 | x86_64/4 | harness-native-cypher |  |
@@ -1068,4 +1074,4 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | age | LOAD | 200k | pass | 0 | 64742 | 0.00 | 68314 |  |  | 1 | x86_64/4, steal 0.1s | harness-native-cypher |  |
 | age | LOAD | full | pass | 0 | 889101 | 0.01 | 872904 |  |  | 3 | aarch64/10 | harness-native-cypher |  |
 
-Latest-cell hard-gate total: **3601** across 976 cells from 321 runs; 57 earlier failing cell(s) are kept in the Notes column of their superseding row.
+Latest-cell hard-gate total: **3600** across 982 cells from 331 runs; 58 earlier failing cell(s) are kept in the Notes column of their superseding row.
