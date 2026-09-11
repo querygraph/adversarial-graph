@@ -3308,6 +3308,11 @@ races, and the run ends with an explicit exit. Checked at 2,001 ms.
 ### Owed
 
 The site: everything since 2026-09-06 is committed and undeployed
-(§51). The 2026-09-10 rows bundled for it. The Surreal and Helix
+(§51). The 2026-09-10 rows are on it as `2026-09-10-lakecat`, `-eigen`,
+`-grust` and `-quegee` (site `master`, pushed; twenty publications
+verified), waiting on the same deploy. Two more harness fixes found by
+that bundling: a run that would share a stamp waits for the next second
+(`74997cd`; two helix-sdk pairs had shared one directory), and every
+backend starts on a fresh container (`6fd51e1`). The Surreal and Helix
 adapters in grust. A rerun of Neo4j at com-Orkut under the split budget
 to get its families as rows.
