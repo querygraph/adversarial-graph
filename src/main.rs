@@ -541,7 +541,13 @@ async fn run(root: &Path, args: &Args) {
             load_probe.finish(&mut load_result);
             rss_line("after-store-load");
             load_result.finish();
-            let load_failed = load_result.gates.total() > 0;
+            // The families run only on a store that holds the graph: a load
+            // that failed, ran past its budget, was refused, or was not
+            // attempted leaves nothing to measure (PostgreSQL at
+            // sx-stackoverflow, 2026-09-11: an unsupported load followed by
+            // 6,444 gates against an empty store).
+            let load_failed = load_result.gates.total() > 0
+                || !matches!(load_result.outcome, report::Outcome::Pass);
             eprintln!(
                 "   LOAD {:<12} {:?}  cpu={:.2}  load1m={}",
                 load_result.backend,

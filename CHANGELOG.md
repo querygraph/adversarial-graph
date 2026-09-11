@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The families run only after a load that passed: a load that was refused
+  or not attempted skipped nothing before, and PostgreSQL's unsupported
+  sx-stackoverflow load was followed by every family against an empty
+  store (6,444 gates, 2026-09-11).
+
 - The load budget can end a load whose adapter never yields: the load runs
   on its own task and the budget's timer races it. Wrapped around the
   adapter's own future it could not fire (the in-process store's load is
