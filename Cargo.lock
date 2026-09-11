@@ -32,6 +32,7 @@ dependencies = [
  "grust-ladybug",
  "grust-postgres-core",
  "hdrhistogram",
+ "helix-db",
  "libc",
  "neo4rs",
  "redis",
