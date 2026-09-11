@@ -3552,3 +3552,14 @@ share the creating store's handle map, or resolve a batch of endpoints
 in one lookup before the writes. Larger Surreal and Helix SDK tiers,
 now that the S tiers pass: the ladder's predict-before-spending will say
 whether the M tiers are within budget from the measured rates.
+
+**§54 addendum (21:45 UTC).** A correction to §53 and to the line above
+that says every host but eigen was rebuilt: the grust host was not. Its
+`~/rebuild-main.sh` pulls and then builds whatever the pull left, and
+since 16:13 its pull had been refusing to merge over two untracked files
+I had rsynced there in the afternoon (the helix-sdk server recipe, later
+committed under the same paths), so both "REBUILD_DONE" lines it printed
+today were builds of `11aa620`. No ladder ran on grust today, so no row
+is affected. The files are gone, the host is at `2474a9a` with a fresh
+binary (21:42 UTC), and the script on all three hosts now stops and says
+`REBUILD_FAILED` when the pull does not go through.
