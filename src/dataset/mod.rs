@@ -92,7 +92,7 @@ pub enum LoadedGraph {
     /// Shared: the typed families' oracle index borrows it for the length of
     /// the run instead of copying it (A8 used to clone the whole graph).
     Full(std::sync::Arc<Graph>),
-    Compact(crate::compact::CompactGraph),
+    Compact(std::sync::Arc<crate::compact::CompactGraph>),
 }
 
 impl LoadedGraph {
@@ -123,7 +123,11 @@ pub fn load_dataset(
             if compact {
                 let (graph, stats) = crate::compact::load_snap_compact(path, limit, pairs)?;
                 let schema = DatasetSchema::untyped(&stats);
-                Ok((LoadedGraph::Compact(graph), stats, schema))
+                Ok((
+                    LoadedGraph::Compact(std::sync::Arc::new(graph)),
+                    stats,
+                    schema,
+                ))
             } else {
                 let (graph, stats) = load_snap_edge_list(path, limit, pairs)?;
                 let schema = DatasetSchema::of(&graph);

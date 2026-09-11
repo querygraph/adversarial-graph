@@ -224,6 +224,7 @@ async fn run(root: &Path, args: &Args) {
     // Every (dataset, backend) requested must have at least one row before the
     // report may call itself complete.
     let mut expected: Vec<(String, String)> = Vec::new();
+    let mut load_budget_hit = false;
     for d in &args.datasets {
         for b in &args.backends {
             expected.push((d.clone(), b.clone()));
@@ -343,7 +344,7 @@ async fn run(root: &Path, args: &Args) {
             };
             eprintln!("-- backend {}", kind.name());
             let backend = match Backend::open(kind, &work_dir, dataset_name).await {
-                Ok(b) => b,
+                Ok(b) => std::sync::Arc::new(b),
                 Err(e) => {
                     // A backend that cannot be opened is a failed LOAD row, never
                     // a missing one: the report keeps the reason and the gate.
@@ -393,19 +394,44 @@ async fn run(root: &Path, args: &Args) {
             if let Some(cap) = load_budget {
                 load_result.observe("load_budget_s", cap.as_secs());
             }
-            let load_future = async {
-                match (graph, compact_graph) {
-                    (Some(g), _) => backend.load(g).await.map(|rep| (rep, None)),
-                    (None, Some(c)) => backend
-                        .load_compact(c, chunk_edges)
-                        .await
-                        .map(|(rep, chunks)| (rep, Some(chunks))),
-                    (None, None) => unreachable!(),
-                }
+            // The load runs on its own task so the budget's timer is polled
+            // whatever the adapter does: an adapter that never yields to the
+            // runtime (the in-process store's load is synchronous; a Bolt
+            // batch under memory pressure can hold for hours) cannot be
+            // interrupted by a timeout wrapped around its own future, and on
+            // 2026-09-11 a six-hour budget let a load run past it unbounded.
+            // A task the timer beats is aborted; a task blocked in a
+            // synchronous call keeps its thread until the process exits,
+            // which is why the run ends with process::exit.
+            let mut load_task = {
+                let b = std::sync::Arc::clone(&backend);
+                let g = graph.map(std::sync::Arc::clone);
+                let c = compact_graph.map(std::sync::Arc::clone);
+                tokio::spawn(async move {
+                    match (g, c) {
+                        (Some(g), _) => b.load(&g).await.map(|rep| (rep, None)),
+                        (None, Some(c)) => b
+                            .load_compact(&c, chunk_edges)
+                            .await
+                            .map(|(rep, chunks)| (rep, Some(chunks))),
+                        (None, None) => unreachable!(),
+                    }
+                })
             };
             let loaded = match load_budget {
-                Some(cap) => tokio::time::timeout(cap, load_future).await,
-                None => Ok(load_future.await),
+                Some(cap) => match tokio::time::timeout(cap, &mut load_task).await {
+                    Ok(joined) => Ok(joined.unwrap_or_else(|e| {
+                        Err(grust::GrustError::Backend(format!("load task failed: {e}")))
+                    })),
+                    Err(elapsed) => {
+                        load_task.abort();
+                        load_budget_hit = true;
+                        Err(elapsed)
+                    }
+                },
+                None => Ok(load_task.await.unwrap_or_else(|e| {
+                    Err(grust::GrustError::Backend(format!("load task failed: {e}")))
+                })),
             };
             let loaded_report = match loaded {
                 Ok(Ok((rep, chunks))) => {
@@ -546,7 +572,7 @@ async fn run(root: &Path, args: &Args) {
                     dataset: dataset_name,
                     format: &format,
                     graph,
-                    compact: compact_graph,
+                    compact: compact_graph.map(|c| &**c),
                     oracle: &oracle,
                     backend: &backend,
                     smoke: args.smoke,
@@ -621,7 +647,11 @@ async fn run(root: &Path, args: &Args) {
         report.gates.total(),
         report.summary["outcomes"]
     );
-    if report.gates.total() > 0 {
-        std::process::exit(1);
+    // An explicit exit: a load task the budget abandoned may still hold a
+    // worker thread in a synchronous call, and the runtime's shutdown would
+    // wait for it.
+    if load_budget_hit {
+        eprintln!("== a load ran past its budget; ending the process without waiting for it");
     }
+    std::process::exit(if report.gates.total() > 0 { 1 } else { 0 });
 }

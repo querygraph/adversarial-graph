@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- The load budget can end a load whose adapter never yields: the load runs
+  on its own task and the budget's timer races it. Wrapped around the
+  adapter's own future it could not fire (the in-process store's load is
+  synchronous; a Bolt batch under memory pressure holds for hours), and on
+  2026-09-11 Neo4j at com-Orkut ran 6 h 20 min past a six-hour budget. A
+  task the timer beats is aborted; the run ends with an explicit exit so a
+  thread still blocked in the adapter cannot hold the process. Checked: a
+  24 s in-process load under a 2 s budget is a LOAD row with the gate at
+  2,001 ms and the process ends in 21 s.
+
 - A multigraph refused by a structural edge key is `unsupported`, not a
   crash: the Grust SQL adapters upsert an edge on (from, label, to), and
   PostgreSQL rejects a batch that repeats the key, so sx-stackoverflow's
