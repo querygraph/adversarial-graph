@@ -125,8 +125,13 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | lancedb | LOAD | full | pass | 0 | 6054112 | 5.01 |  |  |  | 6 | x86_64/16, steal 0.3s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
 | postgres | LOAD | full | not-tested | 0 | 0 |  |  |  |  |  | x86_64/16 |  | not attempted: 117185083 edges at the store's measured 12866 edges/s on this host (68993773 edges, soc-LiveJournal1 in 20260907T222012Z) is 2.5 h against the 2.0 h load budget |
 | falkor | LOAD | full | not-tested | 0 | 0 |  |  |  |  |  | x86_64/16 |  | not attempted: 117185083 edges at the store's measured 13058 edges/s on this host (17256038 edges, ldbc-snb-sf1 in 20260909T172522Z) is 2.5 h against the 2.0 h load budget |
-| neo4j | A1 | full | pass | 0 | 147065 | 0.26 | 91145 | 38469631 | 70647807 | 1 | x86_64/16, steal 0.0s | harness-native-cypher | run ended before its final write (cap, host guard or crash); later families did not run |
-| neo4j | LOAD | full | fail | 1 | 7200052 | 0.03 | 3515926 |  |  | 2 | x86_64/16, steal 0.7s |  | backend error: the load did not finish inside the 7200 s load budget (3072441 nodes, 117185083 edges offered); container adversarial-graph-neo4j-1: running earlier pass (gates=0) in 20260910T083252Z: run ended before its final write (cap, host guard or crash); later families did not run |
+| neo4j | A1 | full | pass | 0 | 158973 | 0.23 | 94635 | 45416447 | 75300863 | 2 | x86_64/16 | harness-native-cypher |  |
+| neo4j | A12 | full | pass | 0 | 60506 | 0.10 | 28543 | 674 | 138751 | 1 | x86_64/16 | harness-native-cypher |  |
+| neo4j | A2 | full | pass | 0 | 4131007 | 0.11 | 1421503 | 3600809983 | 3600809983 | 1 | x86_64/16, steal 0.2s | harness-native-cypher |  |
+| neo4j | A3 | full | unsupported | 0 | 30 | 0.71 | 0 |  |  | 1 | x86_64/16 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
+| neo4j | A4 | full | pass | 0 | 3238 | 0.34 | 12398 | 10623 | 16719 | 1 | x86_64/16 | harness-native-cypher |  |
+| neo4j | A7 | full | unsupported | 0 | 9 | 0.03 | 8 |  |  | 1 | x86_64/16 | harness-native-cypher | backend does not implement GraphCommitStore |
+| neo4j | LOAD | full | pass | 0 | 7194479 | 0.03 | 3499180 |  |  | 2 | x86_64/16, steal 0.4s | harness-native-cypher | earlier fail (gates=1) in 20260911T141203Z: backend error: the load did not finish inside the 7200 s load budget (3072441 nodes, 117185083 edges offered); container adversarial-graph-neo4j-1: running |
 | neo4j-http | A1 | full | pass | 0 | 238789 | 0.17 | 216671 | 70778879 | 98238463 | 1 | x86_64/16, steal 0.0s | harness-native-cypher |  |
 | neo4j-http | A12 | full | pass | 0 | 60641 | 0.08 | 51064 | 1304 | 194303 | 2 | x86_64/16 | harness-native-cypher |  |
 | neo4j-http | A2 | full | pass | 0 | 6149993 | 0.10 | 3802225 | 3600809983 | 3600809983 | 1 | x86_64/16, steal 0.4s | harness-native-cypher |  |
@@ -1063,4 +1068,4 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | age | LOAD | 200k | pass | 0 | 64742 | 0.00 | 68314 |  |  | 1 | x86_64/4, steal 0.1s | harness-native-cypher |  |
 | age | LOAD | full | pass | 0 | 889101 | 0.01 | 872904 |  |  | 3 | aarch64/10 | harness-native-cypher |  |
 
-Latest-cell hard-gate total: **3602** across 971 cells from 320 runs; 56 earlier failing cell(s) are kept in the Notes column of their superseding row.
+Latest-cell hard-gate total: **3601** across 976 cells from 321 runs; 57 earlier failing cell(s) are kept in the Notes column of their superseding row.
