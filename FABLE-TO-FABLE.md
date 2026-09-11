@@ -3316,3 +3316,134 @@ that bundling: a run that would share a stamp waits for the next second
 backend starts on a fresh container (`6fd51e1`). The Surreal and Helix
 adapters in grust. A rerun of Neo4j at com-Orkut under the split budget
 to get its families as rows.
+
+## 53. The Surreal and Helix rows were the adapters'; the helix-sdk lane gets its own server; Neo4j at com-Orkut, twice (2026-09-11 19:00 UTC)
+
+The 2026-09-10 S tiers on lakecat (§52) left three backends with rows
+that measured the Grust adapters and not the stores: surreal-http could
+not load 25,571 edges, surreal-sdk could not walk two hops from a hub of
+a few hundred neighbours, helix-sdk could not open. This section is what
+each of those was, the fixes (grust `2d447ff`, harness `17a5ca9`), the
+A/B that shows them, and the two attempts at the Neo4j com-Orkut rerun
+§52 owed. eigen was left alone throughout: the user is consolidating the
+crawl there.
+
+### Three defects, none of them the engine's
+
+- **Surreal load, O(E²).** The adapter writes every edge as
+  `DELETE {table} WHERE in = … AND out = …; RELATE …` so a reload is
+  idempotent, and the relation table had no index over `(in, out)`. Each
+  delete was a scan of every edge so far; a batch of 500 grew with the
+  table until one crossed the HTTP client's fixed 60 s request timeout,
+  which is the "failed to POST SurrealQL: error sending request" both
+  loads died with at 919 s and 921 s. Every relation table now carries
+  `DEFINE INDEX … FIELDS in, out`, defined with the table in the schema
+  and in the `IF NOT EXISTS` path a relate batch opens with; `EXPLAIN`
+  on v3.2.4 shows the delete as an `IndexScan`. The timeout is a
+  `SurrealConfig` field (default unchanged); the harness sets ten
+  minutes.
+- **Surreal reads, an OR-chain.** `get_node`/`get_nodes` scanned the
+  candidate tables under `id = type::record(t, id) OR id = … OR …`, one
+  term per (candidate table, id). SurrealDB parses that recursively and
+  refuses it past a few hundred terms ("Parse error: Exceeded expression
+  recursion depth limit"), which every traversal step's frontier reached
+  on ego-Facebook (A1 and A2 failed in 330 ms and 2 s). Reads now select
+  the records directly, `SELECT … FROM type::record(t1, id1),
+  type::record(t2, id1), …`, a flat target list; a missing record
+  contributes nothing, as before; one statement per `batch_size` ids.
+- **Helix SDK, the wrong server.** "Helix SDK replace/drop failed" was
+  the adapter discarding the client's error. Kept, it reads `Got Error
+  from server: ` with an empty body, and the raw response is 400
+  `Invalid request: invalid inline write query: missing field
+  "queries"`. The `helix-db` 3.0.0 client posts a nested query AST
+  (`{"write":{"entries":[{"query":{"root":{"drop":{"input":{"nodes_where":…`)
+  to `/v2/query`; the enterprise-dev image behind `helix-http` serves
+  the legacy `queries`/`steps` JSON on `/v1/query` and nothing on `/v2`.
+  A plain `add_n` fails the same way, so the SDK lane had never spoken
+  to this server at all. The sibling LSQB harness in grust already knew
+  this (`benchmarks/lsqb/HELIX-SDK-DOCKER.md`): SDK3 is qualified against
+  the standalone HelixDB server at revision `0ef3cee0` (server package
+  0.1.0), built from source, on arm64.
+
+Grust `2d447ff` carries the first two and the error text; tests cover
+the index placement, the query shape, the batching and the timeout. No
+crates.io release. Harness `17a5ca9` repins every grust-* rev together
+and, found while repinning, adds `grust-surreal` to `[patch.crates-io]`:
+the published `grust-graph` had been resolving the Surreal adapter from
+the registry, so every surreal-http and surreal-sdk row before today ran
+crates.io `grust-surreal` 0.13.0, not the pin. The patch is only taken
+after `cargo update -p grust-surreal`; the lock says which.
+
+### The helix-sdk server
+
+`scripts/helix-sdk-server/Dockerfile` is the LSQB recipe on amd64 (same
+multi-arch Rust index digest; the distroless pin there is the arm64
+manifest, here the index), `scripts/build-helix-sdk-server.sh` builds it
+from a clean checkout at `0ef3cee0`; ten minutes on the grust host at six
+jobs, image `sha256:1f69366037c2…`, 159 MB, `docker save | docker load`
+to lakecat and quegee. Compose service `helix-sdk` on 18083 under the
+same limits; the ladder maps `helix-sdk` to it and probes `/healthz` and
+`/readyz`; the id-index bootstrap speaks each server's dialect (the v1
+JSON, or the SDK's `create_index_if_not_exists`); the backend's
+container record is its own; `AG_HELIX_SDK_URL` overrides.
+
+### The A/B (lakecat, email-Eu-core and ego-Facebook, harness `74997cd` + the seven paths, grust `2d447ff`)
+
+| backend | 2026-09-10 | 2026-09-11 |
+|---|---|---|
+| surreal-http LOAD | fail at 919 s, 921 s | pass, 7.9 s and 25.8 s |
+| surreal-http families | not reached | A1 140 s / 809 s, A2 131 s / 956 s, A4, A12 pass |
+| surreal-sdk A1, A2 | fail (recursion depth) | pass: 52 s / 520 s, 49 s / 630 s |
+| surreal-sdk LOAD | 2,928 s (email-Eu-core) | 6.0 s, 20.8 s |
+| helix-sdk LOAD | fail at open | email-Eu-core 555 s, every family pass; ego-Facebook past the 7,200 s budget |
+
+Two findings in the passing rows. The Surreal two-hop walks on
+ego-Facebook take minutes of server CPU (A2 up to 16 min) because each
+frontier node's edge read filters by `meta::id(in) = "…"`, a function on
+the field the new index cannot serve; the fix is the same index through
+`in = type::record(t, id)` over the candidate tables, and it is the next
+adapter change, not a store gate (the edge-read tests pin the current
+text deliberately, so it is its own commit). And helix-sdk's load on
+the server it was written for is a node scan per endpoint: a probe
+against a fresh server with 4,039 nodes measures `nodes_where id = …` at
+28 ms, the same with and without the equality index the harness
+creates and the same with the label in the predicate, and the adapter
+looks up both endpoints of every edge, so a 500-edge batch is 43 s
+regardless of how many edges exist and 88,234 edges are 2.1 h. That is
+the row: the store under this adapter, with the index it accepted and
+did not consult. The two helix-sdk pairs that ran before the bootstrap
+was taught the SDK's dialect (`20260911T153857Z`, `…153901Z`, "index
+request failed") are void and excluded from the bundle.
+
+### Neo4j at com-Orkut, twice
+
+The rerun under the split budget (§52's owed row) started 14:12 on
+`9f59102` and ended at the 7,200 s load budget: the load that had taken
+6,990 s on 2026-09-10 did not finish. I contaminated it. quegee's `/tmp`
+is a 21 GB tmpfs and the session scratchpad on it held 21 GB of pulled
+crawl shards from the consolidation dry run, RAM the host did not have
+back until 14:23 (they are on disk now, `~/scratch-cache`); and at
+14:16 I ran a `cargo check` of grust on the same host, which is how the
+tmpfs was found full. Three per cent of margin is less than that. The
+second rerun started 16:25 on `17a5ca9` with 38 GB free and nothing else
+on the host; its rows follow as an addendum.
+
+### Housekeeping
+
+RESULTS.md is rendered from the merged run directory (320 runs, 971
+cells); the site has `2026-09-11-lakecat` (6 runs, 36 cells, 1 gate,
+21 publications verified, site `3d301ad`, undeployed like everything
+since 2026-09-06). The crawl: lakecat's and grust's shard tables are in
+eigen's live root already (the dry run finds nothing left to copy);
+quegee's 12,769 files (1.8 GB) are not, and the copy from here was
+refused by the session's permission classifier, so it is the user's
+command. The ladder wrapper restarts `hn-shard.service` after each
+window and quegee's band is finished, so the unit now restarts every
+30 s doing nothing; stopping it was refused the same way.
+
+### Owed
+
+The Neo4j com-Orkut rows and their bundle. The Surreal edge-read index
+use. The helix-sdk lane's cost is a fact about that server, recorded;
+whether a later HelixDB revision consults its index is a different pin.
+The deploy.

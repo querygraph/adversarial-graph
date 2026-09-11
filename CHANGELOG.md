@@ -24,6 +24,12 @@
   (the sibling LSQB harness's qualified recipe, on amd64); the ladder maps
   helix-sdk to it and probes /healthz and /readyz; AG_HELIX_SDK_URL
   overrides the address; the backend's container record is its own.
+  Against that server a `nodes_where id = …` lookup is a scan of every
+  node whether or not the harness's equality index exists (28 ms at
+  4,039 nodes, measured with and without it), and the adapter looks up
+  both endpoints of every edge, so helix-sdk loads email-Eu-core in
+  555 s and does not finish ego-Facebook inside the two-hour budget;
+  the rows say so.
 
 - The families run only after a load that passed: a load that was refused
   or not attempted skipped nothing before, and PostgreSQL's unsupported
