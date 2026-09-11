@@ -3222,3 +3222,92 @@ now three defects: the edge-load path, the 60 s request timeout, the
 traversal rendering that exceeds SurrealQL's parser depth); a typed
 loader and query set for soc-Pokec-profiles. twitter-2010 and
 com-Friendster are on quegee, digests verified.
+
+## 52. The M and L tiers run on four hosts; the cap becomes two budgets; what the night's runs corrected (2026-09-11 07:45 UTC)
+
+Written by quegee (Fable 5.1). §51's ladders ran from 08:11 on the 10th
+to 07:28 on the 11th. Every finding below is a row unless it says
+"void"; the void bundles are in `reports-void-20260910/` on the host
+that made them.
+
+### The rows
+
+| dataset | store | outcome |
+|---|---|---|
+| email-Eu-core, ego-Facebook (lakecat) | thirteen stores | every family clean; age on the rerun after the readiness race |
+| " | surreal-http | load fails at 919 s on 25,571 edges: the pinned adapter's edge path against the crate's 60 s request timeout |
+| " | surreal-sdk | loads email-Eu-core in 49 min, A1/A2 fail on a SurrealQL parser recursion limit in the adapter's traversal rendering; ego-Facebook capped in the load |
+| " | helix-http | clean, its first rows since the pin |
+| " | helix-sdk | cannot open: "Helix SDK replace/drop failed" |
+| soc-Pokec-relationships (grust) | neo4j, neo4j-http, memgraph, falkor, postgres, turso-wal | every family clean; deep-path walks 12 to 49 min |
+| " | age | loads in 5,553 s, A1 passes, the pair cap ends A2 |
+| " | lancedb | loads, the pair cap ends A1 after 3.5 h in the fan-out |
+| GAP-road (grust) | neo4j, neo4j-http, postgres, turso-wal | every family clean; the first L-tier rows, through the Matrix Market loader |
+| " | memgraph | load ends at its declared 5 GiB, a failing row |
+| " | falkor | OOM-killed at 6 GiB, exit 137 in the note |
+| sx-stackoverflow (grust) | neo4j | every family clean: all 63,497,050 interactions, 27,263,600 of them parallel, kept; A12's cold-start degree 101,838 |
+| " | neo4j-http | LOAD and A1, the old cap in A2 |
+| " | falkor | loads, keeps parallel edges (A12 matches), A1 and A2 gated by the stock 10,000-row result cap |
+| " | memgraph | declared limit in the load |
+| " | postgres | `unsupported`: the adapter keys an edge on (from, label, to) and PostgreSQL refuses a batch that repeats it |
+| " | turso-wal | loads, A1/A2/A4/A7 pass, **A12 3,525 gates**: the cold-start degree 38,323 against 101,838 -- the Turso route upserts the repeats away and reports the offered count |
+| com-Orkut (quegee) | neo4j | **LOAD 6,990 s and A1 pass** at `0dec5e9`, the old cap in A2 (a partial bundle the ladder's log called "no complete bundle") |
+| " | neo4j-http | the first complete com-Orkut row set for a container store: load 6,930 s, A2 1h42m, all clean, under the split budget |
+| " | turso-wal, lancedb | load, then the old cap in A2 and A1 |
+| " | memgraph, age | declared limit; the load budget |
+| " | falkor, postgres | `not-tested`: projected 2.5 h from their own rates on this host |
+| soc-LiveJournal1 (eigen) | postgres | LOAD, A1, the cap in A2 |
+| " | falkor | LOAD, A1 and A2 gated by the stock result cap, the cap before A4 |
+| " | neo4j-http | OOM-killed at 6 GiB |
+| " | age, turso-mvcc, ladybug | the cap inside the load |
+
+Three transports of one store agree on the multigraph: Neo4j over Bolt
+and HTTP and FalkorDB keep parallel edges; the two Grust SQL routes key
+them structurally, PostgreSQL refusing the batch and Turso collapsing it
+silently. That is the tier's pathology, answered per store.
+
+### The cap became two budgets (`86f510a`, `592be1d`, `11aa620`)
+
+The user asked why two-hour runs cap. The load now has its own budget,
+the families theirs, the pair twice the cap; a store whose measured rate
+on the host projects past the load budget is not sent, and its row says
+so (falkor and postgres at com-Orkut, 2.5 h each, passed over in a
+minute). neo4j-http at com-Orkut is the first pair that shows it: loaded
+in 1h55m and then measured, where the single cap had ended it.
+
+The budget did not work the first night. Wrapped around the adapter's
+own future it never fired: the in-process store's load is synchronous
+and a Bolt batch under memory pressure holds for hours. A 24 s load
+passed under a 2 s budget. The load is now a spawned task the timer
+races, and the run ends with an explicit exit. Checked at 2,001 ms.
+
+### What the night corrected
+
+- **Neo4j at com-Orkut loaded.** §51 and the day's messages said its
+  load capped; it loaded in 6,990 s and passed A1, and the old cap ended
+  A2. The "ceiling" run meant to measure the load never loaded: the
+  ladder's `up -d` restarted the container the previous pair had stopped,
+  and Neo4j spent six hours recovering 117 M edges before answering
+  "Database 'neo4j' unavailable" at open. Void; the ladder now recreates
+  the service at the start of every backend as well as between datasets
+  (`6fd51e1`, `8957837`).
+- **A load that did not happen must skip the families.** A refused or
+  not-attempted load carried no gate and the families ran against an
+  empty store (postgres at sx-stackoverflow, 6,444 gates). Void, rerun,
+  fixed (`11aa620`).
+- **Residue.** Memgraph left at its limit by GAP-road dropped the
+  connection under the next pair's clear; FalkorDB's dead container
+  refused the next pair's pool. Both void, both rerun.
+- **The fetch script** rewrote the manifest with a filesystem status
+  block in every byte count and five com-Orkut pairs panicked at start
+  (`d3fce9f`). twitter-2010 and com-Friendster are on quegee.
+- **Three self-kills.** Three times a kill pattern matched the shell that
+  issued it. The patterns now carry a bracket the shell's own line does
+  not.
+
+### Owed
+
+The site: everything since 2026-09-06 is committed and undeployed
+(§51). The 2026-09-10 rows bundled for it. The Surreal and Helix
+adapters in grust. A rerun of Neo4j at com-Orkut under the split budget
+to get its families as rows.
