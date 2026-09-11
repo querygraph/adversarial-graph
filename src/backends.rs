@@ -222,7 +222,9 @@ impl BackendKind {
             #[cfg(feature = "falkor")]
             Self::Falkor => Some("adversarial-graph-falkor-1"),
             #[cfg(feature = "helix")]
-            Self::HelixHttp | Self::HelixSdk => Some("adversarial-graph-helix-1"),
+            Self::HelixHttp => Some("adversarial-graph-helix-1"),
+            #[cfg(feature = "helix")]
+            Self::HelixSdk => Some("adversarial-graph-helix-sdk-1"),
             #[cfg(feature = "neo4j")]
             Self::Neo4j | Self::Neo4jHttp => Some("adversarial-graph-neo4j-1"),
             #[cfg(feature = "neo4j")]
@@ -280,6 +282,10 @@ fn surreal_config(tag: &str, transport: &str) -> grust::SurrealConfig {
         batch_size: 500,
         labels: vec![NODE_LABEL.to_string()],
         relationships: vec![EDGE_LABEL.to_string()],
+        // One request is a batch of 500 edges, each an indexed delete and a
+        // RELATE; the adapter's default minute was for its pre-index scans.
+        // Ten minutes is a bound on a stalled server, not on a slow batch.
+        request_timeout: std::time::Duration::from_secs(600),
     }
 }
 
@@ -309,22 +315,25 @@ fn connect_falkor(tag: &str) -> grust::FalkorGraphStore {
 }
 
 /// HelixDB through Grust's internal adapter: the HTTP store posts dynamic
-/// queries to `/v1/query`; the SDK store sends the same requests through the
-/// `helix-db` client crate.
+/// queries to `/v1/query` of the registry image (compose service `helix`);
+/// the SDK store sends `helix-db` 3.0.0's nested query AST to `/v2/query`,
+/// which only the source-built server has (compose service `helix-sdk`,
+/// scripts/build-helix-sdk-server.sh). The two are different servers on
+/// different ports, and pointing the SDK at the v1 server is a load that
+/// fails at open with "missing field `queries`" (every host, 2026-09-10).
 #[cfg(feature = "helix")]
 fn connect_helix(kind: BackendKind) -> grust::Result<Arc<dyn AdminStore>> {
-    let base = helix_base_url();
     Ok(match kind {
         BackendKind::HelixHttp => Arc::new(grust_helix::HelixHttpGraphStore::connect(
             grust_helix::HelixHttpConfig {
-                query_url: format!("{}/v1/query", base.trim_end_matches('/')),
+                query_url: format!("{}/v1/query", helix_base_url().trim_end_matches('/')),
                 batch_size: 500,
                 labels: vec![NODE_LABEL.to_string()],
             },
         )?),
         _ => Arc::new(grust_helix::HelixSdkGraphStore::connect(
             grust_helix::HelixSdkConfig {
-                base_url: base,
+                base_url: helix_sdk_base_url(),
                 batch_size: 500,
                 labels: vec![NODE_LABEL.to_string()],
             },
@@ -337,15 +346,46 @@ fn helix_base_url() -> String {
     env_or("AG_HELIX_URL", "http://127.0.0.1:18082")
 }
 
+#[cfg(feature = "helix")]
+fn helix_sdk_base_url() -> String {
+    env_or("AG_HELIX_SDK_URL", "http://127.0.0.1:18083")
+}
+
 /// Helix answers `NWhere id = …` by scanning every node unless a runtime
 /// equality index exists on the property, and `grust-helix` writes each edge
 /// as two such filters, so without the index a 500-edge batch on a 145k-node
 /// slice outruns the gateway's 30 s request timeout and the load fails with
 /// 408. Create the index at bootstrap, as the harness does for FalkorDB and
 /// Neo4j, so the engine and not the missing index is what gets measured.
+/// Each backend asks its own server in its own dialect: the v1 JSON for the
+/// registry image, the SDK's `create_index_if_not_exists` for the
+/// source-built server the helix-sdk backend runs against.
 #[cfg(feature = "helix")]
-async fn helix_create_id_index() -> grust::Result<()> {
+async fn helix_create_id_index(kind: BackendKind) -> grust::Result<()> {
     use grust::GrustError::Backend;
+    if matches!(kind, BackendKind::HelixSdk) {
+        use helix_db::{
+            dsl::prelude::{g, write_batch, IndexSpec},
+            Client, QueryRequest,
+        };
+        let client = Client::new(Some(&helix_sdk_base_url()))
+            .map_err(|e| Backend(format!("Helix SDK client for the index: {e}")))?;
+        let batch = write_batch().var_as(
+            "id_index",
+            g().create_index_if_not_exists(IndexSpec::NodeEquality {
+                label: NODE_LABEL.to_string(),
+                property: "id".to_string(),
+                unique: false,
+            }),
+        );
+        let request = QueryRequest::write(batch.returning(Vec::<String>::new()));
+        client
+            .query::<serde_json::Value>(request)
+            .send()
+            .await
+            .map_err(|e| Backend(format!("Helix SDK index creation failed: {e}")))?;
+        return Ok(());
+    }
     let request = serde_json::json!({
         "request_type": "write",
         "query": {
@@ -581,7 +621,7 @@ impl Backend {
             #[cfg(feature = "helix")]
             BackendKind::HelixHttp | BackendKind::HelixSdk => {
                 let b = Self::prepared(kind, connect_helix(kind)?, tag).await?;
-                helix_create_id_index().await?;
+                helix_create_id_index(kind).await?;
                 Ok(b)
             }
             #[cfg(feature = "ladybug")]

@@ -16,8 +16,8 @@ grust = { package = "grust-graph", version = "0.13.0", features = ["memory", "tu
 # (`publish = false`): pinned to one published Grust revision (the
 # `fable/strain-adapter-reads` branch head, on top of v0.13.1) so the harness
 # still never depends on a local Grust checkout.
-grust-helix = { git = "https://github.com/querygraph/grust", rev = "5253132105637988988568ec88eab088584b2345", optional = true }
-grust-ladybug = { git = "https://github.com/querygraph/grust", rev = "5253132105637988988568ec88eab088584b2345", optional = true }
+grust-helix = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e", optional = true }
+grust-ladybug = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -32,6 +32,9 @@ neo4rs = { version = "0.8", optional = true }
 tokio-postgres = { version = "0.7", optional = true }
 bytes = { version = "1", optional = true }
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"], optional = true }
+# The Helix SDK client itself, for the id index the helix-sdk bootstrap
+# creates on its own server (the v1 JSON below is for the other one).
+helix-db = { version = "=3.0.0", optional = true }
 async-trait = { version = "0.1", optional = true }
 csv = "1"
 zip = { version = "4", default-features = false, features = ["deflate"] }
@@ -47,7 +50,7 @@ surreal = ["grust/surreal"]
 falkor = ["grust/falkor", "dep:redis"]
 lancedb = ["grust/lancedb"]
 sail = ["grust/sail"]
-helix = ["dep:grust-helix", "dep:reqwest"]
+helix = ["dep:grust-helix", "dep:reqwest", "dep:helix-db"]
 ladybug = ["dep:grust-ladybug"]
 neo4j = ["dep:neo4rs", "dep:reqwest", "dep:async-trait"]
 age = ["dep:tokio-postgres", "dep:bytes", "dep:async-trait"]
@@ -60,15 +63,21 @@ full-backends = ["postgres", "postgres-pgq", "pggraph", "surreal", "falkor", "la
 # pinned to the same revision for the store changes measured in
 # ADVERSARIAL-GRAPH.md §7.2, ahead of their crates.io release.
 [patch.crates-io]
-grust-core = { git = "https://github.com/querygraph/grust", rev = "5253132105637988988568ec88eab088584b2345" }
-grust-memory = { git = "https://github.com/querygraph/grust", rev = "5253132105637988988568ec88eab088584b2345" }
-grust-turso = { git = "https://github.com/querygraph/grust", rev = "5253132105637988988568ec88eab088584b2345" }
-grust-cypher = { git = "https://github.com/querygraph/grust", rev = "5253132105637988988568ec88eab088584b2345" }
-grust-postgres-core = { git = "https://github.com/querygraph/grust", rev = "5253132105637988988568ec88eab088584b2345" }
+grust-core = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e" }
+grust-memory = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e" }
+grust-turso = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e" }
+grust-cypher = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e" }
+grust-postgres-core = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e" }
 # The LanceDB adapter is pinned here too: the published grust-graph would
 # otherwise resolve grust-lancedb from the registry, and one grust-core must
 # serve both sides (FABLE-TO-FABLE §38).
-grust-lancedb = { git = "https://github.com/querygraph/grust", rev = "5253132105637988988568ec88eab088584b2345" }
+grust-lancedb = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e" }
+# And the Surreal adapter: until 2d447ff the published grust-graph resolved
+# grust-surreal 0.13.0 from the registry, so every surreal-http/surreal-sdk
+# row before 2026-09-11 ran the crates.io adapter, not the pin. The
+# relation-endpoint index, the direct record reads and the request timeout
+# are in the pinned source (git 0.13.1 satisfies the facade's ^0.13.0).
+grust-surreal = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e" }
 
 [profile.release]
 debug = 0

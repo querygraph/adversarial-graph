@@ -52,12 +52,23 @@ services:
   # enterprise-dev build the sibling LSQB harness runs (its arm64 member is
   # sha256:931be787…, the laptop's original pin; amd64 is sha256:f9cf2988…),
   # so the pin resolves on both Apple Silicon and x86 hosts. Serves dynamic
-  # queries on /v1/query and the `helix-db` SDK on the same port. Both the harness's helix-http and helix-sdk backends
-  # point here.
+  # queries on /v1/query; the harness's helix-http backend points here.
   helix:
     <<: *limits
     image: "${HELIX_IMAGE:-ghcr.io/helixdb/enterprise-dev@sha256:c6f9847b60597687ef4674ba9ed7ca5ae230d84dc380a593f6310f7eb51a4588}"
     ports: ["18082:8080"]
+
+  # The server for the helix-sdk backend: `helix-db` 3.0.0 posts a nested
+  # query AST to /v2/query, which the enterprise-dev image above does not
+  # serve (it answers 400 "missing field `queries`" to every SDK request).
+  # This is the standalone HelixDB server at the revision the SDK grew up
+  # with, built from source on the host by scripts/build-helix-sdk-server.sh
+  # (there is no registry image); the harness records the image ID it ran
+  # against. Memory storage under the same limits as every other service.
+  helix-sdk:
+    <<: *limits
+    image: "${HELIX_SDK_IMAGE:-ag-helix-sdk-server:0ef3cee0}"
+    ports: ["18083:8080"]
 
   pggraph:
     <<: *limits

@@ -16,7 +16,7 @@ cd "$(dirname "$0")/.."
 CAP=7200; DATASETS="wiki-Talk,roadNet-CA,web-Google,cit-Patents,soc-LiveJournal1,com-Orkut"
 while [ $# -gt 0 ]; do case "$1" in --cap) CAP=$2; shift 2;; --datasets) DATASETS=$2; shift 2;; *) break;; esac; done
 BACKENDS=("$@"); [ ${#BACKENDS[@]} -eq 0 ] && BACKENDS=(memory turso-wal turso-mvcc postgres neo4j neo4j-http falkor lancedb)
-service_for() { case "$1" in postgres) echo postgres;; surreal-*) echo surreal;; falkor) echo falkor;; helix-*) echo helix;; neo4j*) echo neo4j;; memgraph) echo memgraph;; age) echo age;; *) echo "";; esac; }
+service_for() { case "$1" in postgres) echo postgres;; surreal-*) echo surreal;; falkor) echo falkor;; helix-sdk) echo helix-sdk;; helix-*) echo helix;; neo4j*) echo neo4j;; memgraph) echo memgraph;; age) echo age;; *) echo "";; esac; }
 # A service that never becomes ready is a recorded failure of the pair, not
 # a ladder that waits forever: every probe runs under AG_READY_TIMEOUT
 # (default 600 s) and a miss is logged with the service and the deadline.
@@ -38,6 +38,7 @@ ready_probe() { case "$1" in
   age) pg_ready age;;
   surreal) curl -sf -m 2 http://127.0.0.1:18000/health >/dev/null 2>&1;;
   helix) curl -sf -m 2 http://127.0.0.1:18082/health >/dev/null 2>&1;;
+  helix-sdk) curl -sf -m 2 http://127.0.0.1:18083/healthz >/dev/null 2>&1 && curl -sf -m 2 http://127.0.0.1:18083/readyz >/dev/null 2>&1;;
   *) return 0;;
 esac; }
 wait_ready() { # $1 = compose service; returns 1 and logs on deadline

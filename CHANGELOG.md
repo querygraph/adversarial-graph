@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Grust repinned to 2d447ff for three adapter defects the full tiers
+  exposed on every host (2026-09-10): the Surreal relate path had no index
+  over a relation's `(in, out)`, so its idempotent delete-then-RELATE was a
+  table scan per edge and every full-tier surreal-http load died in the
+  client's minute-long request timeout after ~300 s of O(E²) work; Surreal
+  node reads by ID were an OR-chain that SurrealDB's parser refuses past a
+  few hundred terms ("Exceeded expression recursion depth limit"), which
+  took surreal-sdk's A1 and A2 down at 4,039 nodes; and the Helix SDK
+  adapter's errors hid the server's text. The harness sets the Surreal
+  request timeout to ten minutes (a bound on a stalled server, not on a
+  batch).
+
+- The helix-sdk backend gets its own server. `helix-db` 3.0.0 posts a
+  nested query AST to `/v2/query`; the enterprise-dev image the `helix`
+  service runs serves `/v1/query` only and answered every SDK request with
+  400 "missing field `queries`", which was the whole of "Helix SDK
+  replace/drop failed" on every host. Compose service `helix-sdk` (port
+  18083) runs the standalone HelixDB server at the revision the SDK grew up
+  with, built from source on the host by scripts/build-helix-sdk-server.sh
+  (the sibling LSQB harness's qualified recipe, on amd64); the ladder maps
+  helix-sdk to it and probes /healthz and /readyz; AG_HELIX_SDK_URL
+  overrides the address; the backend's container record is its own.
+
 - The families run only after a load that passed: a load that was refused
   or not attempted skipped nothing before, and PostgreSQL's unsupported
   sx-stackoverflow load was followed by every family against an empty
