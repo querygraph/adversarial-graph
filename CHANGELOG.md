@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Grust repinned to afba9b5 for the two adapter costs the 2026-09-11 A/B
+  measured: Surreal edge reads filtered by `meta::id(in)` scanned the
+  whole relation per frontier node (the two-hop walks on ego-Facebook
+  were minutes of server CPU); they filter by the endpoint records now
+  and the planner uses the relation's indexes. The Helix SDK adapter
+  looked both endpoints of every edge up by property, a scan of every
+  node on the standalone server whatever index exists; it keeps the
+  server's handle for every node it created and writes and reads by
+  handle, 0.3 s per 500-edge batch where it was 43 s.
+
 - Grust repinned to 2d447ff for three adapter defects the full tiers
   exposed on every host (2026-09-10): the Surreal relate path had no index
   over a relation's `(in, out)`, so its idempotent delete-then-RELATE was a

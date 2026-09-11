@@ -16,8 +16,8 @@ grust = { package = "grust-graph", version = "0.13.0", features = ["memory", "tu
 # (`publish = false`): pinned to one published Grust revision (the
 # `fable/strain-adapter-reads` branch head, on top of v0.13.1) so the harness
 # still never depends on a local Grust checkout.
-grust-helix = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e", optional = true }
-grust-ladybug = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e", optional = true }
+grust-helix = { git = "https://github.com/querygraph/grust", rev = "afba9b54d67cabd061d409fbb39151c562c8eb11", optional = true }
+grust-ladybug = { git = "https://github.com/querygraph/grust", rev = "afba9b54d67cabd061d409fbb39151c562c8eb11", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -63,21 +63,21 @@ full-backends = ["postgres", "postgres-pgq", "pggraph", "surreal", "falkor", "la
 # pinned to the same revision for the store changes measured in
 # ADVERSARIAL-GRAPH.md §7.2, ahead of their crates.io release.
 [patch.crates-io]
-grust-core = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e" }
-grust-memory = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e" }
-grust-turso = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e" }
-grust-cypher = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e" }
-grust-postgres-core = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e" }
+grust-core = { git = "https://github.com/querygraph/grust", rev = "afba9b54d67cabd061d409fbb39151c562c8eb11" }
+grust-memory = { git = "https://github.com/querygraph/grust", rev = "afba9b54d67cabd061d409fbb39151c562c8eb11" }
+grust-turso = { git = "https://github.com/querygraph/grust", rev = "afba9b54d67cabd061d409fbb39151c562c8eb11" }
+grust-cypher = { git = "https://github.com/querygraph/grust", rev = "afba9b54d67cabd061d409fbb39151c562c8eb11" }
+grust-postgres-core = { git = "https://github.com/querygraph/grust", rev = "afba9b54d67cabd061d409fbb39151c562c8eb11" }
 # The LanceDB adapter is pinned here too: the published grust-graph would
 # otherwise resolve grust-lancedb from the registry, and one grust-core must
 # serve both sides (FABLE-TO-FABLE §38).
-grust-lancedb = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e" }
+grust-lancedb = { git = "https://github.com/querygraph/grust", rev = "afba9b54d67cabd061d409fbb39151c562c8eb11" }
 # And the Surreal adapter: until 2d447ff the published grust-graph resolved
 # grust-surreal 0.13.0 from the registry, so every surreal-http/surreal-sdk
 # row before 2026-09-11 ran the crates.io adapter, not the pin. The
 # relation-endpoint index, the direct record reads and the request timeout
 # are in the pinned source (git 0.13.1 satisfies the facade's ^0.13.0).
-grust-surreal = { git = "https://github.com/querygraph/grust", rev = "2d447ff50a90014e0653f573154e610e7747125e" }
+grust-surreal = { git = "https://github.com/querygraph/grust", rev = "afba9b54d67cabd061d409fbb39151c562c8eb11" }
 
 [profile.release]
 debug = 0

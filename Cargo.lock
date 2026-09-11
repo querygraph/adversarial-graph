@@ -3428,7 +3428,7 @@ dependencies = [
 [[package]]
 name = "grust-core"
 version = "0.13.0"
-source = "git+https://github.com/querygraph/grust?rev=2d447ff50a90014e0653f573154e610e7747125e#2d447ff50a90014e0653f573154e610e7747125e"
+source = "git+https://github.com/querygraph/grust?rev=afba9b54d67cabd061d409fbb39151c562c8eb11#afba9b54d67cabd061d409fbb39151c562c8eb11"
 dependencies = [
  "async-trait",
  "quick-xml",
@@ -3441,7 +3441,7 @@ dependencies = [
 [[package]]
 name = "grust-cypher"
 version = "0.13.2"
-source = "git+https://github.com/querygraph/grust?rev=2d447ff50a90014e0653f573154e610e7747125e#2d447ff50a90014e0653f573154e610e7747125e"
+source = "git+https://github.com/querygraph/grust?rev=afba9b54d67cabd061d409fbb39151c562c8eb11#afba9b54d67cabd061d409fbb39151c562c8eb11"
 dependencies = [
  "async-trait",
  "grust-core",
@@ -3485,7 +3485,7 @@ dependencies = [
 [[package]]
 name = "grust-helix"
 version = "0.13.0"
-source = "git+https://github.com/querygraph/grust?rev=2d447ff50a90014e0653f573154e610e7747125e#2d447ff50a90014e0653f573154e610e7747125e"
+source = "git+https://github.com/querygraph/grust?rev=afba9b54d67cabd061d409fbb39151c562c8eb11#afba9b54d67cabd061d409fbb39151c562c8eb11"
 dependencies = [
  "async-trait",
  "grust-core",
@@ -3497,7 +3497,7 @@ dependencies = [
 [[package]]
 name = "grust-ladybug"
 version = "0.13.0"
-source = "git+https://github.com/querygraph/grust?rev=2d447ff50a90014e0653f573154e610e7747125e#2d447ff50a90014e0653f573154e610e7747125e"
+source = "git+https://github.com/querygraph/grust?rev=afba9b54d67cabd061d409fbb39151c562c8eb11#afba9b54d67cabd061d409fbb39151c562c8eb11"
 dependencies = [
  "arrow 55.2.0",
  "async-trait",
@@ -3509,7 +3509,7 @@ dependencies = [
 [[package]]
 name = "grust-lancedb"
 version = "0.13.0"
-source = "git+https://github.com/querygraph/grust?rev=2d447ff50a90014e0653f573154e610e7747125e#2d447ff50a90014e0653f573154e610e7747125e"
+source = "git+https://github.com/querygraph/grust?rev=afba9b54d67cabd061d409fbb39151c562c8eb11#afba9b54d67cabd061d409fbb39151c562c8eb11"
 dependencies = [
  "arrow 58.4.0",
  "async-trait",
@@ -3522,7 +3522,7 @@ dependencies = [
 [[package]]
 name = "grust-memory"
 version = "0.13.0"
-source = "git+https://github.com/querygraph/grust?rev=2d447ff50a90014e0653f573154e610e7747125e#2d447ff50a90014e0653f573154e610e7747125e"
+source = "git+https://github.com/querygraph/grust?rev=afba9b54d67cabd061d409fbb39151c562c8eb11#afba9b54d67cabd061d409fbb39151c562c8eb11"
 dependencies = [
  "async-trait",
  "grust-core",
@@ -3554,7 +3554,7 @@ dependencies = [
 [[package]]
 name = "grust-postgres-core"
 version = "0.13.0"
-source = "git+https://github.com/querygraph/grust?rev=2d447ff50a90014e0653f573154e610e7747125e#2d447ff50a90014e0653f573154e610e7747125e"
+source = "git+https://github.com/querygraph/grust?rev=afba9b54d67cabd061d409fbb39151c562c8eb11#afba9b54d67cabd061d409fbb39151c562c8eb11"
 dependencies = [
  "async-trait",
  "grust-core",
@@ -3602,7 +3602,7 @@ dependencies = [
 [[package]]
 name = "grust-sql-core"
 version = "0.13.0"
-source = "git+https://github.com/querygraph/grust?rev=2d447ff50a90014e0653f573154e610e7747125e#2d447ff50a90014e0653f573154e610e7747125e"
+source = "git+https://github.com/querygraph/grust?rev=afba9b54d67cabd061d409fbb39151c562c8eb11#afba9b54d67cabd061d409fbb39151c562c8eb11"
 dependencies = [
  "grust-core",
  "serde_json",
@@ -3611,7 +3611,7 @@ dependencies = [
 [[package]]
 name = "grust-surreal"
 version = "0.13.1"
-source = "git+https://github.com/querygraph/grust?rev=2d447ff50a90014e0653f573154e610e7747125e#2d447ff50a90014e0653f573154e610e7747125e"
+source = "git+https://github.com/querygraph/grust?rev=afba9b54d67cabd061d409fbb39151c562c8eb11#afba9b54d67cabd061d409fbb39151c562c8eb11"
 dependencies = [
  "async-trait",
  "grust-core",
@@ -3624,7 +3624,7 @@ dependencies = [
 [[package]]
 name = "grust-turso"
 version = "0.13.0"
-source = "git+https://github.com/querygraph/grust?rev=2d447ff50a90014e0653f573154e610e7747125e#2d447ff50a90014e0653f573154e610e7747125e"
+source = "git+https://github.com/querygraph/grust?rev=afba9b54d67cabd061d409fbb39151c562c8eb11#afba9b54d67cabd061d409fbb39151c562c8eb11"
 dependencies = [
  "async-trait",
  "chrono",
