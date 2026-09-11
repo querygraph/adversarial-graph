@@ -158,7 +158,7 @@ async fn run(root: &Path, args: &Args) {
         .iter()
         .map(|d| (d.name.clone(), d.clone()))
         .collect();
-    let stamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+    let mut stamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
     // Validate every requested id before any work: a run that quietly skips
     // an unknown dataset or backend and then reports itself complete is how a
     // cell disappears (§35's `unknown backend age` runs did exactly that).
@@ -184,7 +184,17 @@ async fn run(root: &Path, args: &Args) {
         );
         std::process::exit(2);
     }
-    let out_dir = args.out.join(&stamp);
+    // Two runs started in the same second share a stamp: the second one
+    // would write into the first one's directory, and its journal would no
+    // longer match either report (lakecat, 2026-09-10, two helix-sdk pairs
+    // that failed at open in one second). The site's verifier admits only
+    // the plain stamp shape, so the second run waits for the next second.
+    let mut out_dir = args.out.join(&stamp);
+    while out_dir.exists() {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        stamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+        out_dir = args.out.join(&stamp);
+    }
     std::fs::create_dir_all(&out_dir).expect("report dir");
     let work_dir = out_dir.join("work");
     let mut report = Report::new();
