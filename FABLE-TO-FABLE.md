@@ -3460,3 +3460,95 @@ excluded and the section says why; site `4ad1fd1`, twenty-two
 publications verified, undeployed). The ladder wrapper restored
 `hn-shard.service` again at the end; it is looping on its finished
 band until someone with the permission stops it.
+
+## 54. The rest of the adapter defects: endpoint-indexed edge reads, one sign-in, handles instead of lookups, no phantom endpoints (2026-09-11 22:00 UTC)
+
+The user asked for the remaining adapter defects fixed. Two were on the
+list at the end of §53; measuring those turned up two more. All four are
+in grust (`afba9b5`, `3ea1acc`, `1de21d5`), the harness is repinned
+(`48f320c`, `c24ca3c`), and the S tiers on lakecat show the result.
+
+### What each was
+
+- **Surreal edge reads scanned the relation.** `get_edges` by endpoint
+  filtered on `meta::id(in) = "…"`, a function of the field, which no
+  index serves: a scan of every edge per frontier node, and a two-hop
+  walk on ego-Facebook was 13–16 min of server CPU. The filter is now
+  `in IN [type::record(t, id), …]` over the candidate tables a node read
+  searches; `EXPLAIN` shows a `UnionIndexScan` over the `(in, out)`
+  index, and a second index on `out` serves the incoming direction. The
+  edge-read tests had pinned the key-only filter as a design decision
+  ("ignores label guesses"); they now pin the candidate rule, which is
+  the node reads' rule and so no narrower than what the adapter could
+  read anyway.
+- **Helix SDK looked every endpoint up by property.** On the standalone
+  SDK3 server `nodes_where id = …` is a scan of every node whatever
+  equality index exists; §53 measured it at 28 ms with 4,039 nodes. The
+  probe that measured it also showed the way out: `add_n` answers
+  `{"created_i": [{"$id": N}]}`, the server's own handle. The store keeps
+  those and writes an edge between two nodes it created as
+  `n(ids=[from]).add_e(…, ids=[to])`, and reads a node or starts a walk
+  by handle: a 500-edge batch 43 s → 0.3 s. An endpoint it did not create
+  keeps the lookup; `clear` drops the handles. The hot-node family stays
+  slow (81 s, 159 s) because its concurrent writers are fresh handles
+  that created nothing.
+- **Surreal HTTP signed in on every request.** After the index change the
+  HTTP lane was still 89 s on the walk the SDK lane did in 3.6 s, and
+  `curl -w %{time_total}` on the harness's exact query said why: 50 ms
+  under basic auth, 2 ms under a bearer token, the server hashing the
+  password per request. The store now fetches a token from `/signin` on
+  its first request, sends it as a bearer, and refreshes it once on a
+  401. The SDK's WebSocket had a 0.6 ms round trip all along.
+- **Edges written one at a time landed on phantoms.** Inspecting the live
+  email-Eu-core database mid-run: 28,771 edges where 25,571 were loaded,
+  the extra 3,200 with `in = record:160` while the hub is `v:160`. The
+  hot-node writes go through `put_edge`, which has no table for its
+  endpoints and guessed one from the ID's prefix; a plain ID guessed
+  `record`. `RELATE` then created a link from a record no node occupies,
+  and the reads found it only because they search `record` too. An
+  unresolved endpoint is now `(SELECT VALUE id FROM type::record(t1, id),
+  …)` over the same candidates, so the edge lands on the node wherever it
+  lives and on nothing when there is no node (verified on v3.2.4: one
+  edge for an existing target, none for a missing one).
+
+### What the S tiers say now (lakecat, `2026-09-11-lakecat-2`, 10 runs, 70 cells, 0 gates)
+
+| cell | 2026-09-10 | this morning (§53) | now |
+|---|---|---|---|
+| surreal-http A1 / A2, ego-Facebook | not reached (load failed) | 809 s / 956 s | 10.6 s / 11.9 s |
+| surreal-sdk A1 / A2, ego-Facebook | fail (parser) | 520 s / 630 s | 9.1 s / 10.1 s |
+| surreal hot node (A4) | — | 52–85 s | 1.6–2.2 s |
+| helix-sdk LOAD, email-Eu-core | fail at open | 555 s | 24 s |
+| helix-sdk LOAD, ego-Facebook | fail at open | past the 7,200 s budget | 103 s |
+| helix-sdk A1 / A2, ego-Facebook | — | — | 3.1 s / 3.6 s |
+
+The interim pin (`afba9b5`, endpoint index and handles but not the token
+or the phantom fix) ran first and is in the same bundle: surreal-http
+A1 89 s and A2 81 s at email-Eu-core is what the index alone bought, and
+the gap to the SDK lane is what pointed at the auth. Every host but eigen
+is rebuilt at `c24ca3c` (eigen is unreachable since 19:48 UTC; its
+`hn-discussions` band is finished and the union is complete, per the
+eigentimes diary).
+
+### The crawl, closed out
+
+The eigentimes diary from eigen (`75a6044`) says the union landed at
+15:15 UTC: all three shard roots pulled into `data-hn` with the user's
+key, 69,338 files, 6.19 GB, and a full-corpus `--plan` at `pending=0`.
+My 18:20 dry run had counted 6,409 files still to send from quegee; they
+are batch files the re-cuts duplicated across roots, not threads, and
+`pending=0` is the criterion. Two of its carry-overs are done here: the
+three `hn-shard.<host>.service` units are `Restart=on-failure`
+(eigentimes `82a7afc`, installed on all three hosts; quegee's unit, which
+had restart-looped 103 times on its finished band, ended on its next
+exit), and nothing was deleted from the shard roots, which are the only
+second copy. The third is the user's: quegee's hostname is literally
+`grust`.
+
+### Owed
+
+The deploy. The helix-sdk hot node, if it matters: fresh handles could
+share the creating store's handle map, or resolve a batch of endpoints
+in one lookup before the writes. Larger Surreal and Helix SDK tiers,
+now that the S tiers pass: the ladder's predict-before-spending will say
+whether the M tiers are within budget from the measured rates.
