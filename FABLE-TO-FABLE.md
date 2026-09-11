@@ -3447,3 +3447,16 @@ The Neo4j com-Orkut rows and their bundle. The Surreal edge-read index
 use. The helix-sdk lane's cost is a fact about that server, recorded;
 whether a later HelixDB revision consults its index is a different pin.
 The deploy.
+
+**§53 addendum (19:45 UTC).** The second rerun is the row set. Neo4j at
+com-Orkut on `17a5ca9`: load 7,194 s, six seconds inside the 7,200 s
+budget (the clean 2026-09-10 load was 6,990 s; the margin is real and
+thin, and the budget is the ladder's to raise); A1 matches in 159 s;
+A2, the deep-path walk, 4,131 s (1 h 09 min, 24 min of server CPU) and
+matches; A4 3.2 s; A12 60.5 s; no gates. RESULTS.md has it (`4d9b0d5`),
+the contaminated 14:12 attempt as the superseded cell in its Notes. The
+site has `2026-09-11-quegee` (one run, seven cells, the 14:12 attempt
+excluded and the section says why; site `4ad1fd1`, twenty-two
+publications verified, undeployed). The ladder wrapper restored
+`hn-shard.service` again at the end; it is looping on its finished
+band until someone with the permission stops it.
