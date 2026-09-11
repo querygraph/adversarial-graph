@@ -7,6 +7,41 @@ shared host — compare CPU columns and the recorded load average. `Host` is arc
 the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix 10k).
 
 
+## GAP-road
+
+| Backend | Scenario | Slice | Outcome | Gates | Wall ms | Client CPU | Server CPU ms | p50 µs | p99 µs | Load 1m | Host | Path | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| turso-wal | A1 | full | pass | 0 | 190 | 1.00 |  | 51743 | 56863 | 1 | x86_64/8 | grust-portable-api |  |
+| turso-wal | A12 | full | pass | 0 | 60041 | 0.04 |  | 154 | 439 | 0 | x86_64/8, steal 0.0s | grust-portable-api |  |
+| turso-wal | A2 | full | pass | 0 | 315 | 1.00 |  | 312575 | 312575 | 1 | x86_64/8 | grust-portable-api |  |
+| turso-wal | A3 | full | unsupported | 0 | 0 | 0.96 |  |  |  | 1 | x86_64/8 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| turso-wal | A4 | full | pass | 0 | 902 | 0.19 |  | 21 | 8039 | 1 | x86_64/8 | grust-portable-api |  |
+| turso-wal | A7 | full | pass | 0 | 54 | 0.78 |  |  |  | 1 | x86_64/8 | grust-portable-api |  |
+| turso-wal | LOAD | full | pass | 0 | 1584933 | 0.83 |  |  |  | 1 | x86_64/8, steal 3.6s | grust-portable-api |  |
+| postgres | A1 | full | pass | 0 | 137 | 0.52 | 15 | 24975 | 46879 | 1 | x86_64/8 | grust-portable-api |  |
+| postgres | A12 | full | pass | 0 | 60224 | 0.04 | 6068 | 844 | 4779 | 1 | x86_64/8, steal 0.9s | grust-portable-api |  |
+| postgres | A2 | full | pass | 0 | 4756 | 0.15 | 1657 | 4743167 | 4743167 | 1 | x86_64/8 | grust-portable-api |  |
+| postgres | A3 | full | unsupported | 0 | 7 | 0.03 | 0 |  |  | 1 | x86_64/8 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| postgres | A4 | full | pass | 0 | 1157 | 0.31 | 1343 | 4423 | 6159 | 1 | x86_64/8, steal 0.0s | grust-portable-api |  |
+| postgres | A7 | full | unsupported | 0 | 8 | 0.02 | 0 |  |  | 1 | x86_64/8 | grust-portable-api | backend does not implement GraphCommitStore |
+| postgres | LOAD | full | pass | 0 | 2978829 | 0.04 | 2390230 |  |  | 1 | x86_64/8, steal 5.4s | grust-portable-api |  |
+| falkor | LOAD | full | fail | 1 | 423003 | 0.07 | 0 |  |  | 3 | x86_64/8, steal 0.7s |  | backend error: falkor GRAPH.QUERY: unexpected end of file; container adversarial-graph-falkor-1: exited, exit 137, OOMKilled |
+| neo4j | A1 | full | pass | 0 | 195 | 0.40 | 230 | 39359 | 71039 | 1 | x86_64/8 | harness-native-cypher |  |
+| neo4j | A12 | full | pass | 0 | 60120 | 0.04 | 7553 | 1887 | 19359 | 1 | x86_64/8, steal 0.4s | harness-native-cypher |  |
+| neo4j | A2 | full | pass | 0 | 5401 | 0.11 | 1999 | 5386239 | 5386239 | 1 | x86_64/8, steal 0.0s | harness-native-cypher |  |
+| neo4j | A3 | full | unsupported | 0 | 8 | 0.03 | 0 |  |  | 1 | x86_64/8 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
+| neo4j | A4 | full | pass | 0 | 2700 | 0.24 | 5187 | 12287 | 19951 | 1 | x86_64/8, steal 0.0s | harness-native-cypher |  |
+| neo4j | A7 | full | unsupported | 0 | 9 | 0.03 | 0 |  |  | 1 | x86_64/8 | harness-native-cypher | backend does not implement GraphCommitStore |
+| neo4j | LOAD | full | pass | 0 | 1959539 | 0.08 | 1391693 |  |  | 1 | x86_64/8, steal 2.3s | harness-native-cypher |  |
+| neo4j-http | A1 | full | pass | 0 | 234 | 0.56 | 261 | 47551 | 86591 | 1 | x86_64/8 | harness-native-cypher |  |
+| neo4j-http | A12 | full | pass | 0 | 60108 | 0.04 | 15595 | 2171 | 17775 | 0 | x86_64/8, steal 0.3s | harness-native-cypher |  |
+| neo4j-http | A2 | full | pass | 0 | 7793 | 0.10 | 4818 | 7778303 | 7778303 | 1 | x86_64/8, steal 0.0s | harness-native-cypher |  |
+| neo4j-http | A3 | full | unsupported | 0 | 8 | 0.03 | 0 |  |  | 1 | x86_64/8 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
+| neo4j-http | A4 | full | pass | 0 | 3256 | 0.22 | 9400 | 14831 | 29231 | 1 | x86_64/8 | harness-native-cypher |  |
+| neo4j-http | A7 | full | unsupported | 0 | 9 | 0.03 | 8 |  |  | 1 | x86_64/8 | harness-native-cypher | backend does not implement GraphCommitStore |
+| neo4j-http | LOAD | full | pass | 0 | 2102351 | 0.10 | 1756233 |  |  | 1 | x86_64/8, steal 2.6s | harness-native-cypher |  |
+| memgraph | LOAD | full | fail | 1 | 1813378 | 0.03 | 350160 |  |  | 0 | x86_64/8, steal 1.1s |  | backend error: neo4j: Neo4j error `Memgraph.TransientError.MemgraphError.MemgraphError`: Memory limit exceeded! Attempting to allocate a chunk of 900.00KiB which would put the current use to 5.00GiB,  |
+
 ## cit-Patents
 
 | Backend | Scenario | Slice | Outcome | Gates | Wall ms | Client CPU | Server CPU ms | p50 µs | p99 µs | Load 1m | Host | Path | Notes |
@@ -85,6 +120,22 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | memory | A4 | full | pass | 0 | 134 | 1.60 |  | 41 | 423 | 4 | aarch64/10 | grust-portable-api |  |
 | memory | A7 | full | unsupported | 0 | 0 | 2.00 |  |  |  | 4 | aarch64/10 | grust-portable-api | backend does not implement GraphCommitStore |
 | memory | LOAD | full | pass | 0 | 474134 | 0.88 |  |  |  | 4 | aarch64/10 | grust-portable-api |  |
+| turso-wal | A1 | full | pass | 0 | 170442 | 0.78 |  | 43974655 | 82575359 | 1 | x86_64/16 | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
+| turso-wal | LOAD | full | pass | 0 | 6791245 | 0.66 |  |  |  | 2 | x86_64/16, steal 0.2s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
+| lancedb | LOAD | full | pass | 0 | 6054112 | 5.01 |  |  |  | 6 | x86_64/16, steal 0.3s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
+| postgres | LOAD | full | not-tested | 0 | 0 |  |  |  |  |  | x86_64/16 |  | not attempted: 117185083 edges at the store's measured 12866 edges/s on this host (68993773 edges, soc-LiveJournal1 in 20260907T222012Z) is 2.5 h against the 2.0 h load budget |
+| falkor | LOAD | full | not-tested | 0 | 0 |  |  |  |  |  | x86_64/16 |  | not attempted: 117185083 edges at the store's measured 13058 edges/s on this host (17256038 edges, ldbc-snb-sf1 in 20260909T172522Z) is 2.5 h against the 2.0 h load budget |
+| neo4j | A1 | full | pass | 0 | 147065 | 0.26 | 91145 | 38469631 | 70647807 | 1 | x86_64/16, steal 0.0s | harness-native-cypher | run ended before its final write (cap, host guard or crash); later families did not run |
+| neo4j | LOAD | full | pass | 0 | 6990639 | 0.03 | 3299348 |  |  | 2 | x86_64/16, steal 0.3s | harness-native-cypher | run ended before its final write (cap, host guard or crash); later families did not run |
+| neo4j-http | A1 | full | pass | 0 | 238789 | 0.17 | 216671 | 70778879 | 98238463 | 1 | x86_64/16, steal 0.0s | harness-native-cypher |  |
+| neo4j-http | A12 | full | pass | 0 | 60641 | 0.08 | 51064 | 1304 | 194303 | 2 | x86_64/16 | harness-native-cypher |  |
+| neo4j-http | A2 | full | pass | 0 | 6149993 | 0.10 | 3802225 | 3600809983 | 3600809983 | 1 | x86_64/16, steal 0.4s | harness-native-cypher |  |
+| neo4j-http | A3 | full | unsupported | 0 | 23 | 0.63 | 0 |  |  | 1 | x86_64/16 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
+| neo4j-http | A4 | full | pass | 0 | 3807 | 0.33 | 15875 | 13239 | 24671 | 2 | x86_64/16 | harness-native-cypher |  |
+| neo4j-http | A7 | full | unsupported | 0 | 9 | 0.03 | 8 |  |  | 2 | x86_64/16 | harness-native-cypher | backend does not implement GraphCommitStore |
+| neo4j-http | LOAD | full | pass | 0 | 6930369 | 0.04 | 4056186 |  |  | 1 | x86_64/16, steal 0.3s | harness-native-cypher | earlier fail (gates=1) in 20260910T144445Z: open failed: backend error: neo4j-http: error sending request for url (http://127.0.0.1:17474/db/neo4j/query/v2) |
+| memgraph | LOAD | full | fail | 1 | 2879685 | 0.03 | 796906 |  |  | 0 | x86_64/16, steal 0.2s |  | backend error: neo4j: Neo4j error `Memgraph.TransientError.MemgraphError.MemgraphError`: Memory limit exceeded! Attempting to allocate a chunk of 20.00KiB which would put the current use to 5.00GiB, w |
+| age | LOAD | full | fail | 1 | 7200625 | 0.01 | 7365073 |  |  | 3 | x86_64/16, steal 0.7s |  | backend error: the load did not finish inside the 7200 s load budget (3072441 nodes, 117185083 edges offered); container adversarial-graph-age-1: running |
 
 ## ego-Facebook
 
@@ -111,6 +162,20 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | turso-mvcc | A4 | full | pass | 0 | 22369 | 2.96 |  | 83071 | 369407 | 2 | x86_64/4, steal 0.0s | grust-portable-api |  |
 | turso-mvcc | A7 | full | pass | 0 | 76 | 1.10 |  |  |  | 2 | x86_64/4 | grust-portable-api |  |
 | turso-mvcc | LOAD | full | pass | 0 | 6247 | 0.99 |  |  |  | 1 | x86_64/4, steal 0.1s | grust-portable-api |  |
+| ladybug | A1 | full | pass | 0 | 13503 | 1.12 |  | 4505599 | 4562943 | 1 | x86_64/4, steal 0.0s | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
+| ladybug | A12 | full | pass | 0 | 60088 | 0.74 |  | 5591 | 163071 | 1 | x86_64/4, steal 0.2s | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
+| ladybug | A2 | full | pass | 0 | 16088 | 1.12 |  | 16089087 | 16089087 | 1 | x86_64/4, steal 0.0s | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
+| ladybug | A3 | full | unsupported | 0 | 0 | 0.95 |  |  |  | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) | bounded read policy is exercised through the reference executor on the memory backend |
+| ladybug | A4 | full | pass | 0 | 146832 | 0.55 |  | 46559 | 2539519 | 1 | x86_64/4, steal 0.2s | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
+| ladybug | A7 | full | unsupported | 0 | 0 | 0.98 |  |  |  | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) | backend does not implement GraphCommitStore |
+| ladybug | LOAD | full | pass | 0 | 1131 | 1.31 |  |  |  | 1 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
+| lancedb | A1 | full | pass | 0 | 32829 | 1.09 |  | 10969087 | 10977279 | 4 | x86_64/4, steal 0.0s | grust-portable-api |  |
+| lancedb | A12 | full | pass | 0 | 66518 | 3.29 |  | 5017599 | 8765439 | 8 | x86_64/4, steal 0.0s | grust-portable-api |  |
+| lancedb | A2 | full | pass | 0 | 38214 | 1.10 |  | 38240255 | 38240255 | 3 | x86_64/4, steal 0.0s | grust-portable-api |  |
+| lancedb | A3 | full | unsupported | 0 | 0 | 0.96 |  |  |  | 3 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| lancedb | A4 | full | pass | 0 | 737403 | 3.02 |  | 3710975 | 7745535 | 7 | x86_64/4, steal 0.5s | grust-portable-api |  |
+| lancedb | A7 | full | unsupported | 0 | 0 | 0.88 |  |  |  | 7 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
+| lancedb | LOAD | full | pass | 0 | 159 | 1.16 |  |  |  | 6 | x86_64/4 | grust-portable-api |  |
 | postgres | A1 | full | pass | 0 | 2615 | 0.28 | 1631 | 867327 | 890367 | 0 | x86_64/4 | grust-portable-api |  |
 | postgres | A12 | full | pass | 0 | 60205 | 0.04 | 6578 | 573 | 5399 | 1 | x86_64/4, steal 0.9s | grust-portable-api |  |
 | postgres | A2 | full | pass | 0 | 3034 | 0.28 | 1720 | 3024895 | 3024895 | 0 | x86_64/4 | grust-portable-api |  |
@@ -118,6 +183,7 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | postgres | A4 | full | pass | 0 | 1120 | 0.30 | 1156 | 4451 | 6543 | 0 | x86_64/4, steal 0.0s | grust-portable-api |  |
 | postgres | A7 | full | unsupported | 0 | 9 | 0.02 | 9 |  |  | 0 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | postgres | LOAD | full | pass | 0 | 3408 | 0.03 | 3007 |  |  | 0 | x86_64/4, steal 0.1s | grust-portable-api |  |
+| surreal-http | LOAD | full | fail | 1 | 921524 | 0.00 | 938245 |  |  | 1 | x86_64/4, steal 12.3s |  | backend error: failed to POST SurrealQL: error sending request |
 | falkor | A1 | full | pass | 0 | 1630 | 0.18 | 946 | 536575 | 555519 | 0 | x86_64/4 | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A12 | full | pass | 0 | 60026 | 0.03 | 6429 | 857 | 2793 | 0 | x86_64/4, steal 0.9s | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A2 | full | pass | 0 | 1977 | 0.18 | 1172 | 1969151 | 1969151 | 0 | x86_64/4, steal 0.0s | harness-native-cypher (resultset_size=10000) |  |
@@ -125,6 +191,14 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | falkor | A4 | full | pass | 0 | 5083 | 0.09 | 6417 | 6223 | 10015 | 0 | x86_64/4 | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A7 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 0 | x86_64/4 | harness-native-cypher (resultset_size=10000) | backend does not implement GraphCommitStore |
 | falkor | LOAD | full | pass | 0 | 3397 | 0.02 | 3411 |  |  | 0 | x86_64/4 | harness-native-cypher (resultset_size=10000) |  |
+| helix-http | A1 | full | pass | 0 | 52227 | 0.03 | 45844 | 17432575 | 17465343 | 1 | x86_64/4, steal 0.1s | grust-portable-api |  |
+| helix-http | A12 | full | pass | 0 | 86640 | 0.01 | 287195 | 12984319 | 14139391 | 14 | x86_64/4, steal 0.1s | grust-portable-api |  |
+| helix-http | A2 | full | pass | 0 | 62126 | 0.03 | 54394 | 62128127 | 62128127 | 1 | x86_64/4, steal 0.2s | grust-portable-api |  |
+| helix-http | A3 | full | unsupported | 0 | 10 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| helix-http | A4 | full | pass | 0 | 127340 | 0.01 | 384780 | 600063 | 809983 | 8 | x86_64/4, steal 0.2s | grust-portable-api |  |
+| helix-http | A7 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 8 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
+| helix-http | LOAD | full | pass | 0 | 3547337 | 0.00 | 3267695 |  |  | 1 | x86_64/4, steal 25.7s | grust-portable-api |  |
+| helix-sdk | LOAD | full | fail | 1 | 0 |  |  |  |  |  | x86_64/4 |  | open failed: backend error: Helix SDK replace/drop failed |
 | neo4j | A1 | full | pass | 0 | 3198 | 0.19 | 4146 | 1079295 | 1161215 | 1 | x86_64/4 | harness-native-cypher |  |
 | neo4j | A12 | full | pass | 0 | 60078 | 0.04 | 9432 | 1125 | 21215 | 1 | x86_64/4, steal 0.6s | harness-native-cypher |  |
 | neo4j | A2 | full | pass | 0 | 3476 | 0.19 | 2663 | 3467263 | 3467263 | 1 | x86_64/4, steal 0.0s | harness-native-cypher |  |
@@ -146,6 +220,13 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | memgraph | A4 | full | pass | 0 | 956 | 0.65 | 2110 | 4451 | 8231 | 1 | x86_64/4 | harness-native-cypher |  |
 | memgraph | A7 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
 | memgraph | LOAD | full | pass | 0 | 1840 | 0.14 | 945 |  |  | 1 | x86_64/4 | harness-native-cypher |  |
+| age | A1 | full | pass | 0 | 3753 | 0.23 | 2644 | 1250303 | 1253375 | 1 | x86_64/4 | harness-native-cypher |  |
+| age | A12 | full | pass | 0 | 60064 | 0.04 | 14305 | 1493 | 16543 | 1 | x86_64/4, steal 1.2s | harness-native-cypher |  |
+| age | A2 | full | pass | 0 | 4462 | 0.23 | 3201 | 4452351 | 4452351 | 1 | x86_64/4, steal 0.0s | harness-native-cypher |  |
+| age | A3 | full | unsupported | 0 | 10 | 0.02 | 8 |  |  | 1 | x86_64/4 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
+| age | A4 | full | pass | 0 | 2556 | 0.27 | 6115 | 11759 | 24815 | 1 | x86_64/4 | harness-native-cypher |  |
+| age | A7 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
+| age | LOAD | full | pass | 0 | 42808 | 0.00 | 45297 |  |  | 1 | x86_64/4, steal 0.1s | harness-native-cypher |  |
 
 ## email-Eu-core
 
@@ -172,10 +253,20 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | turso-mvcc | A4 | full | pass | 0 | 22328 | 2.97 |  | 57503 | 474367 | 2 | x86_64/4, steal 0.0s | grust-portable-api |  |
 | turso-mvcc | A7 | full | pass | 0 | 71 | 1.21 |  |  |  | 2 | x86_64/4 | grust-portable-api |  |
 | turso-mvcc | LOAD | full | pass | 0 | 1356 | 1.00 |  |  |  | 0 | x86_64/4, steal 0.0s | grust-portable-api |  |
-| lancedb | A1 | full | pass | 0 | 6944 | 1.04 |  | 2328575 | 2336767 | 0 | x86_64/4 | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
-| lancedb | A2 | full | pass | 0 | 6084 | 1.04 |  | 6086655 | 6086655 | 0 | x86_64/4, steal 0.0s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
-| lancedb | A3 | full | unsupported | 0 | 0 | 0.90 |  |  |  | 0 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend; run ended before its final write (cap, host guard or crash); later families did not run |
-| lancedb | LOAD | full | pass | 0 | 569 | 0.13 |  |  |  | 0 | x86_64/4 | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
+| ladybug | A1 | full | pass | 0 | 4269 | 1.11 |  | 1420287 | 1430527 | 7 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
+| ladybug | A12 | full | pass | 0 | 60030 | 0.72 |  | 6219 | 64959 | 1 | x86_64/4, steal 0.2s | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
+| ladybug | A2 | full | pass | 0 | 4100 | 1.11 |  | 4102143 | 4102143 | 7 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
+| ladybug | A3 | full | unsupported | 0 | 0 | 0.93 |  |  |  | 7 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) | bounded read policy is exercised through the reference executor on the memory backend |
+| ladybug | A4 | full | pass | 0 | 137619 | 0.52 |  | 43519 | 2377727 | 2 | x86_64/4, steal 0.2s | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
+| ladybug | A7 | full | unsupported | 0 | 0 | 0.93 |  |  |  | 2 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) | backend does not implement GraphCommitStore |
+| ladybug | LOAD | full | pass | 0 | 344 | 1.18 |  |  |  | 8 | x86_64/4 | grust-portable-api (buffer_pool_bytes=4294967296,concurrent_writes=false) |  |
+| lancedb | A1 | full | pass | 0 | 6944 | 1.04 |  | 2328575 | 2336767 | 0 | x86_64/4 | grust-portable-api |  |
+| lancedb | A12 | full | pass | 0 | 66415 | 3.29 |  | 4976639 | 9379839 | 6 | x86_64/4, steal 0.0s | grust-portable-api |  |
+| lancedb | A2 | full | pass | 0 | 6084 | 1.04 |  | 6086655 | 6086655 | 0 | x86_64/4, steal 0.0s | grust-portable-api |  |
+| lancedb | A3 | full | unsupported | 0 | 0 | 0.90 |  |  |  | 0 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| lancedb | A4 | full | pass | 0 | 743499 | 3.02 |  | 3637247 | 7917567 | 6 | x86_64/4, steal 0.5s | grust-portable-api |  |
+| lancedb | A7 | full | unsupported | 0 | 0 | 0.83 |  |  |  | 6 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
+| lancedb | LOAD | full | pass | 0 | 569 | 0.13 |  |  |  | 0 | x86_64/4 | grust-portable-api |  |
 | postgres | A1 | full | pass | 0 | 949 | 0.27 | 587 | 312575 | 315903 | 1 | x86_64/4 | grust-portable-api |  |
 | postgres | A12 | full | pass | 0 | 60193 | 0.04 | 6616 | 609 | 4715 | 0 | x86_64/4, steal 0.3s | grust-portable-api |  |
 | postgres | A2 | full | pass | 0 | 759 | 0.27 | 470 | 750591 | 750591 | 1 | x86_64/4 | grust-portable-api |  |
@@ -183,6 +274,20 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | postgres | A4 | full | pass | 0 | 1137 | 0.30 | 1156 | 4511 | 7487 | 1 | x86_64/4 | grust-portable-api |  |
 | postgres | A7 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | postgres | LOAD | full | pass | 0 | 1074 | 0.02 | 867 |  |  | 1 | x86_64/4, steal 0.1s | grust-portable-api |  |
+| surreal-http | LOAD | full | fail | 1 | 919010 | 0.00 | 934443 |  |  | 1 | x86_64/4, steal 13.9s |  | backend error: failed to POST SurrealQL: error sending request |
+| surreal-sdk | A1 | full | fail | 1 | 330 | 0.48 | 162 |  |  | 1 | x86_64/4 | grust-portable-api | khop failed: backend error: SurrealDB SDK read failed: Parse error: Exceeded expression recursion depth limit
+ --> [1:4404]
+  |
+1 | ...pe::record("record", "19") OR id = type::record("v", "19") OR id  |
+| surreal-sdk | A12 | full | pass | 0 | 63310 | 1.73 | 133860 | 1265663 | 2113535 | 6 | x86_64/4, steal 0.1s | grust-portable-api |  |
+| surreal-sdk | A2 | full | fail | 1 | 2047 | 0.46 | 1203 |  |  | 1 | x86_64/4 | grust-portable-api | deep traversal failed: backend error: SurrealDB SDK read failed: Parse error: Exceeded expression recursion depth limit
+ --> [1:4394]
+  |
+1 | ...pe::record("record", "320") OR id = type::record("v", " |
+| surreal-sdk | A3 | full | unsupported | 0 | 10 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| surreal-sdk | A4 | full | pass | 0 | 212573 | 0.01 | 834847 | 1050623 | 1221631 | 4 | x86_64/4, steal 0.2s | grust-portable-api |  |
+| surreal-sdk | A7 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 4 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
+| surreal-sdk | LOAD | full | pass | 0 | 2928051 | 0.00 | 2979512 |  |  | 1 | x86_64/4, steal 43.3s | grust-portable-api |  |
 | falkor | A1 | full | pass | 0 | 561 | 0.20 | 469 | 172671 | 211711 | 1 | x86_64/4 | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A12 | full | pass | 0 | 60034 | 0.03 | 5571 | 781 | 2471 | 0 | x86_64/4, steal 0.3s | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A2 | full | pass | 0 | 519 | 0.18 | 566 | 509951 | 509951 | 1 | x86_64/4 | harness-native-cypher (resultset_size=10000) |  |
@@ -190,6 +295,13 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | falkor | A4 | full | pass | 0 | 3104 | 0.13 | 3992 | 3575 | 6763 | 1 | x86_64/4 | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A7 | full | unsupported | 0 | 8 | 0.03 | 0 |  |  | 1 | x86_64/4 | harness-native-cypher (resultset_size=10000) | backend does not implement GraphCommitStore |
 | falkor | LOAD | full | pass | 0 | 982 | 0.02 | 1290 |  |  | 1 | x86_64/4 | harness-native-cypher (resultset_size=10000) |  |
+| helix-http | A1 | full | pass | 0 | 2953 | 0.12 | 2516 | 983551 | 983551 | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
+| helix-http | A12 | full | pass | 0 | 66297 | 0.01 | 216990 | 4313087 | 4853759 | 10 | x86_64/4, steal 0.1s | grust-portable-api |  |
+| helix-http | A2 | full | pass | 0 | 2638 | 0.11 | 2260 | 2629631 | 2629631 | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
+| helix-http | A3 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| helix-http | A4 | full | pass | 0 | 64391 | 0.02 | 124232 | 301823 | 556031 | 3 | x86_64/4, steal 0.2s | grust-portable-api |  |
+| helix-http | A7 | full | unsupported | 0 | 10 | 0.06 | 0 |  |  | 3 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
+| helix-http | LOAD | full | pass | 0 | 97491 | 0.01 | 88951 |  |  | 1 | x86_64/4, steal 3.1s | grust-portable-api |  |
 | neo4j | A1 | full | pass | 0 | 2716 | 0.09 | 5508 | 736767 | 1324031 | 1 | x86_64/4, steal 0.0s | harness-native-cypher |  |
 | neo4j | A12 | full | pass | 0 | 60076 | 0.04 | 19045 | 1222 | 18847 | 1 | x86_64/4, steal 0.2s | harness-native-cypher |  |
 | neo4j | A2 | full | pass | 0 | 1548 | 0.13 | 2265 | 1539071 | 1539071 | 1 | x86_64/4 | harness-native-cypher |  |
@@ -211,6 +323,13 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | memgraph | A4 | full | pass | 0 | 927 | 0.62 | 1990 | 4147 | 11999 | 1 | x86_64/4, steal 0.0s | harness-native-cypher |  |
 | memgraph | A7 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
 | memgraph | LOAD | full | pass | 0 | 429 | 0.21 | 293 |  |  | 1 | x86_64/4 | harness-native-cypher |  |
+| age | A1 | full | pass | 0 | 1528 | 0.20 | 1118 | 500479 | 534015 | 2 | x86_64/4 | harness-native-cypher |  |
+| age | A12 | full | pass | 0 | 60061 | 0.04 | 21269 | 1883 | 15215 | 1 | x86_64/4, steal 0.5s | harness-native-cypher |  |
+| age | A2 | full | pass | 0 | 1343 | 0.19 | 1000 | 1333247 | 1333247 | 2 | x86_64/4 | harness-native-cypher |  |
+| age | A3 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 2 | x86_64/4 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
+| age | A4 | full | pass | 0 | 3802 | 0.19 | 10432 | 17599 | 39551 | 2 | x86_64/4, steal 0.0s | harness-native-cypher |  |
+| age | A7 | full | unsupported | 0 | 10 | 0.02 | 0 |  |  | 2 | x86_64/4 | harness-native-cypher | backend does not implement GraphCommitStore |
+| age | LOAD | full | pass | 0 | 8982 | 0.01 | 9410 |  |  | 2 | x86_64/4, steal 0.0s | harness-native-cypher |  |
 
 ## icij-offshore-leaks
 
@@ -534,9 +653,13 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | turso-wal | A7 | full | pass | 0 | 73 | 1.02 |  |  |  | 5 | aarch64/10 | grust-portable-api |  |
 | turso-wal | LOAD | full | pass | 0 | 3258556 | 0.52 |  |  |  | 5 | aarch64/10 | grust-portable-api |  |
 | lancedb | LOAD | full | pass | 0 | 2192458 | 4.72 |  |  |  | 6 | x86_64/16, steal 0.1s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
-| postgres | A1 | full | pass | 0 | 58578 | 0.23 | 42436 | 17186815 | 24363007 | 2 | x86_64/16, steal 0.0s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
-| postgres | LOAD | full | pass | 0 | 5362618 | 0.01 | 4276456 |  |  | 2 | x86_64/16, steal 0.3s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
+| postgres | A1 | full | pass | 0 | 76406 | 0.21 | 46737 | 22855679 | 30687231 | 2 | x86_64/8, steal 3.4s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
+| postgres | LOAD | full | pass | 0 | 5272840 | 0.02 | 3891004 |  |  | 3 | x86_64/8, steal 118.9s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
+| falkor | A1 | full | fail | 1 | 21858 | 0.20 | 14585 | 7041023 | 7753727 | 2 | x86_64/8, steal 2.3s | harness-native-cypher (resultset_size=10000) | layers [9999, 126954] != oracle [20292, 186879]; run ended before its final write (cap, host guard or crash); later families did not run |
+| falkor | A2 | full | fail | 1 | 2795889 | 0.17 | 1582551 | 2795503615 | 2795503615 | 1 | x86_64/8, steal 173.5s | harness-native-cypher (resultset_size=10000) | reached/deepest 4400100/14 != oracle 4400346/14; run ended before its final write (cap, host guard or crash); later families did not run |
+| falkor | A3 | full | unsupported | 0 | 36 | 0.74 | 0 |  |  | 1 | x86_64/8 | harness-native-cypher (resultset_size=10000) | bounded read policy is exercised through the reference executor on the memory backend; run ended before its final write (cap, host guard or crash); later families did not run |
 | falkor | LOAD | full | fail | 1 | 2754057 | 0.04 | 0 |  |  | 13 | aarch64/10 |  | backend error: falkor GRAPH.QUERY: unexpected end of file |
+| falkor | LOAD | full | pass | 0 | 3557137 | 0.02 | 4843081 |  |  | 2 | x86_64/8, steal 212.8s | harness-native-cypher (resultset_size=10000) | run ended before its final write (cap, host guard or crash); later families did not run |
 | neo4j | A1 | full | pass | 0 | 83809 | 0.17 | 36301 | 26279935 | 31506431 | 22 | aarch64/10 | harness-native-cypher |  |
 | neo4j | A12 | full | pass | 0 | 60498 | 0.13 | 22803 | 2008 | 166015 | 16 | aarch64/10 | harness-native-cypher |  |
 | neo4j | A2 | full | pass | 0 | 4887486 | 0.15 | 1854281 | 3600809983 | 3600809983 | 16 | aarch64/10 | harness-native-cypher |  |
@@ -545,8 +668,88 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | neo4j | A7 | full | unsupported | 0 | 30 | 0.06 | 0 |  |  | 16 | aarch64/10 | harness-native-cypher | backend does not implement GraphCommitStore |
 | neo4j | LOAD | full | pass | 0 | 1360785 | 0.08 | 1240804 |  |  | 23 | aarch64/10 | harness-native-cypher |  |
 | neo4j-http | A1 | full | pass | 0 | 176604 | 0.11 | 140607 | 57278463 | 61997055 | 13 | aarch64/10 | harness-native-cypher | run ended before its final write (cap, host guard or crash); later families did not run |
-| neo4j-http | LOAD | full | pass | 0 | 1719594 | 0.12 | 1556848 |  |  | 10 | aarch64/10 | harness-native-cypher | run ended before its final write (cap, host guard or crash); later families did not run earlier fail (gates=1) in 20260907T102009Z: backend error: neo4j-http: error sending request for url (http://127.0.0.1:17474/db/neo4j/query/v2) |
+| neo4j-http | LOAD | full | fail | 1 | 1777241 | 0.07 | 0 |  |  | 2 | x86_64/8, steal 31.1s |  | backend error: neo4j-http: error sending request for url (http://127.0.0.1:17474/db/neo4j/query/v2) earlier fail (gates=1) in 20260907T102009Z: backend error: neo4j-http: error sending request for url (http://127.0.0.1:17474/db/neo4j/query/v2); earlier pass (gates=0) in 20260907T174230Z: run ended before its final write (cap, host guard or crash); later families did not run |
 | memgraph | LOAD | full | fail | 1 | 2485266 | 0.12 | 661707 |  |  | 0 | x86_64/16, steal 0.2s |  | backend error: neo4j: Neo4j error `Memgraph.TransientError.MemgraphError.MemgraphError`: Memory limit exceeded! Current use is 5.00GiB, while the maximum allowed size for allocation is set to 5.00GiB. earlier fail (gates=1) in 20260907T105749Z: backend error: neo4j: an IO error occurred: unexpected end of file |
+
+## soc-Pokec-relationships
+
+| Backend | Scenario | Slice | Outcome | Gates | Wall ms | Client CPU | Server CPU ms | p50 µs | p99 µs | Load 1m | Host | Path | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| turso-wal | A1 | full | pass | 0 | 24052 | 0.53 |  | 3807231 | 16424959 | 1 | x86_64/8, steal 0.0s | grust-portable-api |  |
+| turso-wal | A12 | full | pass | 0 | 60061 | 0.08 |  | 181 | 15759 | 1 | x86_64/8, steal 0.2s | grust-portable-api |  |
+| turso-wal | A2 | full | pass | 0 | 511340 | 0.74 |  | 511180799 | 511180799 | 1 | x86_64/8, steal 0.2s | grust-portable-api |  |
+| turso-wal | A3 | full | unsupported | 0 | 3 | 1.00 |  |  |  | 1 | x86_64/8 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| turso-wal | A4 | full | pass | 0 | 645 | 0.47 |  | 22 | 7079 | 1 | x86_64/8 | grust-portable-api |  |
+| turso-wal | A7 | full | pass | 0 | 58 | 0.91 |  |  |  | 1 | x86_64/8 | grust-portable-api |  |
+| turso-wal | LOAD | full | pass | 0 | 1336588 | 0.73 |  |  |  | 1 | x86_64/8, steal 0.8s | grust-portable-api |  |
+| lancedb | LOAD | full | pass | 0 | 377128 | 2.92 |  |  |  | 3 | x86_64/8, steal 1.4s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
+| postgres | A1 | full | pass | 0 | 35327 | 0.22 | 20895 | 11755519 | 11804671 | 1 | x86_64/8, steal 0.3s | grust-portable-api |  |
+| postgres | A12 | full | pass | 0 | 60212 | 0.06 | 6504 | 766 | 11687 | 1 | x86_64/8, steal 0.2s | grust-portable-api |  |
+| postgres | A2 | full | pass | 0 | 1509319 | 0.22 | 793105 | 1509949439 | 1509949439 | 1 | x86_64/8, steal 9.4s | grust-portable-api |  |
+| postgres | A3 | full | unsupported | 0 | 19 | 0.59 | 0 |  |  | 1 | x86_64/8 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| postgres | A4 | full | pass | 0 | 1223 | 0.38 | 1305 | 4283 | 5987 | 1 | x86_64/8, steal 0.0s | grust-portable-api |  |
+| postgres | A7 | full | unsupported | 0 | 8 | 0.03 | 0 |  |  | 1 | x86_64/8 | grust-portable-api | backend does not implement GraphCommitStore |
+| postgres | LOAD | full | pass | 0 | 1568788 | 0.03 | 1357522 |  |  | 2 | x86_64/8, steal 1.5s | grust-portable-api | earlier fail (gates=1) in 20260910T175613Z: backend error: PostgreSQL command failed: db error: INSERT INTO "public"."ag_soc_pokec_relationships_edges" (id, from_id, to_id, label, props) VALUES (NULL, '1016306', '401192', 'E', '{}'::jsonb), (NU |
+| falkor | A1 | full | pass | 0 | 18877 | 0.19 | 16908 | 6217727 | 6664191 | 1 | x86_64/8, steal 0.0s | harness-native-cypher (resultset_size=10000) |  |
+| falkor | A12 | full | pass | 0 | 60040 | 0.03 | 6464 | 1025 | 7339 | 1 | x86_64/8, steal 0.2s | harness-native-cypher (resultset_size=10000) |  |
+| falkor | A2 | full | pass | 0 | 993793 | 0.16 | 515914 | 994050047 | 994050047 | 1 | x86_64/8, steal 4.0s | harness-native-cypher (resultset_size=10000) |  |
+| falkor | A3 | full | unsupported | 0 | 24 | 0.68 | 0 |  |  | 1 | x86_64/8 | harness-native-cypher (resultset_size=10000) | bounded read policy is exercised through the reference executor on the memory backend |
+| falkor | A4 | full | pass | 0 | 794247 | 0.00 | 965738 | 1982463 | 2426879 | 2 | x86_64/8, steal 1.1s | harness-native-cypher (resultset_size=10000) |  |
+| falkor | A7 | full | unsupported | 0 | 9 | 0.03 | 0 |  |  | 2 | x86_64/8 | harness-native-cypher (resultset_size=10000) | backend does not implement GraphCommitStore |
+| falkor | LOAD | full | pass | 0 | 1190302 | 0.02 | 1655397 |  |  | 1 | x86_64/8, steal 2.0s | harness-native-cypher (resultset_size=10000) |  |
+| neo4j | A1 | full | pass | 0 | 35991 | 0.16 | 23085 | 11845631 | 12500991 | 1 | x86_64/8, steal 0.1s | harness-native-cypher |  |
+| neo4j | A12 | full | pass | 0 | 60233 | 0.06 | 13461 | 1947 | 63487 | 1 | x86_64/8, steal 0.1s | harness-native-cypher |  |
+| neo4j | A2 | full | pass | 0 | 1647382 | 0.15 | 696205 | 1647312895 | 1647312895 | 1 | x86_64/8, steal 2.9s | harness-native-cypher |  |
+| neo4j | A3 | full | unsupported | 0 | 32 | 0.74 | 0 |  |  | 1 | x86_64/8 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
+| neo4j | A4 | full | pass | 0 | 2979 | 0.24 | 7967 | 12743 | 19247 | 1 | x86_64/8, steal 0.0s | harness-native-cypher |  |
+| neo4j | A7 | full | unsupported | 0 | 8 | 0.03 | 0 |  |  | 1 | x86_64/8 | harness-native-cypher | backend does not implement GraphCommitStore |
+| neo4j | LOAD | full | pass | 0 | 930166 | 0.05 | 849188 |  |  | 1 | x86_64/8, steal 3.7s | harness-native-cypher |  |
+| neo4j-http | A1 | full | pass | 0 | 62286 | 0.12 | 56177 | 20430847 | 21708799 | 1 | x86_64/8, steal 0.5s | harness-native-cypher |  |
+| neo4j-http | A12 | full | pass | 0 | 60216 | 0.05 | 25129 | 2151 | 64927 | 1 | x86_64/8, steal 0.2s | harness-native-cypher |  |
+| neo4j-http | A2 | full | pass | 0 | 2952235 | 0.11 | 2135705 | 2952790015 | 2952790015 | 1 | x86_64/8, steal 11.7s | harness-native-cypher |  |
+| neo4j-http | A3 | full | unsupported | 0 | 22 | 0.65 | 0 |  |  | 1 | x86_64/8 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
+| neo4j-http | A4 | full | pass | 0 | 3566 | 0.22 | 12586 | 15239 | 27647 | 2 | x86_64/8, steal 0.0s | harness-native-cypher |  |
+| neo4j-http | A7 | full | unsupported | 0 | 8 | 0.03 | 8 |  |  | 2 | x86_64/8 | harness-native-cypher | backend does not implement GraphCommitStore |
+| neo4j-http | LOAD | full | pass | 0 | 1054738 | 0.06 | 1034627 |  |  | 1 | x86_64/8, steal 1.2s | harness-native-cypher |  |
+| memgraph | A1 | full | pass | 0 | 14624 | 0.31 | 14843 | 4870143 | 4898815 | 1 | x86_64/8, steal 0.0s | harness-native-cypher |  |
+| memgraph | A12 | full | pass | 0 | 60096 | 0.06 | 16675 | 917 | 24399 | 1 | x86_64/8, steal 0.1s | harness-native-cypher |  |
+| memgraph | A2 | full | pass | 0 | 710378 | 0.28 | 761093 | 710410239 | 710410239 | 1 | x86_64/8, steal 1.9s | harness-native-cypher |  |
+| memgraph | A3 | full | unsupported | 0 | 28 | 0.72 | 0 |  |  | 1 | x86_64/8 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
+| memgraph | A4 | full | pass | 0 | 841 | 0.62 | 3397 | 2475 | 10471 | 1 | x86_64/8 | harness-native-cypher |  |
+| memgraph | A7 | full | unsupported | 0 | 8 | 0.03 | 0 |  |  | 1 | x86_64/8 | harness-native-cypher | backend does not implement GraphCommitStore |
+| memgraph | LOAD | full | pass | 0 | 392271 | 0.12 | 337860 |  |  | 1 | x86_64/8, steal 0.3s | harness-native-cypher |  |
+| age | A1 | full | pass | 0 | 161153 | 0.06 | 159028 | 53706751 | 53772287 | 1 | x86_64/8, steal 0.3s | harness-native-cypher | run ended before its final write (cap, host guard or crash); later families did not run |
+| age | LOAD | full | pass | 0 | 5552814 | 0.01 | 4721604 |  |  | 3 | x86_64/8, steal 7.2s | harness-native-cypher | run ended before its final write (cap, host guard or crash); later families did not run |
+
+## sx-stackoverflow
+
+| Backend | Scenario | Slice | Outcome | Gates | Wall ms | Client CPU | Server CPU ms | p50 µs | p99 µs | Load 1m | Host | Path | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| turso-wal | A1 | full | pass | 0 | 931 | 1.00 |  | 255615 | 399871 | 1 | x86_64/8 | grust-portable-api |  |
+| turso-wal | A12 | full | fail | 3525 | 60253 | 0.21 |  | 153 | 67391 | 0 | x86_64/8, steal 0.0s | grust-portable-api | cold-start degree 38323 != oracle 101838; 721 wrong one-hop degrees in the 50 rps stream; 2803 wrong one-hop degrees in the 200 rps stream |
+| turso-wal | A2 | full | pass | 0 | 487873 | 1.00 |  | 487587839 | 487587839 | 1 | x86_64/8, steal 0.3s | grust-portable-api |  |
+| turso-wal | A3 | full | unsupported | 0 | 3 | 1.00 |  |  |  | 1 | x86_64/8 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
+| turso-wal | A4 | full | pass | 0 | 1685 | 0.35 |  | 22 | 7691 | 1 | x86_64/8 | grust-portable-api |  |
+| turso-wal | A7 | full | pass | 0 | 214 | 0.99 |  |  |  | 1 | x86_64/8 | grust-portable-api |  |
+| turso-wal | LOAD | full | pass | 0 | 1975960 | 0.71 |  |  |  | 1 | x86_64/8, steal 1.4s | grust-portable-api |  |
+| postgres | LOAD | full | unsupported | 0 | 48040 | 0.16 | 27839 |  |  | 1 | x86_64/8, steal 0.0s |  | parallel edges are not preserved: the adapter keys an edge on (from, label, to) and PostgreSQL refuses a batch that repeats the key (ON CONFLICT DO UPDATE cannot affect a row a second time); backend e |
+| falkor | A1 | full | fail | 1 | 360 | 0.13 | 1559 | 24287 | 293119 | 2 | x86_64/8 | harness-native-cypher (resultset_size=10000) | layers [10000] != oracle [38147] |
+| falkor | A12 | full | pass | 0 | 60115 | 0.03 | 19656 | 1142 | 30959 | 1 | x86_64/8, steal 0.1s | harness-native-cypher (resultset_size=10000) |  |
+| falkor | A2 | full | fail | 1 | 1630101 | 0.14 | 787532 | 1630535679 | 1630535679 | 1 | x86_64/8, steal 3.9s | harness-native-cypher (resultset_size=10000) | reached/deepest 2252390/7 != oracle 2259937/7 |
+| falkor | A3 | full | unsupported | 0 | 24 | 0.68 | 0 |  |  | 1 | x86_64/8 | harness-native-cypher (resultset_size=10000) | bounded read policy is exercised through the reference executor on the memory backend |
+| falkor | A4 | full | pass | 0 | 1273542 | 0.00 | 1601808 | 3178495 | 3946495 | 2 | x86_64/8, steal 1.5s | harness-native-cypher (resultset_size=10000) |  |
+| falkor | A7 | full | unsupported | 0 | 8 | 0.03 | 7 |  |  | 2 | x86_64/8 | harness-native-cypher (resultset_size=10000) | backend does not implement GraphCommitStore |
+| falkor | LOAD | full | pass | 0 | 2361659 | 0.02 | 2982059 |  |  | 2 | x86_64/8, steal 2.7s | harness-native-cypher (resultset_size=10000) |  |
+| neo4j | A1 | full | pass | 0 | 13564 | 0.04 | 2215 | 519167 | 12525567 | 1 | x86_64/8, steal 0.0s | harness-native-cypher |  |
+| neo4j | A12 | full | pass | 0 | 61680 | 0.28 | 68047 | 1187 | 501247 | 2 | x86_64/8, steal 0.1s | harness-native-cypher |  |
+| neo4j | A2 | full | pass | 0 | 2418415 | 0.17 | 1136633 | 2420113407 | 2420113407 | 1 | x86_64/8, steal 8.0s | harness-native-cypher |  |
+| neo4j | A3 | full | unsupported | 0 | 29 | 0.72 | 0 |  |  | 1 | x86_64/8 | harness-native-cypher | bounded read policy is exercised through the reference executor on the memory backend |
+| neo4j | A4 | full | pass | 0 | 4223 | 0.28 | 5451 | 12159 | 17647 | 2 | x86_64/8, steal 0.0s | harness-native-cypher |  |
+| neo4j | A7 | full | unsupported | 0 | 17 | 0.50 | 0 |  |  | 2 | x86_64/8 | harness-native-cypher | backend does not implement GraphCommitStore |
+| neo4j | LOAD | full | pass | 0 | 1656816 | 0.06 | 1447409 |  |  | 1 | x86_64/8, steal 1.5s | harness-native-cypher |  |
+| neo4j-http | A1 | full | pass | 0 | 8490 | 0.04 | 2891 | 647167 | 7184383 | 2 | x86_64/8, steal 0.0s | harness-native-cypher | run ended before its final write (cap, host guard or crash); later families did not run |
+| neo4j-http | LOAD | full | pass | 0 | 1912797 | 0.07 | 1748572 |  |  | 2 | x86_64/8, steal 1.4s | harness-native-cypher | run ended before its final write (cap, host guard or crash); later families did not run |
+| memgraph | LOAD | full | fail | 1 | 1206594 | 0.05 | 472565 |  |  | 1 | x86_64/8, steal 1.4s |  | backend error: neo4j: Neo4j error `Memgraph.TransientError.MemgraphError.MemgraphError`: Memory limit exceeded! Attempting to allocate a chunk of 388.00KiB which would put the current use to 5.00GiB,  |
 
 ## web-Google
 
@@ -834,4 +1037,4 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | age | LOAD | 200k | pass | 0 | 64742 | 0.00 | 68314 |  |  | 1 | x86_64/4, steal 0.1s | harness-native-cypher |  |
 | age | LOAD | full | pass | 0 | 889101 | 0.01 | 872904 |  |  | 3 | aarch64/10 | harness-native-cypher |  |
 
-Latest-cell hard-gate total: **65** across 763 cells from 266 runs; 46 earlier failing cell(s) are kept in the Notes column of their superseding row.
+Latest-cell hard-gate total: **3605** across 945 cells from 310 runs; 48 earlier failing cell(s) are kept in the Notes column of their superseding row.
