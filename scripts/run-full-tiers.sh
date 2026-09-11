@@ -146,7 +146,11 @@ wait_for_window() { # $1 = the backend's compose service, stopped while waiting
 for b in "${BACKENDS[@]}"; do
   svc=$(service_for "$b")
   if [ -n "$svc" ]; then
-    echo "## $b: starting $svc"; docker compose --profile external up -d "$svc" >/dev/null 2>&1
+    # A fresh container, never the one the previous backend's ladder stopped:
+    # `up -d` restarts a stopped container with its data, and on 2026-09-10
+    # a Neo4j started that way spent six hours recovering the previous
+    # pair's 117 M edges before reporting "Database 'neo4j' unavailable".
+    echo "## $b: starting $svc"; docker compose --profile external rm -f -s "$svc" >/dev/null 2>&1 || true; docker compose --profile external up -d "$svc" >/dev/null 2>&1
     if ! wait_ready "$svc"; then echo "## $b: skipped, service never became ready; no bundle"; docker compose --profile external stop "$svc" >/dev/null 2>&1 || true; continue; fi
   fi
   first_pair=1
