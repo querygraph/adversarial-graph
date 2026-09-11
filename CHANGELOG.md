@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Grust repinned to 1de21d5: the Surreal HTTP store signs in once and sends
+  a bearer token (basic auth on `/sql` was a password hash per request,
+  ~50 ms of server CPU, 45 s of every two-hop round before a query ran),
+  and an edge written without its endpoints' tables in hand (the hot-node
+  writes) relates the record a node read would find instead of a phantom
+  `record:<id>`.
+
 - Grust repinned to afba9b5 for the two adapter costs the 2026-09-11 A/B
   measured: Surreal edge reads filtered by `meta::id(in)` scanned the
   whole relation per frontier node (the two-hop walks on ego-Facebook
