@@ -216,6 +216,15 @@ impl BackendKind {
         if self.container().is_some() {
             parts.extend(container_envelope());
         }
+        #[cfg(feature = "neo4j")]
+        if matches!(self, Self::Memgraph) {
+            // Memgraph's own declared limit (compose: --memory-limit), named
+            // only when it is not the track's 5 GiB, like the envelope.
+            let mb = env_or("MEMGRAPH_MEMORY_MB", "5120");
+            if mb != "5120" {
+                parts.push(format!("memory_limit_mb={mb}"));
+            }
+        }
         (!parts.is_empty()).then(|| parts.join(","))
     }
     pub fn container(self) -> Option<&'static str> {

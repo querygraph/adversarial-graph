@@ -11,6 +11,8 @@
   (`BENCHMARK_MEMORY_LIMIT_BYTES`) names it in every row's profile
   (`mem_limit=<bytes>`), so its rows never supersede the 6 GiB rows in
   RESULTS.md; the default is not named and earlier rows keep their key.
+  Memgraph's own declared limit (`MEMGRAPH_MEMORY_MB`) is named the same
+  way when it is not the track's 5 GiB.
 
 - Grust repinned to 1de21d5: the Surreal HTTP store signs in once and sends
   a bearer token (basic auth on `/sql` was a password hash per request,
