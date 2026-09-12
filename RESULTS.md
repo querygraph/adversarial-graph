@@ -25,6 +25,8 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | postgres | A4 | full | pass | 0 | 1157 | 0.31 | 1343 | 4423 | 6159 | 1 | x86_64/8, steal 0.0s | grust-portable-api |  |
 | postgres | A7 | full | unsupported | 0 | 8 | 0.02 | 0 |  |  | 1 | x86_64/8 | grust-portable-api | backend does not implement GraphCommitStore |
 | postgres | LOAD | full | pass | 0 | 2978829 | 0.04 | 2390230 |  |  | 1 | x86_64/8, steal 5.4s | grust-portable-api |  |
+| surreal-http | LOAD | full | fail | 1 | 206244 | 0.11 | 0 |  |  | 1 | x86_64/8, steal 0.2s |  | backend error: failed to POST SurrealQL: error sending request; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
+| surreal-sdk | LOAD | full | fail | 1 | 211733 | 0.13 | 0 |  |  | 1 | x86_64/8, steal 0.2s |  | backend error: SurrealDB SDK query failed: Connection reset; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
 | falkor | LOAD | full | fail | 1 | 423003 | 0.07 | 0 |  |  | 3 | x86_64/8, steal 0.7s |  | backend error: falkor GRAPH.QUERY: unexpected end of file; container adversarial-graph-falkor-1: exited, exit 137, OOMKilled |
 | neo4j | A1 | full | pass | 0 | 195 | 0.40 | 230 | 39359 | 71039 | 1 | x86_64/8 | harness-native-cypher |  |
 | neo4j | A12 | full | pass | 0 | 60120 | 0.04 | 7553 | 1887 | 19359 | 1 | x86_64/8, steal 0.4s | harness-native-cypher |  |
@@ -58,6 +60,8 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | turso-wal | A4 | full | pass | 0 | 28 | 5.63 |  | 37 | 250 | 5 | aarch64/10 | grust-portable-api |  |
 | turso-wal | A7 | full | pass | 0 | 33 | 0.48 |  |  |  | 5 | aarch64/10 | grust-portable-api |  |
 | turso-wal | LOAD | full | pass | 0 | 554739 | 0.75 |  |  |  | 5 | aarch64/10 | grust-portable-api |  |
+| turso-mvcc | LOAD | full | not-tested | 0 | 0 |  |  |  |  |  | x86_64/16 |  | not attempted: 16518948 edges at the store's measured 1505 edges/s on this host (2901722 edges, icij-offshore-leaks in 20260909T144524Z) is 3.0 h against the 2.0 h load budget |
+| ladybug | LOAD | full | fail | 1 | 7200005 | 9.09 |  |  |  | 16 | x86_64/16, steal 0.3s |  | backend error: the load did not finish inside the 7200 s load budget (3774768 nodes, 16518948 edges offered) |
 | lancedb | A1 | full | pass | 0 | 1401829 | 3.06 |  | 470286335 | 471859199 | 3 | x86_64/16, steal 0.1s | grust-portable-api |  |
 | lancedb | A12 | full | pass | 0 | 66332 | 13.98 |  | 3325951 | 4089855 | 19 | x86_64/16 | grust-portable-api |  |
 | lancedb | A2 | full | pass | 0 | 480 | 3.34 |  | 479999 | 479999 | 3 | x86_64/16 | grust-portable-api |  |
@@ -72,7 +76,8 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | postgres | A4 | full | pass | 0 | 1248 | 0.28 | 1198 | 5075 | 7051 | 2 | x86_64/4 | grust-portable-api |  |
 | postgres | A7 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 2 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | postgres | LOAD | full | pass | 0 | 1231201 | 0.02 | 1072549 |  |  | 2 | x86_64/4, steal 0.6s | grust-portable-api |  |
-| surreal-http | LOAD | full | fail | 1 | 303388 | 0.06 | 0 |  |  | 1 | x86_64/8, steal 123.1s |  | backend error: failed to POST SurrealQL: error sending request |
+| surreal-http | LOAD | full | fail | 1 | 235738 | 0.09 | 0 |  |  | 1 | x86_64/16, steal 0.0s |  | backend error: failed to POST SurrealQL: error sending request; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled earlier fail (gates=1) in 20260909T053404Z: backend error: failed to POST SurrealQL: error sending request |
+| surreal-sdk | LOAD | full | fail | 1 | 263703 | 0.11 | 0 |  |  | 1 | x86_64/16, steal 0.0s |  | backend error: SurrealDB SDK query failed: Connection reset; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
 | falkor | A1 | full | pass | 0 | 2561 | 0.37 | 2103 | 688639 | 1249279 | 1 | x86_64/8, steal 0.7s | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A12 | full | pass | 0 | 60041 | 0.03 | 6020 | 1134 | 3367 | 1 | x86_64/8, steal 9.0s | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A2 | full | pass | 0 | 10 | 0.04 | 0 | 672 | 672 | 1 | x86_64/8 | harness-native-cypher (resultset_size=10000) |  |
@@ -80,7 +85,7 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | falkor | A4 | full | pass | 0 | 2415193 | 0.00 | 2987876 | 6037503 | 8155135 | 1 | x86_64/8, steal 144.8s | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A7 | full | unsupported | 0 | 9 | 0.03 | 0 |  |  | 1 | x86_64/8 | harness-native-cypher (resultset_size=10000) | backend does not implement GraphCommitStore |
 | falkor | LOAD | full | pass | 0 | 926038 | 0.03 | 1263692 |  |  | 1 | x86_64/8, steal 55.0s | harness-native-cypher (resultset_size=10000) |  |
-| helix-http | LOAD | full | fail | 1 | 0 |  |  |  |  |  | x86_64/8 |  | open failed: backend error: Helix query failed with status 408 Request Timeout |
+| helix-http | LOAD | full | fail | 1 | 1692117 | 0.02 | 0 |  |  | 0 | x86_64/8, steal 0.6s |  | backend error: Helix query failed with status 500 Internal Server Error; container adversarial-graph-helix-1: exited, exit 137, OOMKilled earlier fail (gates=1) in 20260909T031712Z: open failed: backend error: Helix query failed with status 408 Request Timeout |
 | neo4j | A1 | full | pass | 0 | 2833 | 0.13 | 5521 | 883711 | 1128447 | 1 | x86_64/8 | harness-native-cypher |  |
 | neo4j | A12 | full | pass | 0 | 60111 | 0.04 | 12134 | 1591 | 23519 | 1 | x86_64/8, steal 3.4s | harness-native-cypher |  |
 | neo4j | A2 | full | pass | 0 | 68 | 0.02 | 260 | 58207 | 58207 | 1 | x86_64/8 | harness-native-cypher |  |
@@ -124,7 +129,10 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | turso-wal | LOAD | full | pass | 0 | 6791245 | 0.66 |  |  |  | 2 | x86_64/16, steal 0.2s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
 | lancedb | LOAD | full | pass | 0 | 6054112 | 5.01 |  |  |  | 6 | x86_64/16, steal 0.3s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
 | postgres | LOAD | full | not-tested | 0 | 0 |  |  |  |  |  | x86_64/16 |  | not attempted: 117185083 edges at the store's measured 12866 edges/s on this host (68993773 edges, soc-LiveJournal1 in 20260907T222012Z) is 2.5 h against the 2.0 h load budget |
+| surreal-http | LOAD | full | fail | 1 | 246305 | 0.15 | 0 |  |  | 1 | x86_64/16, steal 0.0s |  | backend error: failed to POST SurrealQL: error sending request; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
+| surreal-sdk | LOAD | full | fail | 1 | 245251 | 0.18 | 0 |  |  | 1 | x86_64/16, steal 0.0s |  | backend error: SurrealDB SDK query failed: Connection reset; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
 | falkor | LOAD | full | not-tested | 0 | 0 |  |  |  |  |  | x86_64/16 |  | not attempted: 117185083 edges at the store's measured 13058 edges/s on this host (17256038 edges, ldbc-snb-sf1 in 20260909T172522Z) is 2.5 h against the 2.0 h load budget |
+| helix-http | LOAD | full | fail | 1 | 1433398 | 0.02 | 484818 |  |  | 1 | x86_64/8, steal 0.7s |  | backend error: Helix query failed with status 408 Request Timeout; container adversarial-graph-helix-1: running |
 | neo4j | A1 | full | pass | 0 | 158973 | 0.23 | 94635 | 45416447 | 75300863 | 2 | x86_64/16 | harness-native-cypher |  |
 | neo4j | A12 | full | pass | 0 | 60506 | 0.10 | 28543 | 674 | 138751 | 1 | x86_64/16 | harness-native-cypher |  |
 | neo4j | A2 | full | pass | 0 | 4131007 | 0.11 | 1421503 | 3600809983 | 3600809983 | 1 | x86_64/16, steal 0.2s | harness-native-cypher |  |
@@ -573,12 +581,14 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | surreal-http | A4 | 10k | pass | 0 | 4080 | 0.03 | 14893 | 147839 | 178943 | 1 | x86_64/4 | grust-portable-api |  |
 | surreal-http | A7 | 10k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | surreal-http | LOAD | 10k | pass | 0 | 424341 | 0.00 | 433391 |  |  | 1 | x86_64/4, steal 0.8s | grust-portable-api |  |
+| surreal-http | LOAD | full | fail | 1 | 354591 | 0.09 | 0 |  |  | 1 | x86_64/4, steal 2.6s |  | backend error: failed to POST SurrealQL: error sending request; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
 | surreal-sdk | A1 | 10k | pass | 0 | 129 | 0.35 | 85 | 120063 | 120063 | 1 | x86_64/4 | grust-portable-api |  |
 | surreal-sdk | A2 | 10k | pass | 0 | 11216 | 0.39 | 7612 | 11214847 | 11214847 | 1 | x86_64/4, steal 0.0s | grust-portable-api |  |
 | surreal-sdk | A3 | 10k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
 | surreal-sdk | A4 | 10k | pass | 0 | 2779 | 0.04 | 9230 | 90751 | 96639 | 1 | x86_64/4 | grust-portable-api |  |
 | surreal-sdk | A7 | 10k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | surreal-sdk | LOAD | 10k | pass | 0 | 435530 | 0.00 | 444907 |  |  | 1 | x86_64/4, steal 0.5s | grust-portable-api |  |
+| surreal-sdk | LOAD | full | fail | 1 | 357547 | 0.10 | 0 |  |  | 1 | x86_64/4, steal 1.5s |  | backend error: SurrealDB SDK query failed: Connection reset; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
 | falkor | A1 | 200k | pass | 0 | 32 | 0.02 | 42 | 23471 | 23471 | 1 | x86_64/4 | harness-native-cypher |  |
 | falkor | A1 | 200k | pass | 0 | 33 | 0.03 | 42 | 24639 | 24639 | 1 | x86_64/4 | harness-native-cypher (resultset_size=-1) |  |
 | falkor | A1 | 200k | pass | 0 | 32 | 0.02 | 41 | 23007 | 23007 | 2 | x86_64/4 | harness-native-cypher (resultset_size=10000) |  |
@@ -611,6 +621,7 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | helix-http | A7 | 10k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | helix-http | LOAD | 10k | pass | 0 | 377497 | 0.00 | 373689 |  |  | 1 | x86_64/4, steal 0.7s | grust-portable-api |  |
 | helix-http | LOAD | 200k | fail | 1 | 63282 | 0.01 | 90474 |  |  | 1 | x86_64/4, steal 0.1s |  | backend error: Helix query failed with status 408 Request Timeout earlier fail (gates=1) in 20260905T160243Z: backend error: Helix query failed with status 408 Request Timeout; earlier fail (gates=1) in 20260905T163559Z: backend error: Helix query failed with status 408 Request Timeout; earlier fail (gates=1) in 20260906T071652Z: backend error: Helix query failed with status 408 Request Timeout |
+| helix-http | LOAD | full | fail | 1 | 926664 | 0.02 | 243241 |  |  | 1 | x86_64/8, steal 0.5s |  | backend error: Helix query failed with status 408 Request Timeout; container adversarial-graph-helix-1: running |
 | helix-sdk | A1 | 10k | fail | 1 | 8 | 0.03 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | khop failed: serialization error: invalid Helix SDK read: unknown variant `Read`, expected `read` or `write` |
 | helix-sdk | A2 | 10k | fail | 1 | 7 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | deep traversal failed: serialization error: invalid Helix SDK read: unknown variant `Read`, expected `read` or `write` |
 | helix-sdk | A3 | 10k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
@@ -692,11 +703,14 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | lancedb | LOAD | full | pass | 0 | 2192458 | 4.72 |  |  |  | 6 | x86_64/16, steal 0.1s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
 | postgres | A1 | full | pass | 0 | 76406 | 0.21 | 46737 | 22855679 | 30687231 | 2 | x86_64/8, steal 3.4s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
 | postgres | LOAD | full | pass | 0 | 5272840 | 0.02 | 3891004 |  |  | 3 | x86_64/8, steal 118.9s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
+| surreal-http | LOAD | full | fail | 1 | 239460 | 0.11 | 0 |  |  | 1 | x86_64/16, steal 0.0s |  | backend error: failed to POST SurrealQL: error sending request; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
+| surreal-sdk | LOAD | full | fail | 1 | 238266 | 0.14 | 0 |  |  | 1 | x86_64/16, steal 0.0s |  | backend error: SurrealDB SDK query failed: Connection reset; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
 | falkor | A1 | full | fail | 1 | 21858 | 0.20 | 14585 | 7041023 | 7753727 | 2 | x86_64/8, steal 2.3s | harness-native-cypher (resultset_size=10000) | layers [9999, 126954] != oracle [20292, 186879]; run ended before its final write (cap, host guard or crash); later families did not run |
 | falkor | A2 | full | fail | 1 | 2795889 | 0.17 | 1582551 | 2795503615 | 2795503615 | 1 | x86_64/8, steal 173.5s | harness-native-cypher (resultset_size=10000) | reached/deepest 4400100/14 != oracle 4400346/14; run ended before its final write (cap, host guard or crash); later families did not run |
 | falkor | A3 | full | unsupported | 0 | 36 | 0.74 | 0 |  |  | 1 | x86_64/8 | harness-native-cypher (resultset_size=10000) | bounded read policy is exercised through the reference executor on the memory backend; run ended before its final write (cap, host guard or crash); later families did not run |
 | falkor | LOAD | full | fail | 1 | 2754057 | 0.04 | 0 |  |  | 13 | aarch64/10 |  | backend error: falkor GRAPH.QUERY: unexpected end of file |
 | falkor | LOAD | full | pass | 0 | 3557137 | 0.02 | 4843081 |  |  | 2 | x86_64/8, steal 212.8s | harness-native-cypher (resultset_size=10000) | run ended before its final write (cap, host guard or crash); later families did not run |
+| helix-http | LOAD | full | fail | 1 | 1673088 | 0.02 | 0 |  |  | 1 | x86_64/8, steal 0.4s |  | backend error: Helix query failed with status 500 Internal Server Error; container adversarial-graph-helix-1: exited, exit 137, OOMKilled |
 | neo4j | A1 | full | pass | 0 | 83809 | 0.17 | 36301 | 26279935 | 31506431 | 22 | aarch64/10 | harness-native-cypher |  |
 | neo4j | A12 | full | pass | 0 | 60498 | 0.13 | 22803 | 2008 | 166015 | 16 | aarch64/10 | harness-native-cypher |  |
 | neo4j | A2 | full | pass | 0 | 4887486 | 0.15 | 1854281 | 3600809983 | 3600809983 | 16 | aarch64/10 | harness-native-cypher |  |
@@ -712,6 +726,13 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 
 | Backend | Scenario | Slice | Outcome | Gates | Wall ms | Client CPU | Server CPU ms | p50 µs | p99 µs | Load 1m | Host | Path | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| memory | A1 | full | pass | 0 | 2379 | 1.00 |  | 785407 | 792063 | 1 | x86_64/8 | grust-portable-api |  |
+| memory | A12 | full | pass | 0 | 60022 | 0.03 |  | 20 | 5547 | 0 | x86_64/8, steal 0.0s | grust-portable-api |  |
+| memory | A2 | full | pass | 0 | 58408 | 1.00 |  | 57147391 | 57147391 | 1 | x86_64/8, steal 0.0s | grust-portable-api |  |
+| memory | A3 | full | pass | 0 | 999 | 1.00 |  | 5 | 21 | 1 | x86_64/8 | grust-portable-api |  |
+| memory | A4 | full | pass | 0 | 46 | 1.21 |  | 5 | 938 | 1 | x86_64/8 | grust-portable-api |  |
+| memory | A7 | full | unsupported | 0 | 1 | 1.00 |  |  |  | 1 | x86_64/8 | grust-portable-api | backend does not implement GraphCommitStore |
+| memory | LOAD | full | pass | 0 | 117901 | 1.01 |  |  |  | 1 | x86_64/8, steal 0.0s | grust-portable-api |  |
 | turso-wal | A1 | full | pass | 0 | 24052 | 0.53 |  | 3807231 | 16424959 | 1 | x86_64/8, steal 0.0s | grust-portable-api |  |
 | turso-wal | A12 | full | pass | 0 | 60061 | 0.08 |  | 181 | 15759 | 1 | x86_64/8, steal 0.2s | grust-portable-api |  |
 | turso-wal | A2 | full | pass | 0 | 511340 | 0.74 |  | 511180799 | 511180799 | 1 | x86_64/8, steal 0.2s | grust-portable-api |  |
@@ -719,7 +740,9 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | turso-wal | A4 | full | pass | 0 | 645 | 0.47 |  | 22 | 7079 | 1 | x86_64/8 | grust-portable-api |  |
 | turso-wal | A7 | full | pass | 0 | 58 | 0.91 |  |  |  | 1 | x86_64/8 | grust-portable-api |  |
 | turso-wal | LOAD | full | pass | 0 | 1336588 | 0.73 |  |  |  | 1 | x86_64/8, steal 0.8s | grust-portable-api |  |
-| lancedb | LOAD | full | pass | 0 | 377128 | 2.92 |  |  |  | 3 | x86_64/8, steal 1.4s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
+| turso-mvcc | LOAD | full | not-tested | 0 | 0 |  |  |  |  |  | x86_64/8 |  | not attempted: 30622564 edges at the store's measured 1112 edges/s on this host (5533214 edges, roadNet-CA in 20260907T111016Z) is 7.7 h against the 2.0 h load budget |
+| ladybug | LOAD | full | not-tested | 0 | 0 |  |  |  |  |  | x86_64/8 |  | not attempted: 30622564 edges at the store's measured 2288 edges/s on this host (2901722 edges, icij-offshore-leaks in 20260909T170520Z) is 3.7 h against the 2.0 h load budget |
+| lancedb | LOAD | full | pass | 0 | 376281 | 2.75 |  |  |  | 3 | x86_64/8, steal 0.4s | grust-portable-api | run ended before its final write (cap, host guard or crash); later families did not run |
 | postgres | A1 | full | pass | 0 | 35327 | 0.22 | 20895 | 11755519 | 11804671 | 1 | x86_64/8, steal 0.3s | grust-portable-api |  |
 | postgres | A12 | full | pass | 0 | 60212 | 0.06 | 6504 | 766 | 11687 | 1 | x86_64/8, steal 0.2s | grust-portable-api |  |
 | postgres | A2 | full | pass | 0 | 1509319 | 0.22 | 793105 | 1509949439 | 1509949439 | 1 | x86_64/8, steal 9.4s | grust-portable-api |  |
@@ -727,6 +750,8 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | postgres | A4 | full | pass | 0 | 1223 | 0.38 | 1305 | 4283 | 5987 | 1 | x86_64/8, steal 0.0s | grust-portable-api |  |
 | postgres | A7 | full | unsupported | 0 | 8 | 0.03 | 0 |  |  | 1 | x86_64/8 | grust-portable-api | backend does not implement GraphCommitStore |
 | postgres | LOAD | full | pass | 0 | 1568788 | 0.03 | 1357522 |  |  | 2 | x86_64/8, steal 1.5s | grust-portable-api | earlier fail (gates=1) in 20260910T175613Z: backend error: PostgreSQL command failed: db error: INSERT INTO "public"."ag_soc_pokec_relationships_edges" (id, from_id, to_id, label, props) VALUES (NULL, '1016306', '401192', 'E', '{}'::jsonb), (NU |
+| surreal-http | LOAD | full | fail | 1 | 329213 | 0.08 | 0 |  |  | 1 | x86_64/8, steal 0.3s |  | backend error: failed to POST SurrealQL: error sending request; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
+| surreal-sdk | LOAD | full | fail | 1 | 356116 | 0.08 | 0 |  |  | 1 | x86_64/8, steal 0.3s |  | backend error: SurrealDB SDK query failed: Connection reset; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
 | falkor | A1 | full | pass | 0 | 18877 | 0.19 | 16908 | 6217727 | 6664191 | 1 | x86_64/8, steal 0.0s | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A12 | full | pass | 0 | 60040 | 0.03 | 6464 | 1025 | 7339 | 1 | x86_64/8, steal 0.2s | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A2 | full | pass | 0 | 993793 | 0.16 | 515914 | 994050047 | 994050047 | 1 | x86_64/8, steal 4.0s | harness-native-cypher (resultset_size=10000) |  |
@@ -734,6 +759,7 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | falkor | A4 | full | pass | 0 | 794247 | 0.00 | 965738 | 1982463 | 2426879 | 2 | x86_64/8, steal 1.1s | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A7 | full | unsupported | 0 | 9 | 0.03 | 0 |  |  | 2 | x86_64/8 | harness-native-cypher (resultset_size=10000) | backend does not implement GraphCommitStore |
 | falkor | LOAD | full | pass | 0 | 1190302 | 0.02 | 1655397 |  |  | 1 | x86_64/8, steal 2.0s | harness-native-cypher (resultset_size=10000) |  |
+| helix-sdk | LOAD | full | fail | 1 | 7200218 | 0.00 | 6615571 |  |  | 1 | x86_64/8, steal 3.9s |  | backend error: the load did not finish inside the 7200 s load budget (1632803 nodes, 30622564 edges offered); container adversarial-graph-helix-sdk-1: running |
 | neo4j | A1 | full | pass | 0 | 35991 | 0.16 | 23085 | 11845631 | 12500991 | 1 | x86_64/8, steal 0.1s | harness-native-cypher |  |
 | neo4j | A12 | full | pass | 0 | 60233 | 0.06 | 13461 | 1947 | 63487 | 1 | x86_64/8, steal 0.1s | harness-native-cypher |  |
 | neo4j | A2 | full | pass | 0 | 1647382 | 0.15 | 696205 | 1647312895 | 1647312895 | 1 | x86_64/8, steal 2.9s | harness-native-cypher |  |
@@ -755,8 +781,8 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | memgraph | A4 | full | pass | 0 | 841 | 0.62 | 3397 | 2475 | 10471 | 1 | x86_64/8 | harness-native-cypher |  |
 | memgraph | A7 | full | unsupported | 0 | 8 | 0.03 | 0 |  |  | 1 | x86_64/8 | harness-native-cypher | backend does not implement GraphCommitStore |
 | memgraph | LOAD | full | pass | 0 | 392271 | 0.12 | 337860 |  |  | 1 | x86_64/8, steal 0.3s | harness-native-cypher |  |
-| age | A1 | full | pass | 0 | 161153 | 0.06 | 159028 | 53706751 | 53772287 | 1 | x86_64/8, steal 0.3s | harness-native-cypher | run ended before its final write (cap, host guard or crash); later families did not run |
-| age | LOAD | full | pass | 0 | 5552814 | 0.01 | 4721604 |  |  | 3 | x86_64/8, steal 7.2s | harness-native-cypher | run ended before its final write (cap, host guard or crash); later families did not run |
+| age | A1 | full | pass | 0 | 171229 | 0.06 | 155199 | 57278463 | 57311231 | 1 | x86_64/8, steal 0.2s | harness-native-cypher | run ended before its final write (cap, host guard or crash); later families did not run |
+| age | LOAD | full | pass | 0 | 5455489 | 0.01 | 4578302 |  |  | 3 | x86_64/8, steal 3.6s | harness-native-cypher | run ended before its final write (cap, host guard or crash); later families did not run |
 
 ## sx-stackoverflow
 
@@ -770,6 +796,8 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | turso-wal | A7 | full | pass | 0 | 214 | 0.99 |  |  |  | 1 | x86_64/8 | grust-portable-api |  |
 | turso-wal | LOAD | full | pass | 0 | 1975960 | 0.71 |  |  |  | 1 | x86_64/8, steal 1.4s | grust-portable-api |  |
 | postgres | LOAD | full | unsupported | 0 | 48040 | 0.16 | 27839 |  |  | 1 | x86_64/8, steal 0.0s |  | parallel edges are not preserved: the adapter keys an edge on (from, label, to) and PostgreSQL refuses a batch that repeats the key (ON CONFLICT DO UPDATE cannot affect a row a second time); backend e |
+| surreal-http | LOAD | full | fail | 1 | 316796 | 0.09 | 0 |  |  | 1 | x86_64/8, steal 0.4s |  | backend error: failed to POST SurrealQL: error sending request; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
+| surreal-sdk | LOAD | full | fail | 1 | 252549 | 0.13 | 0 |  |  | 1 | x86_64/8, steal 0.2s |  | backend error: SurrealDB SDK query failed: Connection reset; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
 | falkor | A1 | full | fail | 1 | 360 | 0.13 | 1559 | 24287 | 293119 | 2 | x86_64/8 | harness-native-cypher (resultset_size=10000) | layers [10000] != oracle [38147] |
 | falkor | A12 | full | pass | 0 | 60115 | 0.03 | 19656 | 1142 | 30959 | 1 | x86_64/8, steal 0.1s | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A2 | full | fail | 1 | 1630101 | 0.14 | 787532 | 1630535679 | 1630535679 | 1 | x86_64/8, steal 3.9s | harness-native-cypher (resultset_size=10000) | reached/deepest 2252390/7 != oracle 2259937/7 |
@@ -837,7 +865,8 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | postgres | A4 | full | pass | 0 | 1161 | 0.27 | 1137 | 4711 | 6379 | 2 | x86_64/4 | grust-portable-api |  |
 | postgres | A7 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 2 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | postgres | LOAD | full | pass | 0 | 279043 | 0.02 | 261415 |  |  | 1 | x86_64/4, steal 0.1s | grust-portable-api |  |
-| surreal-http | LOAD | full | fail | 1 | 946969 | 0.04 | 951287 |  |  | 1 | x86_64/8, steal 284.1s |  | backend error: failed to POST SurrealQL: error sending request |
+| surreal-http | LOAD | full | fail | 1 | 360777 | 0.08 | 0 |  |  | 2 | x86_64/16, steal 0.0s |  | backend error: failed to POST SurrealQL: error sending request; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled earlier fail (gates=1) in 20260909T051802Z: backend error: failed to POST SurrealQL: error sending request |
+| surreal-sdk | LOAD | full | fail | 1 | 324700 | 0.11 | 0 |  |  | 1 | x86_64/16, steal 0.0s |  | backend error: SurrealDB SDK query failed: Connection reset; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
 | falkor | A1 | full | pass | 0 | 837 | 0.15 | 1592 | 221823 | 393983 | 6 | aarch64/10 | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A12 | full | pass | 0 | 60045 | 0.04 | 9700 | 1954 | 10367 | 4 | aarch64/10 | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A2 | full | pass | 0 | 276423 | 0.18 | 118042 | 276561919 | 276561919 | 5 | aarch64/10 | harness-native-cypher (resultset_size=10000) |  |
@@ -845,7 +874,7 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | falkor | A4 | full | pass | 0 | 370409 | 0.00 | 481910 | 1140735 | 1293311 | 4 | aarch64/10 | harness-native-cypher (resultset_size=10000) |  |
 | falkor | A7 | full | unsupported | 0 | 11 | 0.06 | 0 |  |  | 4 | aarch64/10 | harness-native-cypher (resultset_size=10000) | backend does not implement GraphCommitStore |
 | falkor | LOAD | full | pass | 0 | 176076 | 0.04 | 229552 |  |  | 6 | aarch64/10 | harness-native-cypher (resultset_size=10000) |  |
-| helix-http | LOAD | full | fail | 1 | 435977 | 0.06 | 110055 |  |  | 0 | x86_64/8, steal 183.6s |  | backend error: Helix query failed with status 408 Request Timeout |
+| helix-http | LOAD | full | fail | 1 | 431362 | 0.02 | 89075 |  |  | 0 | x86_64/8, steal 0.1s |  | backend error: Helix query failed with status 408 Request Timeout; container adversarial-graph-helix-1: running earlier fail (gates=1) in 20260909T030939Z: backend error: Helix query failed with status 408 Request Timeout |
 | neo4j | A1 | full | pass | 0 | 1062 | 0.19 | 684 | 341247 | 371711 | 1 | x86_64/4 | harness-native-cypher |  |
 | neo4j | A12 | full | pass | 0 | 60074 | 0.04 | 7894 | 1037 | 19199 | 1 | x86_64/4, steal 0.1s | harness-native-cypher |  |
 | neo4j | A2 | full | pass | 0 | 431259 | 0.19 | 258602 | 431226879 | 431226879 | 1 | x86_64/4, steal 0.2s | harness-native-cypher |  |
@@ -962,7 +991,7 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | surreal-http | A4 | 10k | pass | 0 | 4110 | 0.03 | 14842 | 149247 | 179711 | 1 | x86_64/4 | grust-portable-api |  |
 | surreal-http | A7 | 10k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | surreal-http | LOAD | 10k | pass | 0 | 465396 | 0.00 | 474690 |  |  | 1 | x86_64/4, steal 0.7s | grust-portable-api |  |
-| surreal-http | LOAD | full | fail | 1 | 1261286 | 0.03 | 1302640 |  |  | 1 | x86_64/4, steal 2.8s |  | backend error: failed to POST SurrealQL: error sending request |
+| surreal-http | LOAD | full | fail | 1 | 323710 | 0.13 | 0 |  |  | 1 | x86_64/4, steal 2.7s |  | backend error: failed to POST SurrealQL: error sending request; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled earlier fail (gates=1) in 20260907T123404Z: backend error: failed to POST SurrealQL: error sending request |
 | surreal-sdk | A1 | 10k | fail | 1 | 135 | 0.46 | 74 |  |  | 1 | x86_64/4 | grust-portable-api | khop failed: backend error: SurrealDB SDK read failed: Parse error: Exceeded expression recursion depth limit
  --> [1:4812]
   |
@@ -978,6 +1007,7 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | surreal-sdk | A4 | 10k | pass | 0 | 2885 | 0.05 | 9226 | 91455 | 103487 | 1 | x86_64/4 | grust-portable-api |  |
 | surreal-sdk | A7 | 10k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | surreal-sdk | LOAD | 10k | pass | 0 | 480049 | 0.00 | 489641 |  |  | 1 | x86_64/4, steal 0.7s | grust-portable-api |  |
+| surreal-sdk | LOAD | full | fail | 1 | 289218 | 0.16 | 0 |  |  | 1 | x86_64/4, steal 1.2s |  | backend error: SurrealDB SDK query failed: Connection reset; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
 | falkor | A1 | 200k | fail | 1 | 76 | 0.24 | 57 | 66367 | 66367 | 1 | x86_64/4 | harness-native-cypher | layers [10000] != oracle [12215] earlier fail (gates=1) in 20260905T053739Z: layers [10000] != oracle [12215]; earlier pass (gates=0) in 20260905T060047Z: ; earlier pass (gates=0) in 20260905T085736Z:  |
 | falkor | A1 | 200k | pass | 0 | 78 | 0.29 | 91 | 69631 | 69631 | 1 | x86_64/4 | harness-native-cypher (resultset_size=-1) |  |
 | falkor | A1 | 200k | fail | 1 | 80 | 0.24 | 57 | 68287 | 68287 | 2 | x86_64/4 | harness-native-cypher (resultset_size=10000) | layers [10000] != oracle [12215] earlier fail (gates=1) in 20260905T164202Z: layers [10000] != oracle [12215]; earlier fail (gates=1) in 20260906T070349Z: layers [10000] != oracle [12215] |
@@ -1010,7 +1040,7 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | helix-http | A7 | 10k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | helix-http | LOAD | 10k | pass | 0 | 303935 | 0.00 | 297419 |  |  | 1 | x86_64/4, steal 0.9s | grust-portable-api |  |
 | helix-http | LOAD | 200k | fail | 1 | 96378 | 0.02 | 36770 |  |  | 1 | x86_64/4, steal 0.3s |  | backend error: Helix query failed with status 408 Request Timeout earlier fail (gates=1) in 20260905T160243Z: backend error: Helix query failed with status 408 Request Timeout; earlier fail (gates=1) in 20260905T163559Z: backend error: Helix query failed with status 408 Request Timeout; earlier fail (gates=1) in 20260906T071652Z: backend error: Helix query failed with status 408 Request Timeout |
-| helix-http | LOAD | full | fail | 1 | 1123943 | 0.04 | 399955 |  |  | 1 | x86_64/4, steal 2.1s |  | backend error: Helix query failed with status 408 Request Timeout |
+| helix-http | LOAD | full | fail | 1 | 1120875 | 0.02 | 329741 |  |  | 1 | x86_64/8, steal 0.5s |  | backend error: Helix query failed with status 408 Request Timeout; container adversarial-graph-helix-1: running earlier fail (gates=1) in 20260907T132528Z: backend error: Helix query failed with status 408 Request Timeout |
 | helix-sdk | A1 | 10k | fail | 1 | 9 | 0.05 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | khop failed: serialization error: invalid Helix SDK read: unknown variant `Read`, expected `read` or `write` |
 | helix-sdk | A2 | 10k | fail | 1 | 8 | 0.03 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | deep traversal failed: serialization error: invalid Helix SDK read: unknown variant `Read`, expected `read` or `write` |
 | helix-sdk | A3 | 10k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | bounded read policy is exercised through the reference executor on the memory backend |
@@ -1018,7 +1048,7 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | helix-sdk | A7 | 10k | unsupported | 0 | 8 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | helix-sdk | LOAD | 10k | fail | 1 | 0 |  |  |  |  |  | x86_64/4 |  | open failed: backend error: Helix SDK replace/drop failed earlier pass (gates=0) in 20260905T162338Z: ; earlier fail (gates=1) in 20260906T071648Z: open failed: backend error: Helix SDK replace/drop failed |
 | helix-sdk | LOAD | 200k | fail | 1 | 0 |  |  |  |  |  | x86_64/4 |  | open failed: backend error: Helix SDK replace/drop failed earlier fail (gates=1) in 20260905T160543Z: backend error: Helix SDK edge write failed; earlier fail (gates=1) in 20260905T163851Z: backend error: Helix SDK edge write failed; earlier fail (gates=1) in 20260906T071944Z: open failed: backend error: Helix SDK replace/drop failed |
-| helix-sdk | LOAD | full | fail | 1 | 0 |  |  |  |  |  | x86_64/4 |  | open failed: backend error: Helix SDK replace/drop failed |
+| helix-sdk | LOAD | full | fail | 1 | 7200081 | 0.00 | 6546962 |  |  | 1 | x86_64/16, steal 0.6s |  | backend error: the load did not finish inside the 7200 s load budget (2394385 nodes, 5021410 edges offered); container adversarial-graph-helix-sdk-1: running earlier fail (gates=1) in 20260907T134432Z: open failed: backend error: Helix SDK replace/drop failed |
 | neo4j | A1 | 200k | pass | 0 | 425 | 0.09 | 1149 | 415743 | 415743 | 2 | x86_64/4 | harness-native-cypher |  |
 | neo4j | A1 | full | pass | 0 | 2682 | 0.39 | 4363 | 786943 | 1118207 | 1 | x86_64/4 | harness-native-cypher |  |
 | neo4j | A12 | full | pass | 0 | 61730 | 0.32 | 82723 | 2059 | 877567 | 3 | x86_64/4, steal 0.0s | harness-native-cypher |  |
@@ -1074,4 +1104,4 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | age | LOAD | 200k | pass | 0 | 64742 | 0.00 | 68314 |  |  | 1 | x86_64/4, steal 0.1s | harness-native-cypher |  |
 | age | LOAD | full | pass | 0 | 889101 | 0.01 | 872904 |  |  | 3 | aarch64/10 | harness-native-cypher |  |
 
-Latest-cell hard-gate total: **3600** across 982 cells from 331 runs; 58 earlier failing cell(s) are kept in the Notes column of their superseding row.
+Latest-cell hard-gate total: **3620** across 1012 cells from 364 runs; 65 earlier failing cell(s) are kept in the Notes column of their superseding row.
