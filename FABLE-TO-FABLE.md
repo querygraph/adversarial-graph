@@ -3563,3 +3563,64 @@ today were builds of `11aa620`. No ladder ran on grust today, so no row
 is affected. The files are gone, the host is at `2474a9a` with a fresh
 binary (21:42 UTC), and the script on all three hosts now stops and says
 `REBUILD_FAILED` when the pull does not go through.
+
+## 55. The rest of the matrix without eigen: the M and L tiers for Surreal, Helix and the embedded stores are placements (2026-09-12 12:30 UTC)
+
+The user asked for the benchmark finished without eigen, the work
+redistributed. The holes the adapter fixes had opened (§53–§54) and the
+cells that had never had a row were split by memory: quegee (40 GB) took
+helix-sdk on the six-tier ladder, then both Surreal lanes at the four
+larger tiers, then turso-mvcc and ladybug where they had no row; grust
+(31 GB) took helix-http on the ladder, then every missing backend at its
+own three tiers (soc-Pokec, GAP-road, sx-stackoverflow); lakecat (15 GiB)
+took Surreal at wiki-Talk and roadNet-CA. 22:07 to 10:50 UTC, 33 runs,
+40 cells, 27 gates, and every gate is a placement the row explains.
+
+- **SurrealDB's memory storage does not hold an M tier in 6 GiB.** Every
+  Surreal load above the S tiers, on all three hosts, both lanes, is
+  OOM-killed by the kernel at the container's limit between 206 s and
+  361 s in (wiki-Talk, roadNet-CA, web-Google, cit-Patents,
+  soc-LiveJournal1, com-Orkut, soc-Pokec, GAP-road, sx-stackoverflow).
+  The HTTP lane sees a dropped request, the SDK a connection reset, and
+  the row carries `exited, exit 137, OOMKilled`. The adapter is no
+  longer in the way; the store's envelope is, the same one FalkorDB and
+  Neo4j over HTTP met on soc-LiveJournal1.
+- **helix-http cannot load past the gateway's 30 s request timeout.**
+  From wiki-Talk up every load ends in 408 once a 500-edge batch outruns
+  the timeout (1,121 s, 927 s, 431 s, 1,433 s), or in 500 with the
+  container OOM-killed (cit-Patents, soc-LiveJournal1, 28 min each). The
+  wiki-Talk "pass" in the matrix was the 10k slice; the full tier had
+  always 408'd. The id index the harness creates bought the S tiers,
+  not these.
+- **helix-sdk's batches grow with the graph.** wiki-Talk on quegee and
+  soc-Pokec on grust run the two-hour load budget out. At 4,039 nodes a
+  handle-addressed batch was 0.3 s; the probe already showed it rising
+  batch over batch, and at 5 M edges that is the whole budget. Both
+  hosts stop climbing there.
+- **The embedded stores, placed.** turso-mvcc is not attempted at
+  cit-Patents (1,505 edges/s measured on quegee, 3.0 h) and at soc-Pokec
+  (1,112 edges/s on grust, 7.6 h); ladybug not at soc-Pokec (2,288
+  edges/s, 3.7 h) and runs the budget out at cit-Patents (the process
+  took SIGSEGV as the harness ended it; the row is the budget). memory
+  loads soc-Pokec in 118 s and passes every family (A2 58 s), and at
+  GAP-road reaches the host guard at 22 GB resident 76 s in, no bundle.
+  LanceDB (376 s) and AGE (5,455 s) load soc-Pokec and spend the pair's
+  remaining hours in the fan-out with no further row, as on 2026-09-10;
+  AGE's A1 from then stands as the latest cell.
+
+Nothing needed a hand overnight; one launch needed a second try (the
+lakecat wrapper without `BENCHMARK_CPU_LIMIT=4` asks compose for eight
+CPUs of four and the ladder ends at once). RESULTS.md is at 1,012 cells
+from 364 runs (`e7095c5`); the site has `2026-09-12-quegee`, `-grust`
+and `-lakecat` (site `b69505f`, twenty-six publications verified,
+undeployed). eigen ran its embedding job throughout and has none of
+this; its checkout is pulled, its binary is not rebuilt.
+
+### What is left
+
+By the matrix, nothing that a run on these three hosts would change:
+every (dataset, backend) cell at every tier has a row, and the rows that
+are not passes say which limit placed them. What would change them is a
+different limit (a larger container for Surreal, a longer gateway
+timeout for helix-http, a longer budget for the embedded stores), which
+is a different benchmark. The deploy is still the user's.
