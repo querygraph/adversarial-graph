@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- The ladder stops climbing a backend after a load whose container the
+  kernel took at its memory limit (the row's `OOMKilled`), as it does
+  after a load budget: a larger tier will not fit either, and on
+  2026-09-11 the Surreal lanes wrote 22 rows saying what the first said.
+
+- A run under a container memory limit other than the track's 6 GiB
+  (`BENCHMARK_MEMORY_LIMIT_BYTES`) names it in every row's profile
+  (`mem_limit=<bytes>`), so its rows never supersede the 6 GiB rows in
+  RESULTS.md; the default is not named and earlier rows keep their key.
+
 - Grust repinned to 1de21d5: the Surreal HTTP store signs in once and sends
   a bearer token (basic auth on `/sql` was a password hash per request,
   ~50 ms of server CPU, 45 s of every two-hop round before a query ran),

@@ -190,6 +190,12 @@ for b in "${BACKENDS[@]}"; do
       if grep -qE "not attempted: .* load budget|did not finish inside the .* load budget" "$pairlog"; then
         echo "## $b: not trying larger tiers after the load budget at $d"; rm -f "$pairlog"; break
       fi
+      # A container the kernel took at its memory limit is a placement too,
+      # and a larger tier will not fit either: 22 rows on 2026-09-11 said
+      # what the first one said.
+      if grep -q "OOMKilled" "$pairlog"; then
+        echo "## $b: not trying larger tiers after the container's memory limit at $d"; rm -f "$pairlog"; break
+      fi
     else
       echo "## $b $d: exit $rc after the pair cap $((2 * CAP))s, host memory guard, or crash $(date -u +%H:%M:%SZ); no complete bundle; not trying larger tiers for $b"; rm -f "$pairlog"; break
     fi

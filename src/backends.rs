@@ -198,20 +198,25 @@ impl BackendKind {
     /// every row so runs under different profiles never overwrite each other
     /// in `RESULTS.md`.
     pub fn profile(self) -> Option<String> {
+        let mut parts = Vec::new();
         match self {
             #[cfg(feature = "falkor")]
-            Self::Falkor => Some(format!(
+            Self::Falkor => parts.push(format!(
                 "resultset_size={}",
                 env_or("FALKOR_RESULTSET_SIZE", "10000")
             )),
             #[cfg(feature = "ladybug")]
-            Self::Ladybug => Some(format!(
+            Self::Ladybug => parts.push(format!(
                 "buffer_pool_bytes={},concurrent_writes={}",
                 ladybug_buffer_pool_bytes(),
                 ladybug_concurrent_writes()
             )),
-            _ => None,
+            _ => {}
         }
+        if self.container().is_some() {
+            parts.extend(container_envelope());
+        }
+        (!parts.is_empty()).then(|| parts.join(","))
     }
     pub fn container(self) -> Option<&'static str> {
         match self {
@@ -417,6 +422,22 @@ async fn helix_create_id_index(kind: BackendKind) -> grust::Result<()> {
     Err(Backend(format!(
         "Helix index creation failed with status {status}: {body}"
     )))
+}
+
+/// The container memory limit a run was taken under, when it is not the
+/// track's uniform envelope. The compose gives every service
+/// `BENCHMARK_MEMORY_LIMIT_BYTES` (default 6 GiB, no swap), and the strain
+/// rows are comparable because of it; a run under another limit is a
+/// different experiment and names itself in the profile so it never
+/// supersedes a 6 GiB row in RESULTS.md. The default is not named, so the
+/// rows taken before this existed keep their key.
+fn container_envelope() -> Option<String> {
+    let bytes = std::env::var("BENCHMARK_MEMORY_LIMIT_BYTES").ok()?;
+    let bytes = bytes.trim();
+    if bytes.is_empty() || bytes == "6442450944" {
+        return None;
+    }
+    Some(format!("mem_limit={bytes}"))
 }
 
 /// LadybugDB embedded through Grust's internal adapter (the `lbug` crate),
