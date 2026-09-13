@@ -361,6 +361,7 @@ pub fn in_process_policy_with(
         allow_graph_selection: false,
         allow_catalog_procedures: false,
         require_match: false,
+        allow_read_procedures: false,
     }
 }
 

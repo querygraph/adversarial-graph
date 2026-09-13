@@ -300,6 +300,7 @@ fn surreal_config(tag: &str, transport: &str) -> grust::SurrealConfig {
         // RELATE; the adapter's default minute was for its pre-index scans.
         // Ten minutes is a bound on a stalled server, not on a slow batch.
         request_timeout: std::time::Duration::from_secs(600),
+        bulk_batch_size: 500,
     }
 }
 
@@ -342,6 +343,7 @@ fn connect_helix(kind: BackendKind) -> grust::Result<Arc<dyn AdminStore>> {
             grust_helix::HelixHttpConfig {
                 query_url: format!("{}/v1/query", helix_base_url().trim_end_matches('/')),
                 batch_size: 500,
+                bulk_batch_size: 500,
                 labels: vec![NODE_LABEL.to_string()],
             },
         )?),

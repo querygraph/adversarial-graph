@@ -403,7 +403,7 @@ async fn conform(
             },
         };
         println!(
-            "  CAPABILITY  parallel edges (same from/label/to, distinct ids) in one batch: {outcome}; not exercised by the benchmarks, whose loaders dedupe that key"
+            "  CAPABILITY  parallel edges (same from/label/to, distinct ids) in one batch: {outcome}; exercised by sx-stackoverflow, whose repeated interactions each carry an id"
         );
     }
 

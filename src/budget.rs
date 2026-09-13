@@ -57,6 +57,12 @@ pub fn measured_rate(out_dir: &Path, backend: &str) -> Option<MeasuredRate> {
         let Ok(report) = serde_json::from_str::<serde_json::Value>(&text) else {
             continue;
         };
+        // A rate measured under another Grust source says nothing about this
+        // build: an adapter change can make a store ten times faster or
+        // slower, and a stale rate would refuse a load that now fits.
+        if report["grust_source"].as_str() != Some(env!("AG_GRUST_CORE_SOURCE")) {
+            continue;
+        }
         let Some(results) = report["results"].as_array() else {
             continue;
         };
@@ -108,6 +114,7 @@ mod tests {
         let d = dir.join(run);
         std::fs::create_dir_all(&d).unwrap();
         let report = serde_json::json!({
+            "grust_source": env!("AG_GRUST_CORE_SOURCE"),
             "results": [{
                 "scenario": "LOAD", "backend": backend, "dataset": dataset, "outcome": outcome,
                 "gates": {}, "observations": {"edges": edges, "edges_per_s": rate}
@@ -167,5 +174,21 @@ mod tests {
         );
         assert!(measured_rate(dir.path(), "falkor").is_none());
         assert!(measured_rate(Path::new("/nonexistent"), "neo4j").is_none());
+    }
+
+    #[test]
+    fn a_rate_measured_under_another_grust_source_is_ignored() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path().join("20260910T000000Z");
+        std::fs::create_dir_all(&d).unwrap();
+        let report = serde_json::json!({
+            "grust_source": "git+https://github.com/querygraph/grust?rev=an-older-revision",
+            "results": [{
+                "scenario": "LOAD", "backend": "turso-mvcc", "dataset": "cit-Patents", "outcome": "pass",
+                "gates": {}, "observations": {"edges": 16_518_948u64, "edges_per_s": 1_505.0}
+            }]
+        });
+        std::fs::write(d.join("report.json"), report.to_string()).unwrap();
+        assert!(measured_rate(dir.path(), "turso-mvcc").is_none());
     }
 }

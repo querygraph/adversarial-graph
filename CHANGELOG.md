@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Every Grust crate now comes from one git rev of Grust main (0.14.0), and
+  the `[patch.crates-io]` overlay is gone. At that rev Turso keys each edge
+  by its id as well as (from, label, to), so it keeps parallel edges the way
+  grust-memory and LanceDB do. Under MVCC it commits a whole-graph load in
+  groups of statements rather than all at once. The new fields keep today's
+  behaviour: A8 runs no read procedures (`allow_read_procedures: false`),
+  and Surreal and Helix send whole-graph loads in 500-row requests, as their
+  incremental path does.
+
+- The load-rate predictor counts only runs made under the Grust source the
+  binary was built from. A rate measured under an older store (a slower
+  MVCC load) no longer vetoes a graph the current one would load in budget.
+
 - A temporal edge list (sx-stackoverflow) keeps its parallel edges, and now
   gives each one its own id: its position in the file on the materialized
   path, its position in CSR order on the compact one. A store that keys
