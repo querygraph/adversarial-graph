@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- The profile a load ran under is on every LOAD row, not only a passing
+  one. Recorded only on success, a failed load under a non-default profile
+  (the 24 GiB envelope, FalkorDB's result-set size) was keyed as a default
+  run: the two 24 GiB Surreal OOM rows of 2026-09-12 would have superseded
+  the 6 GiB rows, and FalkorDB's failed soc-LiveJournal1 load has sat beside
+  its later pass instead of in its Notes. Those rows predate the fix and
+  keep their keys; the Surreal pairs are rerun.
+
 - The ladder stops climbing a backend after a load whose container the
   kernel took at its memory limit (the row's `OOMKilled`), as it does
   after a load budget: a larger tier will not fit either, and on

@@ -372,6 +372,15 @@ async fn run(root: &Path, args: &Args) {
             let t = std::time::Instant::now();
             let load_probe = probe::Probe::start(kind.container());
             let mut load_result = report::ScenarioResult::new("LOAD", kind.name(), dataset_name);
+            // The configuration the load ran under keys the row in RESULTS.md,
+            // so it goes on every load row, whatever the outcome: recorded
+            // only on success, a failed load under a non-default profile was
+            // keyed as a default run and superseded the default row (the two
+            // 24 GiB Surreal OOMs of 2026-09-12 would have replaced the 6 GiB
+            // ones), and a failed FalkorDB load never gave way to a later pass.
+            if let Some(profile) = kind.profile() {
+                load_result.observe("profile", profile);
+            }
             let load_budget = budget::load_budget();
             // A tier the store's own measured rate on this host says cannot
             // load inside the budget is not sent to spend it: the row says
@@ -474,9 +483,6 @@ async fn run(root: &Path, args: &Args) {
                     );
                     load_result.observe("load_path", backend.read_path());
                     load_result.observe("transport", kind.transport());
-                    if let Some(profile) = kind.profile() {
-                        load_result.observe("profile", profile);
-                    }
                     load_result.observe("nodes", rep.nodes);
                     load_result.observe("edges", rep.edges);
                     // A load the store reports short is not a load: the
