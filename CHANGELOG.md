@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Grust is pinned at main 4502b8a, which adds a lean grust-memory. The store
+  holds each edge once (48 bytes per edge at 10M edges instead of 694), and
+  Cypher reads it in place instead of copying the graph into its index.
+  At 10M edges the peak for loading and reading fell from 222 to 96 bytes per
+  edge, which should bring GAP-road, sx-stackoverflow, soc-LiveJournal1 and
+  com-Orkut inside the 34 GiB envelope.
+
 - Every Grust crate now comes from one git rev of Grust main (0.14.0), and
   the `[patch.crates-io]` overlay is gone. At that rev Turso keys each edge
   by its id as well as (from, label, to), so it keeps parallel edges the way
