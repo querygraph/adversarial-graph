@@ -379,6 +379,9 @@ def render(site):
     server_reach = max(CL(b) for b in rust_servers)
     local_beats_servers = min(CL(b) for b in rust_local) > server_reach
     assert CL(top) == max(CL(b) for b in BACKENDS)
+    assert (round(min(CL(b) for b in rust_local) / 1e5) / 10, round(max(CL(b) for b in rust_local) / 1e5) / 10,
+            round(server_reach / 1e3), round(CL(top) / 1e6)) == (5.5, 57.7, 88, 117), "reach-by-family summary is stale"
+    assert set(b for b in BACKENDS for d in typed if status(cells, b, d, DEFAULT)["kind"] == "wrong") <= {"falkor", "memgraph", "neo4j", "neo4j-http"}, "typed summary is stale"
     surreal24 = status(cells, "surreal-http", "wiki-Talk", BIG)
     assert surreal24["kind"] == "mem", "SurrealDB at 24 GiB no longer ends at the container limit"
     moved_by_24 = [b for b in BACKENDS if any(status(cells, b, d, BIG)["kind"] in ("clean", "partial") and
@@ -503,13 +506,15 @@ def render(site):
         '<p>Every backend against every whole graph, smallest to largest. The ladder stops at a backend\'s first wall, so '
         'the cells right of it are usually empty rather than failed.</p>'
         + legend + matrix(untyped, DEFAULT, "Strain matrix, standard envelope") +
-        '<h3 style="margin-top:36px">Typed graphs: deletes, isolation and Cypher</h3>'
-        '<p>The typed graphs carry labels and properties for the semantic families: recursive deletes (A5), isolation under '
-        'mixed load (A6) and differential Cypher against a reference executor (A8).</p>'
-        + matrix(typed, DEFAULT, "Typed graphs, standard envelope") +
-        '<h3 style="margin-top:36px">The same stores with 24 GiB</h3>'
-        '<p>A second envelope for the stores the 6 GiB limit placed. These rows stand beside the 6 GiB rows and never replace them.</p>'
-        + matrix(big_ds, BIG, "Strain matrix, 24 GiB envelope") +
+        acc('<strong>Typed graphs: deletes, isolation and Cypher</strong><span class="verdict">Wrong answers or deadline hangs on A8 '
+            'for FalkorDB, Memgraph and Neo4j; the rest clean or within declared limits.</span>',
+            '<p>The typed graphs carry labels and properties for the semantic families: recursive deletes (A5), isolation under '
+            'mixed load (A6) and differential Cypher against a reference executor (A8).</p>'
+            + matrix(typed, DEFAULT, "Typed graphs, standard envelope")) +
+        acc(f'<strong>The same stores with 24 GiB</strong><span class="verdict">{esc(", ".join(BACKENDS[b]["name"] for b in moved_by_24))} '
+            'get past the walls 6 GiB set; SurrealDB does not.</span>',
+            '<p>A second envelope for the stores the 6 GiB limit placed. These rows stand beside the 6 GiB rows and never replace them.</p>'
+            + matrix(big_ds, BIG, "Strain matrix, 24 GiB envelope")) +
         '</div></section>')
 
     # ---- the Rust question
@@ -550,10 +555,12 @@ def render(site):
         + ('How a store runs predicts its reach better than its language: every Rust engine that runs in process outlasts every '
            'Rust server here.' if local_beats_servers else '')
         + '</p></div>'
-        '<div class="evidence-table" tabindex="0" role="region" aria-label="Reach by engine group"><table><thead><tr>'
-        '<th>Group</th><th>Backends</th><th>Furthest clean</th><th>Each, largest clean graph</th></tr></thead><tbody>'
-        + "".join(grp_rows) + '</tbody></table></div>'
-        '<h3 style="margin-top:36px">Head to head with Neo4j over Bolt</h3>'
+        + acc('<strong>Reach by engine family</strong><span class="verdict">In-process Rust engines reach 5.5 to 57.7 M edges; '
+              'Rust servers 88 k; the JVM 117 M.</span>',
+              '<div class="evidence-table" tabindex="0" role="region" aria-label="Reach by engine group"><table><thead><tr>'
+              '<th>Group</th><th>Backends</th><th>Furthest clean</th><th>Each, largest clean graph</th></tr></thead><tbody>'
+              + "".join(grp_rows) + '</tbody></table></div>')
+        + '<h3 style="margin-top:36px">Head to head with Neo4j over Bolt</h3>'
         '<p>Every pair where a Rust store and Neo4j passed the same scenario on the same graph and slice on the same machine. '
         '<em>Always faster</em> means the Rust store won every such pair (at least two); the ratio is Neo4j\'s time over the '
         'Rust store\'s, the median across pairs. Hover a cell for each pair. In-process stores skip the network and '
@@ -615,6 +622,23 @@ def render(site):
                 '<th>Scenario</th><th>Slice</th><th>Profile</th><th>Outcome</th><th>Wall</th><th>Server CPU</th><th>Notes</th><th>Run</th>'
                 '</tr></thead><tbody>' + "".join(rows) + '</tbody></table></div>')
 
+    def verdict(b):
+        r = R[b]
+        parts = [f"clean up to {r['clean']} ({edges(CL(b))})" if r["clean"] else "clean on no whole graph"]
+        fur = r["sustained"] if sizes.get(r["sustained"], 0) > CL(b) else None
+        if fur:
+            parts.append(f"loads {fur} ({edges(sizes[fur])}) with every family it ran passing")
+        fw = r["first_wall"]
+        parts.append(f"first wall at {fw}: {CAUSE[r['status'][fw]['cause']][1]}" if fw else "no wall on any graph it ran")
+        if r["wrong"]:
+            parts.append("gated failures on " + ", ".join(r["wrong"]))
+        text = "; ".join(parts) + "."
+        return text[0].upper() + text[1:]
+
+    def tally(kinds):
+        c = collections.Counter(kinds)
+        return ", ".join(f"{c[k]} {KIND_WORD[k]}" for k in ("clean", "caveat", "partial", "wrong", "mem", "time", "crash", "refused") if c[k])
+
     group_blocks = []
     for gkey, glabel, gdesc in GROUPS:
         backend_blocks = []
@@ -629,27 +653,38 @@ def render(site):
                 tkeys = [k for k in keys if sel(k)]
                 if not tkeys:
                     continue
-                ds_blocks = []
+                ds_blocks, kinds = [], []
                 for d in sorted({k[0] for k in tkeys}, key=lambda d: sizes.get(d, 0)):
                     dkeys = [k for k in tkeys if k[0] == d]
                     stt = status(cells, b, d, DEFAULT) if tier_label != "Slices of graphs" else None
-                    head = (f'{chip(stt["kind"], stt["title"]) if stt else ""}<strong>{esc(d)}</strong>'
-                            f'<span class="muted">{edges(sizes.get(d))} edges · {esc(DATASETS.get(d, ("", "", ""))[2])} · {len(dkeys)} cells</span>')
+                    if stt and stt["kind"] != "none":
+                        kinds.append(stt["kind"])
+                        said = "every family passed" if stt["kind"] == "clean" else stt["title"]
+                        what = f'<span class="verdict">{esc(said)}</span>'
+                    else:
+                        what = '<span class="verdict">early runs on part of the graph</span>'
+                    head = (f'{chip(stt["kind"], stt["title"]) if stt else ""}<strong>{esc(d)}</strong>{what}'
+                            f'<span class="muted">{edges(sizes.get(d))} edges · {esc(DATASETS.get(d, ("", "", ""))[2])}</span>')
                     ds_blocks.append(acc(head, cell_table(dkeys), "ds"))
-                tiers.append(acc(f'<strong>{esc(tier_label)}</strong><span class="muted">{len(tkeys)} cells</span>', "".join(ds_blocks), "tier"))
+                tsum = tally(kinds) if kinds else f"{len({k[0] for k in tkeys})} graphs, sliced"
+                tiers.append(acc(f'<strong>{esc(tier_label)}</strong><span class="muted">{esc(tsum)}</span>', "".join(ds_blocks), "tier"))
             r = R[b]
             meta = (f'{esc(BACKENDS[b]["lang"])}, {esc(BACKENDS[b]["form"])} · {esc(BACKENDS[b]["path"])} · {esc(BACKENDS[b]["version"])}')
-            head = (f'<strong>{name(b)}</strong><span class="muted">{meta}</span>'
-                    f'<span class="muted">largest clean: {edges(CL(b)) if r["clean"] else "none"} · {len(keys)} cells</span>')
+            head = (f'<strong>{name(b)}</strong><span class="verdict">{esc(verdict(b))}</span>'
+                    f'<span class="muted">{meta}</span>')
             backend_blocks.append(acc(head, "".join(tiers), "backend"))
-        group_blocks.append(acc(f'<strong>{esc(glabel)}</strong><span class="muted">{esc(gdesc)}</span>', "".join(backend_blocks), "group"))
+        members = [b for b in BACKENDS if BACKENDS[b]["group"] == gkey]
+        best = max(members, key=CL)
+        gsum = f"Furthest clean: {BACKENDS[best]['name']} up to {R[best]['clean']} ({edges(CL(best))})." if R[best]["clean"] else ""
+        group_blocks.append(acc(f'<strong>{esc(glabel)}</strong><span class="verdict">{esc(gsum)}</span><span class="muted">{esc(gdesc)}</span>',
+                                "".join(backend_blocks), "group"))
     s_cells = (
         '<section class="wrap" id="every-cell">'
-        '<div class="section-head"><span class="eyebrow">Every cell</span>'
-        f'<h2>All {len(cells):,} latest cells, grouped.</h2>'
-        '<p>Engine family, then backend, then whole graphs, typed graphs and slices, then each graph. The latest run per '
-        'dataset, backend, scenario, slice and profile, as in RESULTS.md; earlier runs stay in the ledger below. '
-        'Each row links to the report it came from.</p></div>' + "".join(group_blocks) + '</section>')
+        '<div class="section-head"><span class="eyebrow">Every result</span>'
+        '<h2>Open an engine family, then a backend, then a graph.</h2>'
+        f'<p>Each line says in words what happened at that level: how far a family and a backend got and what stopped them, '
+        f'and what decided each graph. Under a graph is its evidence, one row per scenario, linked to the run it came from. '
+        f'{len(cells):,} results in all, the latest per dataset, backend, scenario, slice and profile.</p></div>' + "".join(group_blocks) + '</section>')
 
     return "\n".join([BEGIN, s_exec, s_key, s_rust, s_scen, s_cells, END])
 
