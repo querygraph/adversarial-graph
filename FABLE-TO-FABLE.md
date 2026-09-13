@@ -3624,3 +3624,101 @@ are not passes say which limit placed them. What would change them is a
 different limit (a larger container for Surreal, a longer gateway
 timeout for helix-http, a longer budget for the embedded stores), which
 is a different benchmark. The deploy is still the user's.
+
+## 56. A second envelope: 24 GiB answers the 6 GiB placements; the harness learns to tag a failed load; I froze my own session (2026-09-13 16:00 UTC)
+
+The user asked whether the 6 GiB OOM rows were worth much. One is; the
+rest repeated it. Two harness changes followed, and a second container
+envelope on quegee to answer where the placed stores actually land.
+
+### The harness
+
+- `63f82a1`: an OOM-killed load stops the ladder's climb for that backend,
+  as a budget refusal does (on 2026-09-11 the Surreal lanes wrote 22 rows
+  saying what the first said). A container limit other than 6 GiB names
+  itself in the profile (`mem_limit=<bytes>`), so its rows stand beside
+  the 6 GiB rows and never replace them.
+- `a3a37b1`: Memgraph's own declared limit is named the same way when it
+  is not 5 GiB.
+- `979dc1a`: the profile goes on every LOAD row. It had been recorded only
+  on the success branch, so a failed load under a non-default profile was
+  keyed as a default run: the 24 GiB Surreal OOMs of 2026-09-12 would have
+  superseded the 6 GiB rows. The same bug left FalkorDB's failed
+  soc-LiveJournal1 load beside its later pass instead of in its Notes;
+  those old rows keep their keys.
+
+### What 24 GiB says (quegee, containers at 24 GiB without swap)
+
+| store, tier | at 6 GiB | at 24 GiB |
+|---|---|---|
+| FalkorDB, GAP-road | OOM-killed 423 s into the load | loads in 3,949 s; A1 1.0 s, A2 1.2 s; the hot node runs out the pair's four hours |
+| Neo4j over HTTP, soc-LiveJournal1 | OOM-killed | loads in 2,349 s; A1 75 s, A2 1 h 12 min, A4 3.6 s, A12 60 s |
+| Memgraph, soc-LiveJournal1 / GAP-road / sx-stackoverflow | stopped at its declared 5 GiB | loads in 1,549 / 1,541 / 1,373 s; every family passes (A2 20 min / 0.9 s / 12 min) |
+| SurrealDB HTTP and SDK, wiki-Talk | OOM-killed in 4–6 min | OOM-killed at the 24 GiB limit after 1,290 s and 1,287 s |
+
+For FalkorDB, Neo4j over HTTP and Memgraph the 6 GiB wall was the whole
+story. SurrealDB's memory storage, through this adapter, needs more than
+24 GiB for five million edges; more memory is not what would move it.
+Memgraph ran with `MEMGRAPH_MEMORY_MB=24576` as well, but on binary
+`63f82a1`, which predates the profile naming it: its rows show only the
+container limit, and the site section says so. The five FalkorDB, Neo4j
+and Memgraph runs are clean at `63f82a1`; the two Surreal rows ran at
+`a3a37b1` with the `979dc1a` fix uncommitted, as the manifest lists.
+RESULTS.md: 1,046 cells from 371 runs (`8006db9`). Site:
+`2026-09-12-quegee-24g` and `2026-09-13-quegee-24g`, twenty-nine
+publications verified, undeployed.
+
+### Four void attempts, three of them mine
+
+1. **grust, 2026-09-12 12:49–12:52.** I launched FalkorDB, Neo4j-HTTP and
+   Memgraph at 24 GiB on grust with a 6 GB client guard; the harness's own
+   GAP-road reference needs 10–13 GB, so each pair was killed in its first
+   minute. On a 31 GB host a 24 GiB container plus that client does not
+   fit anyway. Empty run directories; rerun on quegee. I noticed only
+   when the user asked, so quegee sat idle 13:26–16:15.
+2. **quegee, 2026-09-12 12:41 and 13:04.** Surreal at 24 GiB, a real OOM at
+   the limit, but untagged (the `979dc1a` bug). In `reports-void-20260912/`.
+3. **quegee, 2026-09-13 12:07.** The user asked that the hn4 embedding
+   shards on quegee be suspended while the benchmark ran. I froze them by
+   scope, picking the scopes with `pgrep -f 'et embed --root fit-hn4'`,
+   which also matched the shell running the command. So the loop froze
+   that shell's tmux scope, which held the previous Claude Code session
+   (it died mid-command) and the benchmark launched from it: the client
+   stopped mid-load with SurrealDB at 10.3 GiB, and its load-budget timer,
+   inside the frozen process, never fired. The new session found it at
+   14:38, killed the frozen benchmark processes with SIGKILL (no row
+   written) and did not thaw the scope: the old session is still frozen in
+   its tmux pane, and the user has said not to thaw anything. A page-out
+   of the frozen shards' memory did not take (the swap setting never
+   reached their cgroups) and was reverted. This is the fourth time a
+   text pattern matched the shell issuing it; it is in the session's
+   memory as a rule now: select by exact PID or command name, print the
+   selection, and check none is this session's scope.
+4. **grust, 2026-09-13 14:41.** The tagged rerun on grust could not reach
+   24 GiB: with the client at 5.8 GB, the ladder's 2 GB free-memory floor
+   ends the pair around 22 GiB. Stopped at six minutes. In
+   `reports-void-20260913/` on grust.
+
+The tagged rerun then ran on quegee from 14:49, started by a trigger that
+waited for no `et` process and 34 GB free: the eigen session had stopped
+its hn4 share there at 14:41 and moved it to grust (its diary,
+`2649d08`), where the user has asked that the benchmark not go.
+
+### Coordination
+
+Three sessions shared quegee and grust today: this one, the eigen session
+(hn4 embedding) and a Codex session building Grust Cypher features in
+quegee's `~/src/grust`. None can message the others. What worked was the
+eigentimes diary (`f68cc23`, `307bbf4`, `d75dff3` from here; `2649d08` from
+eigen) and, for Codex, a file: the user asked it to hold heavy builds, and
+this session wrote `~/src/grust/codex-go.md` the moment the rerun ended
+(15:33 UTC). One ten-second `cargo` run at 15:08 stayed under 1 GB. The
+proposal to the user stands: a window file on each benchmark host, written
+and removed by the benchmark wrapper, that the other jobs check before
+starting.
+
+### What is left
+
+Nothing that runs on these hosts. Every placed store now has a row at
+6 GiB and, where more memory could change the answer, at 24 GiB. The
+deploy is the user's. eigen was not touched.
