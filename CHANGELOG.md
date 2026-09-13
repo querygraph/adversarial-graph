@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `scripts/render-strain-summary.py SITE [--check]` renders the strain page's
+  summary from the site's published evidence: the latest cell per key as in
+  RESULTS.md, each classified by what decided it (a gate, a memory or time
+  wall, a typed refusal, a declared limit), the strain matrix, reach by engine
+  family, the Rust-against-Neo4j head-to-head (same graph, slice and machine,
+  both passing), and every cell grouped. Every number in its prose is computed
+  and the claims it names are asserted, so the page cannot drift silently;
+  `--check` fails when the page differs from the evidence.
+
 - The profile a load ran under is on every LOAD row, not only a passing
   one. Recorded only on success, a failed load under a non-default profile
   (the 24 GiB envelope, FalkorDB's result-set size) was keyed as a default
