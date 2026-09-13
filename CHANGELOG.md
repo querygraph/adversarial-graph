@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- A temporal edge list (sx-stackoverflow) keeps its parallel edges, and now
+  gives each one its own id: its position in the file on the materialized
+  path, its position in CSR order on the compact one. A store that keys
+  edges by id (grust-memory and LanceDB already do) keeps every
+  interaction instead of merging repeats of one (from, label, to). Plain
+  edge lists carry no edge ids, so every other dataset loads as before.
+
 - `scripts/render-strain-summary.py SITE [--check]` renders the strain page's
   summary from the site's published evidence: the latest cell per key as in
   RESULTS.md, each classified by what decided it (a gate, a memory or time

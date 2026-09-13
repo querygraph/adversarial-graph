@@ -184,7 +184,16 @@ pub fn load_snap_edge_list(
         }
         nodes.insert(from.clone());
         nodes.insert(to.clone());
-        edges.push(Edge::new(EDGE_LABEL, from, to, Props::new()));
+        let edge = Edge::new(EDGE_LABEL, from, to, Props::new());
+        // A temporal list keeps parallel edges; each gets its own id, its
+        // position in the file, so a store that keys edges by id keeps them
+        // all rather than merging repeats of one (from, label, to).
+        edges.push(if keep_parallel {
+            let id = format!("e{}", edges.len());
+            edge.with_id(id)
+        } else {
+            edge
+        });
         if let Some(max) = limit
             && edges.len() >= max
         {

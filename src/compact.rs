@@ -25,6 +25,11 @@ pub struct CompactGraph {
     pub out_offsets: Vec<u32>,
     pub out_targets: Vec<u32>,
     pub edge_count: usize,
+    /// Whether the source format keeps parallel edges (a temporal list).
+    /// Then every edge carries its own id, `e<position in CSR order>`, so a
+    /// store that keys edges by id keeps every interaction instead of
+    /// merging repeats of one (from, label, to).
+    pub parallel: bool,
 }
 
 impl CompactGraph {
@@ -74,12 +79,17 @@ impl CompactGraph {
             while edges.len() < batch && v < self.ids.len() {
                 let out = self.out(v);
                 if i < out.len() {
-                    edges.push(Edge::new(
+                    let edge = Edge::new(
                         EDGE_LABEL,
                         self.ids[v].as_str(),
                         self.ids[out[i] as usize].as_str(),
                         Props::new(),
-                    ));
+                    );
+                    edges.push(if self.parallel {
+                        edge.with_id(format!("e{}", self.out_offsets[v] as usize + i))
+                    } else {
+                        edge
+                    });
                     if with_endpoints {
                         touched.push(v as u32);
                         touched.push(out[i]);
@@ -112,16 +122,21 @@ impl CompactGraph {
         let mut edges = Vec::new();
         let mut touched: Vec<u32> = vec![0];
         'outer: for v in 0..self.ids.len() {
-            for &t in self.out(v) {
+            for (j, &t) in self.out(v).iter().enumerate() {
                 if edges.len() >= max_edges {
                     break 'outer;
                 }
-                edges.push(Edge::new(
+                let edge = Edge::new(
                     EDGE_LABEL,
                     self.ids[v].as_str(),
                     self.ids[t as usize].as_str(),
                     Props::new(),
-                ));
+                );
+                edges.push(if self.parallel {
+                    edge.with_id(format!("e{}", self.out_offsets[v] as usize + j))
+                } else {
+                    edge
+                });
                 touched.push(v as u32);
                 touched.push(t);
             }
@@ -238,6 +253,7 @@ pub fn load_snap_compact(
             out_offsets,
             out_targets,
             edge_count,
+            parallel: keep_parallel,
         },
         stats,
     ))
@@ -289,5 +305,46 @@ mod tests {
                 .sum::<usize>(),
             6
         );
+    }
+}
+
+#[cfg(test)]
+mod parallel_edge_ids {
+    use super::*;
+    use crate::dataset::pairs::PairFormat;
+    use std::collections::BTreeSet;
+
+    fn file(body: &str) -> std::path::PathBuf {
+        let p = std::env::temp_dir().join(format!("ag-parallel-{}-{}.txt", std::process::id(), body.len()));
+        std::fs::write(&p, body).unwrap();
+        p
+    }
+
+    #[test]
+    fn a_temporal_graph_gives_every_edge_its_own_id_in_both_paths() {
+        let p = file("1 2 10\n1 2 11\n2 3 12\n1 2 13\n");
+        let (g, stats) = load_snap_compact(&p, None, PairFormat::SnapTemporal).unwrap();
+        assert!(g.parallel);
+        assert_eq!(stats.parallel_edges, 2);
+        let ids: Vec<_> = g.edge_chunks(2, false).flat_map(|c| c.edges).map(|e| e.id.expect("id")).collect();
+        assert_eq!(ids.len(), 4);
+        assert_eq!(ids.iter().collect::<BTreeSet<_>>().len(), 4, "ids are unique");
+        let prefix = g.prefix_subgraph(3);
+        assert!(prefix.edges.iter().all(|e| e.id.is_some()));
+        let (mat, _) = crate::dataset::load_snap_edge_list(&p, None, PairFormat::SnapTemporal).unwrap();
+        let mids: BTreeSet<_> = mat.edges.iter().map(|e| e.id.clone().expect("id")).collect();
+        assert_eq!(mids.len(), 4);
+        std::fs::remove_file(p).ok();
+    }
+
+    #[test]
+    fn a_plain_edge_list_carries_no_edge_ids() {
+        let p = file("1 2\n2 3\n1 2\n");
+        let (g, _) = load_snap_compact(&p, None, PairFormat::SnapEdgeList).unwrap();
+        assert!(!g.parallel);
+        assert!(g.edge_chunks(10, false).flat_map(|c| c.edges).all(|e| e.id.is_none()));
+        let (mat, _) = crate::dataset::load_snap_edge_list(&p, None, PairFormat::SnapEdgeList).unwrap();
+        assert!(mat.edges.iter().all(|e| e.id.is_none()));
+        std::fs::remove_file(p).ok();
     }
 }
