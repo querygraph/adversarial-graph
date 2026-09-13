@@ -27,7 +27,11 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | postgres | LOAD | full | pass | 0 | 2978829 | 0.04 | 2390230 |  |  | 1 | x86_64/8, steal 5.4s | grust-portable-api |  |
 | surreal-http | LOAD | full | fail | 1 | 206244 | 0.11 | 0 |  |  | 1 | x86_64/8, steal 0.2s |  | backend error: failed to POST SurrealQL: error sending request; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
 | surreal-sdk | LOAD | full | fail | 1 | 211733 | 0.13 | 0 |  |  | 1 | x86_64/8, steal 0.2s |  | backend error: SurrealDB SDK query failed: Connection reset; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
+| falkor | A1 | full | pass | 0 | 1000 | 0.06 | 6941 | 8463 | 925183 | 2 | x86_64/16 | harness-native-cypher (resultset_size=10000,mem_limit=25769803776) | run ended before its final write (cap, host guard or crash); later families did not run |
+| falkor | A2 | full | pass | 0 | 1231 | 0.19 | 945 | 1215487 | 1215487 | 2 | x86_64/16 | harness-native-cypher (resultset_size=10000,mem_limit=25769803776) | run ended before its final write (cap, host guard or crash); later families did not run |
+| falkor | A3 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 2 | x86_64/16 | harness-native-cypher (resultset_size=10000,mem_limit=25769803776) | bounded read policy is exercised through the reference executor on the memory backend; run ended before its final write (cap, host guard or crash); later families did not run |
 | falkor | LOAD | full | fail | 1 | 423003 | 0.07 | 0 |  |  | 3 | x86_64/8, steal 0.7s |  | backend error: falkor GRAPH.QUERY: unexpected end of file; container adversarial-graph-falkor-1: exited, exit 137, OOMKilled |
+| falkor | LOAD | full | pass | 0 | 3948519 | 0.03 | 12348798 |  |  | 2 | x86_64/16, steal 0.1s | harness-native-cypher (resultset_size=10000,mem_limit=25769803776) | run ended before its final write (cap, host guard or crash); later families did not run |
 | neo4j | A1 | full | pass | 0 | 195 | 0.40 | 230 | 39359 | 71039 | 1 | x86_64/8 | harness-native-cypher |  |
 | neo4j | A12 | full | pass | 0 | 60120 | 0.04 | 7553 | 1887 | 19359 | 1 | x86_64/8, steal 0.4s | harness-native-cypher |  |
 | neo4j | A2 | full | pass | 0 | 5401 | 0.11 | 1999 | 5386239 | 5386239 | 1 | x86_64/8, steal 0.0s | harness-native-cypher |  |
@@ -42,7 +46,14 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | neo4j-http | A4 | full | pass | 0 | 3256 | 0.22 | 9400 | 14831 | 29231 | 1 | x86_64/8 | harness-native-cypher |  |
 | neo4j-http | A7 | full | unsupported | 0 | 9 | 0.03 | 8 |  |  | 1 | x86_64/8 | harness-native-cypher | backend does not implement GraphCommitStore |
 | neo4j-http | LOAD | full | pass | 0 | 2102351 | 0.10 | 1756233 |  |  | 1 | x86_64/8, steal 2.6s | harness-native-cypher |  |
+| memgraph | A1 | full | pass | 0 | 92 | 0.80 | 30 | 8703 | 13399 | 1 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) |  |
+| memgraph | A12 | full | pass | 0 | 60078 | 0.03 | 13643 | 375 | 5303 | 1 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) |  |
+| memgraph | A2 | full | pass | 0 | 890 | 0.34 | 939 | 876543 | 876543 | 1 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) |  |
+| memgraph | A3 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) | bounded read policy is exercised through the reference executor on the memory backend |
+| memgraph | A4 | full | pass | 0 | 830 | 0.68 | 5878 | 2315 | 31599 | 1 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) |  |
+| memgraph | A7 | full | unsupported | 0 | 9 | 0.02 | 0 |  |  | 2 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) | backend does not implement GraphCommitStore |
 | memgraph | LOAD | full | fail | 1 | 1813378 | 0.03 | 350160 |  |  | 0 | x86_64/8, steal 1.1s |  | backend error: neo4j: Neo4j error `Memgraph.TransientError.MemgraphError.MemgraphError`: Memory limit exceeded! Attempting to allocate a chunk of 900.00KiB which would put the current use to 5.00GiB,  |
+| memgraph | LOAD | full | pass | 0 | 1540672 | 0.10 | 953226 |  |  | 1 | x86_64/16, steal 0.1s | harness-native-cypher (mem_limit=25769803776) |  |
 
 ## cit-Patents
 
@@ -719,8 +730,22 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | neo4j | A7 | full | unsupported | 0 | 30 | 0.06 | 0 |  |  | 16 | aarch64/10 | harness-native-cypher | backend does not implement GraphCommitStore |
 | neo4j | LOAD | full | pass | 0 | 1360785 | 0.08 | 1240804 |  |  | 23 | aarch64/10 | harness-native-cypher |  |
 | neo4j-http | A1 | full | pass | 0 | 176604 | 0.11 | 140607 | 57278463 | 61997055 | 13 | aarch64/10 | harness-native-cypher | run ended before its final write (cap, host guard or crash); later families did not run |
+| neo4j-http | A1 | full | pass | 0 | 75370 | 0.15 | 84438 | 24477695 | 26722303 | 2 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) |  |
+| neo4j-http | A12 | full | pass | 0 | 60417 | 0.06 | 35367 | 1119 | 126911 | 1 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) |  |
+| neo4j-http | A2 | full | pass | 0 | 4315845 | 0.14 | 4331160 | 3600809983 | 3600809983 | 1 | x86_64/16, steal 0.2s | harness-native-cypher (mem_limit=25769803776) |  |
+| neo4j-http | A3 | full | unsupported | 0 | 26 | 0.68 | 0 |  |  | 1 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) | bounded read policy is exercised through the reference executor on the memory backend |
+| neo4j-http | A4 | full | pass | 0 | 3558 | 0.37 | 16247 | 12823 | 23423 | 2 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) |  |
+| neo4j-http | A7 | full | unsupported | 0 | 8 | 0.02 | 0 |  |  | 2 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) | backend does not implement GraphCommitStore |
 | neo4j-http | LOAD | full | fail | 1 | 1777241 | 0.07 | 0 |  |  | 2 | x86_64/8, steal 31.1s |  | backend error: neo4j-http: error sending request for url (http://127.0.0.1:17474/db/neo4j/query/v2) earlier fail (gates=1) in 20260907T102009Z: backend error: neo4j-http: error sending request for url (http://127.0.0.1:17474/db/neo4j/query/v2); earlier pass (gates=0) in 20260907T174230Z: run ended before its final write (cap, host guard or crash); later families did not run |
+| neo4j-http | LOAD | full | pass | 0 | 2349242 | 0.08 | 2211505 |  |  | 2 | x86_64/16, steal 0.1s | harness-native-cypher (mem_limit=25769803776) |  |
+| memgraph | A1 | full | pass | 0 | 20223 | 0.40 | 20990 | 6737919 | 6995967 | 1 | x86_64/16, steal 0.0s | harness-native-cypher (mem_limit=25769803776) |  |
+| memgraph | A12 | full | pass | 0 | 60152 | 0.07 | 15908 | 406 | 36479 | 2 | x86_64/16, steal 0.0s | harness-native-cypher (mem_limit=25769803776) |  |
+| memgraph | A2 | full | pass | 0 | 1207276 | 0.35 | 1336303 | 1206910975 | 1206910975 | 2 | x86_64/16, steal 0.0s | harness-native-cypher (mem_limit=25769803776) |  |
+| memgraph | A3 | full | unsupported | 0 | 28 | 0.70 | 0 |  |  | 2 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) | bounded read policy is exercised through the reference executor on the memory backend |
+| memgraph | A4 | full | pass | 0 | 1587 | 0.61 | 8877 | 2715 | 43295 | 4 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) |  |
+| memgraph | A7 | full | unsupported | 0 | 9 | 0.02 | 7 |  |  | 4 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) | backend does not implement GraphCommitStore |
 | memgraph | LOAD | full | fail | 1 | 2485266 | 0.12 | 661707 |  |  | 0 | x86_64/16, steal 0.2s |  | backend error: neo4j: Neo4j error `Memgraph.TransientError.MemgraphError.MemgraphError`: Memory limit exceeded! Current use is 5.00GiB, while the maximum allowed size for allocation is set to 5.00GiB. earlier fail (gates=1) in 20260907T105749Z: backend error: neo4j: an IO error occurred: unexpected end of file |
+| memgraph | LOAD | full | pass | 0 | 1549461 | 0.09 | 1055910 |  |  | 1 | x86_64/16, steal 0.1s | harness-native-cypher (mem_limit=25769803776) |  |
 
 ## soc-Pokec-relationships
 
@@ -814,7 +839,14 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | neo4j | LOAD | full | pass | 0 | 1656816 | 0.06 | 1447409 |  |  | 1 | x86_64/8, steal 1.5s | harness-native-cypher |  |
 | neo4j-http | A1 | full | pass | 0 | 8490 | 0.04 | 2891 | 647167 | 7184383 | 2 | x86_64/8, steal 0.0s | harness-native-cypher | run ended before its final write (cap, host guard or crash); later families did not run |
 | neo4j-http | LOAD | full | pass | 0 | 1912797 | 0.07 | 1748572 |  |  | 2 | x86_64/8, steal 1.4s | harness-native-cypher | run ended before its final write (cap, host guard or crash); later families did not run |
+| memgraph | A1 | full | pass | 0 | 807 | 0.73 | 412 | 263679 | 265215 | 1 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) |  |
+| memgraph | A12 | full | pass | 0 | 60569 | 0.24 | 31150 | 485 | 151295 | 1 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) |  |
+| memgraph | A2 | full | pass | 0 | 705458 | 0.39 | 774481 | 705167359 | 705167359 | 2 | x86_64/16, steal 0.0s | harness-native-cypher (mem_limit=25769803776) |  |
+| memgraph | A3 | full | unsupported | 0 | 28 | 0.69 | 0 |  |  | 2 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) | bounded read policy is exercised through the reference executor on the memory backend |
+| memgraph | A4 | full | pass | 0 | 1487 | 0.70 | 6962 | 2487 | 32959 | 3 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) |  |
+| memgraph | A7 | full | unsupported | 0 | 17 | 0.47 | 0 |  |  | 3 | x86_64/16 | harness-native-cypher (mem_limit=25769803776) | backend does not implement GraphCommitStore |
 | memgraph | LOAD | full | fail | 1 | 1206594 | 0.05 | 472565 |  |  | 1 | x86_64/8, steal 1.4s |  | backend error: neo4j: Neo4j error `Memgraph.TransientError.MemgraphError.MemgraphError`: Memory limit exceeded! Attempting to allocate a chunk of 388.00KiB which would put the current use to 5.00GiB,  |
+| memgraph | LOAD | full | pass | 0 | 1373331 | 0.08 | 897237 |  |  | 1 | x86_64/16, steal 0.1s | harness-native-cypher (mem_limit=25769803776) |  |
 
 ## web-Google
 
@@ -992,6 +1024,7 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | surreal-http | A7 | 10k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | surreal-http | LOAD | 10k | pass | 0 | 465396 | 0.00 | 474690 |  |  | 1 | x86_64/4, steal 0.7s | grust-portable-api |  |
 | surreal-http | LOAD | full | fail | 1 | 323710 | 0.13 | 0 |  |  | 1 | x86_64/4, steal 2.7s |  | backend error: failed to POST SurrealQL: error sending request; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled earlier fail (gates=1) in 20260907T123404Z: backend error: failed to POST SurrealQL: error sending request |
+| surreal-http | LOAD | full | fail | 1 | 1290533 | 0.04 | 0 |  |  | 2 | x86_64/16, steal 0.1s | (mem_limit=25769803776) | backend error: failed to POST SurrealQL: error sending request; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
 | surreal-sdk | A1 | 10k | fail | 1 | 135 | 0.46 | 74 |  |  | 1 | x86_64/4 | grust-portable-api | khop failed: backend error: SurrealDB SDK read failed: Parse error: Exceeded expression recursion depth limit
  --> [1:4812]
   |
@@ -1008,6 +1041,7 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | surreal-sdk | A7 | 10k | unsupported | 0 | 9 | 0.02 | 0 |  |  | 1 | x86_64/4 | grust-portable-api | backend does not implement GraphCommitStore |
 | surreal-sdk | LOAD | 10k | pass | 0 | 480049 | 0.00 | 489641 |  |  | 1 | x86_64/4, steal 0.7s | grust-portable-api |  |
 | surreal-sdk | LOAD | full | fail | 1 | 289218 | 0.16 | 0 |  |  | 1 | x86_64/4, steal 1.2s |  | backend error: SurrealDB SDK query failed: Connection reset; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
+| surreal-sdk | LOAD | full | fail | 1 | 1286536 | 0.06 | 0 |  |  | 2 | x86_64/16, steal 0.1s | (mem_limit=25769803776) | backend error: SurrealDB SDK query failed: Connection reset; container adversarial-graph-surreal-1: exited, exit 137, OOMKilled |
 | falkor | A1 | 200k | fail | 1 | 76 | 0.24 | 57 | 66367 | 66367 | 1 | x86_64/4 | harness-native-cypher | layers [10000] != oracle [12215] earlier fail (gates=1) in 20260905T053739Z: layers [10000] != oracle [12215]; earlier pass (gates=0) in 20260905T060047Z: ; earlier pass (gates=0) in 20260905T085736Z:  |
 | falkor | A1 | 200k | pass | 0 | 78 | 0.29 | 91 | 69631 | 69631 | 1 | x86_64/4 | harness-native-cypher (resultset_size=-1) |  |
 | falkor | A1 | 200k | fail | 1 | 80 | 0.24 | 57 | 68287 | 68287 | 2 | x86_64/4 | harness-native-cypher (resultset_size=10000) | layers [10000] != oracle [12215] earlier fail (gates=1) in 20260905T164202Z: layers [10000] != oracle [12215]; earlier fail (gates=1) in 20260906T070349Z: layers [10000] != oracle [12215] |
@@ -1104,4 +1138,4 @@ the edge cap the dataset was truncated to (smoke default 200k; Surreal and Helix
 | age | LOAD | 200k | pass | 0 | 64742 | 0.00 | 68314 |  |  | 1 | x86_64/4, steal 0.1s | harness-native-cypher |  |
 | age | LOAD | full | pass | 0 | 889101 | 0.01 | 872904 |  |  | 3 | aarch64/10 | harness-native-cypher |  |
 
-Latest-cell hard-gate total: **3620** across 1012 cells from 364 runs; 65 earlier failing cell(s) are kept in the Notes column of their superseding row.
+Latest-cell hard-gate total: **3622** across 1046 cells from 371 runs; 65 earlier failing cell(s) are kept in the Notes column of their superseding row.
