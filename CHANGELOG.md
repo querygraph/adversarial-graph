@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Grust is pinned at e36c687 (branch strain-integration): 6d0e71d plus
+  grust-turso's bulk load, which binds prepared upserts and lets a connection
+  keep up to 1 GiB of page cache instead of Turso's default of about 8 MB.
+  On lakecat a 10M-edge load ran at 36.7k edges/s instead of 21.5k, and
+  cit-Patents loaded in 550 s. Conformance at this pin (Capitola): memory,
+  turso-wal, turso-mvcc 18/18 untyped and typed; lancedb 16 pass,
+  1 unsupported.
+
 - Grust is pinned at 6d0e71d: main c72a9dc (Turso's encoded optional edge
   identity, graph-free CALL without a snapshot) plus grust-lancedb answering
   anchored reads from an in-memory snapshot that follows the tables' Lance
