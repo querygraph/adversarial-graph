@@ -15,3 +15,6 @@ target-dev/
 # Bundles pulled from the other hosts for site admission; published from the site repo, not here
 reports-hosts/
 __pycache__/
+
+# The 2xlarge-4c-32g host class (eigen, grust): bundles eigen returns, rendered as their own cells (AG_HOST_PROFILE)
+reports-2xlarge/
