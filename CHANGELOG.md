@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Grust is pinned at 6d0e71d: main c72a9dc (Turso's encoded optional edge
+  identity, graph-free CALL without a snapshot) plus grust-lancedb answering
+  anchored reads from an in-memory snapshot that follows the tables' Lance
+  versions. On web-Google a one-hop read fell from 0.37 s to 94 us, and A2
+  passes in 46 s where it ran into the 4 h pair cap. Conformance at this pin
+  (Capitola): memory, turso-wal, turso-mvcc 18/18 untyped and typed; lancedb
+  16 pass, 1 unsupported; every one keeps parallel edges.
+
 - `run-full-tiers.sh --load-cap SECONDS` gives the load a longer budget than
   `--cap`, which stays the box. A load that finishes inside the box is a
   boxed run, keyed as before. One that needed more time, or ran out of the
