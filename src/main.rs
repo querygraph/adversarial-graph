@@ -204,11 +204,14 @@ async fn run(root: &Path, args: &Args) {
     // Persist after every result so a crash never loses completed scenarios.
     let persist = |report: &mut Report, result: &report::ScenarioResult| {
         use std::io::Write;
+        // The journal carries the same host class as the report's copy.
+        let mut result = result.clone();
+        report::tag_host(&mut result, report::host_profile().as_deref());
         if let Ok(mut f) = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(&jsonl_path)
-            && let Ok(line) = serde_json::to_string(result)
+            && let Ok(line) = serde_json::to_string(&result)
         {
             let _ = writeln!(f, "{line}");
         }

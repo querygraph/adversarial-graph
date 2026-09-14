@@ -161,6 +161,49 @@ impl ScenarioResult {
     }
 }
 
+/// `AG_HOST_PROFILE`: the host class a run was taken on, when it is not the
+/// reference host. RESULTS.md keys a cell by dataset, backend, scenario,
+/// slice and profile, not by host, so without it a row from a smaller box
+/// would supersede the reference host's row for the same cell.
+pub fn host_profile() -> Option<String> {
+    std::env::var("AG_HOST_PROFILE").ok().filter(|h| !h.is_empty())
+}
+
+/// Adds `host=<class>` to the row's profile (once), keeping what is there.
+pub fn tag_host(result: &mut ScenarioResult, host: Option<&str>) {
+    let Some(host) = host else { return };
+    let tag = format!("host={host}");
+    let merged = match result.observations.get("profile").and_then(|v| v.as_str()) {
+        Some(p) if p.split(',').any(|c| c == tag) => return,
+        Some(p) => format!("{p},{tag}"),
+        None => tag,
+    };
+    result.observe("profile", merged);
+}
+
+#[cfg(test)]
+mod host_profile_tests {
+    use super::*;
+
+    #[test]
+    fn a_host_class_joins_the_profile_once_and_keeps_what_was_there() {
+        let mut plain = ScenarioResult::new("A1", "neo4j", "com-Orkut");
+        tag_host(&mut plain, None);
+        assert!(!plain.observations.contains_key("profile"));
+        tag_host(&mut plain, Some("2xlarge-4c-32g"));
+        assert_eq!(plain.observations["profile"], "host=2xlarge-4c-32g");
+        tag_host(&mut plain, Some("2xlarge-4c-32g"));
+        assert_eq!(plain.observations["profile"], "host=2xlarge-4c-32g");
+        let mut profiled = ScenarioResult::new("LOAD", "falkor", "wiki-Talk");
+        profiled.observe("profile", "resultset_size=10000");
+        tag_host(&mut profiled, Some("2xlarge-4c-32g"));
+        assert_eq!(
+            profiled.observations["profile"],
+            "resultset_size=10000,host=2xlarge-4c-32g"
+        );
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Report {
     pub schema: &'static str,
@@ -224,7 +267,8 @@ impl Report {
             summary: BTreeMap::new(),
         }
     }
-    pub fn push(&mut self, result: ScenarioResult) {
+    pub fn push(&mut self, mut result: ScenarioResult) {
+        tag_host(&mut result, host_profile().as_deref());
         self.gates.merge(&result.gates);
         self.results.push(result);
     }

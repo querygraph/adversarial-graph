@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `AG_HOST_PROFILE=<class>` adds `host=<class>` to every row's profile, in
+  report.json and in the results.jsonl journal. RESULTS.md keys a cell by
+  dataset, backend, scenario, slice and profile, not by host, so a run on a
+  smaller host class (the 2xlarge boxes eigen and grust: 4 cores, 32 GB)
+  now forms its own cells instead of superseding the reference host's. Unset,
+  nothing changes and earlier rows keep their keys.
+
 - Grust is pinned at e36c687 (branch strain-integration): 6d0e71d plus
   grust-turso's bulk load, which binds prepared upserts and lets a connection
   keep up to 1 GiB of page cache instead of Turso's default of about 8 MB.
