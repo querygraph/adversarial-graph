@@ -473,6 +473,21 @@ async fn run(root: &Path, args: &Args) {
             };
             let load_timed_out =
                 matches!(loaded_report, Err(ref e) if e.to_string().contains("load budget"));
+            // Given more than the box (AG_LOAD_BOX_S), a load that still fit it
+            // is a boxed run; one that needed the extra time, or ran out of
+            // it, is keyed under a profile naming the budget it had.
+            if let Some(extra) = budget::load_budget_profile(
+                load_budget,
+                budget::load_box(),
+                t.elapsed(),
+                load_timed_out,
+            ) {
+                let profile = match load_result.observations.get("profile").and_then(|v| v.as_str()) {
+                    Some(p) => format!("{p},{extra}"),
+                    None => extra,
+                };
+                load_result.observe("profile", profile);
+            }
             match loaded_report {
                 Ok(rep) => {
                     eprintln!(
@@ -601,6 +616,11 @@ async fn run(root: &Path, args: &Args) {
                     hub_writes: &hub_writes,
                 };
                 let mut result = scenarios::run(scenario, &ctx).await;
+                // The families ran on the store that load produced, so they
+                // carry its profile and are keyed with it, not as a default run.
+                if let Some(profile) = load_result.observations.get("profile").cloned() {
+                    result.observations.entry("profile".to_string()).or_insert(profile);
+                }
                 if result.gates.oom_or_crash > 0
                     && let Some(state) = kind.container().and_then(probe::container_state)
                     && state.contains("exit")

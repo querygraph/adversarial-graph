@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `run-full-tiers.sh --load-cap SECONDS` gives the load a longer budget than
+  `--cap`, which stays the box. A load that finishes inside the box is a
+  boxed run, keyed as before. One that needed more time, or ran out of the
+  longer budget, carries `load_budget_s=<budget>` in its profile, so it is
+  never keyed as a boxed run. The families keep `--cap`, and the pair's
+  timeout is the sum of the two. Every family row now carries its bundle's
+  LOAD profile, so a non-default load no longer keys its families as a
+  default run.
+
 - Grust is pinned at main 4502b8a, which adds a lean grust-memory. The store
   holds each edge once (48 bytes per edge at 10M edges instead of 694), and
   Cypher reads it in place instead of copying the graph into its index.

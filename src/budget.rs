@@ -17,6 +17,31 @@ pub fn load_budget() -> Option<Duration> {
         .map(Duration::from_secs)
 }
 
+/// `AG_LOAD_BOX_S`: the standard load budget a longer `AG_LOAD_BUDGET_S`
+/// is measured against. A load that finishes inside the box is a boxed run
+/// whatever budget it was given; one that needed more, or ran out of the
+/// longer budget, is keyed under a profile that names that budget.
+pub fn load_box() -> Option<Duration> {
+    std::env::var("AG_LOAD_BOX_S")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|s| *s > 0)
+        .map(Duration::from_secs)
+}
+
+/// The profile component for a load under a budget longer than the box, or
+/// none when the load fit the box (or no longer budget was given).
+pub fn load_budget_profile(
+    budget: Option<Duration>,
+    boxed: Option<Duration>,
+    took: Duration,
+    ran_out: bool,
+) -> Option<String> {
+    let (budget, boxed) = (budget?, boxed?);
+    (budget > boxed && (ran_out || took > boxed))
+        .then(|| format!("load_budget_s={}", budget.as_secs()))
+}
+
 /// `AG_PREDICT_LOAD=0` sends a store to the tier regardless of the
 /// projection: the deliberate measurement of a load past the budget.
 pub fn predict_enabled() -> bool {
@@ -190,5 +215,21 @@ mod tests {
         });
         std::fs::write(d.join("report.json"), report.to_string()).unwrap();
         assert!(measured_rate(dir.path(), "turso-mvcc").is_none());
+    }
+
+    #[test]
+    fn a_longer_budget_names_a_profile_only_when_the_load_needed_it() {
+        let s = Duration::from_secs;
+        let (longer, boxed) = (Some(s(14_400)), Some(s(7_200)));
+        // Fit the box: a boxed run, whatever budget it was given.
+        assert_eq!(load_budget_profile(longer, boxed, s(6_000), false), None);
+        // Needed the extra time, or ran out of it: keyed under the budget.
+        let named = Some("load_budget_s=14400".to_string());
+        assert_eq!(load_budget_profile(longer, boxed, s(9_000), false), named);
+        assert_eq!(load_budget_profile(longer, boxed, s(14_400), true), named);
+        // No longer budget, or no box: nothing to name.
+        assert_eq!(load_budget_profile(boxed, boxed, s(7_300), true), None);
+        assert_eq!(load_budget_profile(longer, None, s(9_000), false), None);
+        assert_eq!(load_budget_profile(None, boxed, s(9_000), false), None);
     }
 }

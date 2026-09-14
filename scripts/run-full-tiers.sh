@@ -13,8 +13,13 @@ cd "$(dirname "$0")/.."
 # rate on this host projects past it is not sent (the row says so); the
 # pair's own timeout is twice the cap, so a store that loads inside its
 # budget gets the families under theirs.
-CAP=7200; DATASETS="wiki-Talk,roadNet-CA,web-Google,cit-Patents,soc-LiveJournal1,com-Orkut"
-while [ $# -gt 0 ]; do case "$1" in --cap) CAP=$2; shift 2;; --datasets) DATASETS=$2; shift 2;; *) break;; esac; done
+# --load-cap gives the load a longer budget than --cap while --cap stays the
+# box: a load that finishes inside the box is a boxed run, and one that needed
+# more is keyed under a profile naming the longer budget (the harness decides
+# from AG_LOAD_BOX_S). The families keep --cap; the pair's timeout is the sum.
+CAP=7200; LOAD_CAP=""; DATASETS="wiki-Talk,roadNet-CA,web-Google,cit-Patents,soc-LiveJournal1,com-Orkut"
+while [ $# -gt 0 ]; do case "$1" in --cap) CAP=$2; shift 2;; --load-cap) LOAD_CAP=$2; shift 2;; --datasets) DATASETS=$2; shift 2;; *) break;; esac; done
+LOAD_CAP="${LOAD_CAP:-$CAP}"; PAIR_CAP=$(( LOAD_CAP + CAP ))
 BACKENDS=("$@"); [ ${#BACKENDS[@]} -eq 0 ] && BACKENDS=(memory turso-wal turso-mvcc postgres neo4j neo4j-http falkor lancedb)
 service_for() { case "$1" in postgres) echo postgres;; surreal-*) echo surreal;; falkor) echo falkor;; helix-sdk) echo helix-sdk;; helix-*) echo helix;; neo4j*) echo neo4j;; memgraph) echo memgraph;; age) echo age;; *) echo "";; esac; }
 # A service that never becomes ready is a recorded failure of the pair, not
@@ -119,7 +124,7 @@ wait_for_window() { # $1 = the backend's compose service, stopped while waiting
     # 10# forces decimal: at 08:xx or 09:xx UTC a bare "08" is invalid octal
     # and the arithmetic -- and, under set -e, the ladder -- dies.
     now=$(date -u +%s); start_s=$(( 10#$(date -u +%H) * 3600 + 10#$(date -u +%M) * 60 + 10#$(date -u +%S) ))
-    cap_end=$(( start_s + 2 * CAP + 300 ))
+    cap_end=$(( start_s + PAIR_CAP + 300 ))
     IFS=, read -ra WINDOWS <<<"$BLACKOUTS"
     for w in "${WINDOWS[@]}"; do
       local a b as bs
@@ -179,7 +184,7 @@ for b in "${BACKENDS[@]}"; do
     # writes its own log and the ladder echoes it after; the guard is handed
     # `timeout`, whose child is the harness.
     # -k: a pair that does not exit on SIGTERM at the cap is killed a minute later.
-    AG_LOAD_BUDGET_S="$CAP" timeout -k 60 "$((2 * CAP))" ./target/release/ag run --dataset "$d" --backend "$b" --out reports >"$pairlog" 2>&1 &
+    AG_LOAD_BUDGET_S="$LOAD_CAP" AG_LOAD_BOX_S="$CAP" timeout -k 60 "$PAIR_CAP" ./target/release/ag run --dataset "$d" --backend "$b" --out reports >"$pairlog" 2>&1 &
     run=$!; guard "$run" & g=$!
     rc=0; wait "$run" || rc=$?; kill "$g" 2>/dev/null || true # neither a failing pair nor an already-exited guard may end the ladder
     cat "$pairlog"
@@ -197,7 +202,7 @@ for b in "${BACKENDS[@]}"; do
         echo "## $b: not trying larger tiers after the container's memory limit at $d"; rm -f "$pairlog"; break
       fi
     else
-      echo "## $b $d: exit $rc after the pair cap $((2 * CAP))s, host memory guard, or crash $(date -u +%H:%M:%SZ); no complete bundle; not trying larger tiers for $b"; rm -f "$pairlog"; break
+      echo "## $b $d: exit $rc after the pair cap ${PAIR_CAP}s, host memory guard, or crash $(date -u +%H:%M:%SZ); no complete bundle; not trying larger tiers for $b"; rm -f "$pairlog"; break
     fi
     rm -f "$pairlog"
   done
