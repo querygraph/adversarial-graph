@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Grust is pinned at 0176718 (branch lancedb-write-memory, from v0.15.0):
+  grust-lancedb builds a B-tree index on each table's merge key at the end
+  of a bulk load, commits concurrent single-row writes in batches, compacts
+  every 64 of those commits, and drops its resident snapshot as soon as the
+  store writes. Each single-row merge_insert used to join a full table scan;
+  on web-Google A4 fell from 1,544 s at a 9.34 GB peak to 6.7 s, never above
+  the load's 3.51 GB, and on GAP-road the host guard had killed the process
+  at 35 GB at the start of A4.
+
 - `AG_HOST_PROFILE=<class>` adds `host=<class>` to every row's profile, in
   report.json and in the results.jsonl journal. RESULTS.md keys a cell by
   dataset, backend, scenario, slice and profile, not by host, so a run on a
