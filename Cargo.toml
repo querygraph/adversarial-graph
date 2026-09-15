@@ -11,7 +11,7 @@ name = "ag"
 path = "src/main.rs"
 
 [dependencies]
-grust = { package = "grust-graph", git = "https://github.com/querygraph/grust", rev = "5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8", features = ["memory", "turso", "cypher"] }
+grust = { package = "grust-graph", git = "https://github.com/querygraph/grust", rev = "2b6e536ab8d980613e2462a759b732493ddf08dc", features = ["memory", "turso", "cypher"] }
 # Every Grust crate comes from one git revision of github.com/querygraph/grust,
 # never from crates.io and never from a local checkout: the facade, the Cypher
 # crate, the PostgreSQL core, and the internal backends that are not published
@@ -19,8 +19,8 @@ grust = { package = "grust-graph", git = "https://github.com/querygraph/grust", 
 # trait. (Until 2026-09-13 the facade came from crates.io at 0.13 with the
 # internals patched to git; when Grust main moved to 0.14 the patches stopped
 # applying and the build silently mixed crates.io 0.13 code with git code.)
-grust-helix = { git = "https://github.com/querygraph/grust", rev = "5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8", optional = true }
-grust-ladybug = { git = "https://github.com/querygraph/grust", rev = "5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8", optional = true }
+grust-helix = { git = "https://github.com/querygraph/grust", rev = "2b6e536ab8d980613e2462a759b732493ddf08dc", optional = true }
+grust-ladybug = { git = "https://github.com/querygraph/grust", rev = "2b6e536ab8d980613e2462a759b732493ddf08dc", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -41,8 +41,8 @@ helix-db = { version = "=3.0.0", optional = true }
 async-trait = { version = "0.1", optional = true }
 csv = "1"
 zip = { version = "4", default-features = false, features = ["deflate"] }
-grust-cypher = { git = "https://github.com/querygraph/grust", rev = "5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8" }
-grust-postgres-core = { git = "https://github.com/querygraph/grust", rev = "5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8", optional = true }
+grust-cypher = { git = "https://github.com/querygraph/grust", rev = "2b6e536ab8d980613e2462a759b732493ddf08dc" }
+grust-postgres-core = { git = "https://github.com/querygraph/grust", rev = "2b6e536ab8d980613e2462a759b732493ddf08dc", optional = true }
 
 [features]
 default = []

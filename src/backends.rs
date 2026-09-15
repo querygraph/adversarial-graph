@@ -693,8 +693,12 @@ impl Backend {
                 for suffix in ["", "-wal", "-shm", "-log"] {
                     let _ = std::fs::remove_file(format!("{}{}", path.display(), suffix));
                 }
-                let store = Arc::new(Self::connect_turso(kind, &path).await?);
+                let store = Self::connect_turso(kind, &path).await?;
                 store.bootstrap().await?;
+                // MVCC: single-statement writes from this store and from every
+                // extra_handle share one group committer (one fsync per batch
+                // of concurrent writes); a no-op for WAL.
+                let store = Arc::new(store.with_group_commit().await?);
                 let mut b = Self::plain(kind, store.clone(), tag);
                 b.turso = Some(store);
                 b.turso_path = Some(path);
@@ -766,8 +770,10 @@ impl Backend {
         match self.kind {
             BackendKind::Memory => Ok(self.store.clone()),
             BackendKind::TursoWal | BackendKind::TursoMvcc => {
-                let path = self.turso_path.as_ref().expect("turso path");
-                Ok(Arc::new(Self::connect_turso(self.kind, path).await?))
+                // Another connection on the same open database, sharing its
+                // group committer, instead of reopening the file by path.
+                let base = self.turso.as_ref().expect("turso store");
+                Ok(Arc::new(base.connect_shared().await?))
             }
             #[cfg(feature = "postgres")]
             BackendKind::Postgres => Ok(Arc::new(connect_postgres(&self.tag).await?)),

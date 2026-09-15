@@ -4288,7 +4288,7 @@ dependencies = [
 [[package]]
 name = "grust-arrow"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "arrow-array 55.2.0",
  "arrow-array 58.4.0",
@@ -4314,7 +4314,7 @@ dependencies = [
 [[package]]
 name = "grust-core"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "async-trait",
  "quick-xml",
@@ -4327,7 +4327,7 @@ dependencies = [
 [[package]]
 name = "grust-cypher"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "async-trait",
  "grust-core",
@@ -4340,7 +4340,7 @@ dependencies = [
 [[package]]
 name = "grust-datafusion"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "datafusion 55.1.0",
  "futures",
@@ -4355,7 +4355,7 @@ dependencies = [
 [[package]]
 name = "grust-falkor"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "async-trait",
  "grust-core",
@@ -4366,7 +4366,7 @@ dependencies = [
 [[package]]
 name = "grust-graph"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "grust-core",
  "grust-cypher",
@@ -4387,7 +4387,7 @@ dependencies = [
 [[package]]
 name = "grust-helix"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "async-trait",
  "grust-core",
@@ -4399,7 +4399,7 @@ dependencies = [
 [[package]]
 name = "grust-ladybug"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "arrow 55.2.0",
  "async-trait",
@@ -4412,7 +4412,7 @@ dependencies = [
 [[package]]
 name = "grust-lancedb"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "arrow 58.4.0",
  "async-trait",
@@ -4427,7 +4427,7 @@ dependencies = [
 [[package]]
 name = "grust-memory"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "async-trait",
  "grust-core",
@@ -4437,7 +4437,7 @@ dependencies = [
 [[package]]
 name = "grust-pggraph"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "async-trait",
  "grust-core",
@@ -4450,7 +4450,7 @@ dependencies = [
 [[package]]
 name = "grust-postgres"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "grust-postgres-core",
 ]
@@ -4458,7 +4458,7 @@ dependencies = [
 [[package]]
 name = "grust-postgres-core"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "async-trait",
  "grust-core",
@@ -4472,7 +4472,7 @@ dependencies = [
 [[package]]
 name = "grust-postgres-pgq"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "async-trait",
  "grust-core",
@@ -4485,7 +4485,7 @@ dependencies = [
 [[package]]
 name = "grust-procedures"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "grust-core",
  "serde_json",
@@ -4495,7 +4495,7 @@ dependencies = [
 [[package]]
 name = "grust-sail"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "arrow 58.4.0",
  "async-trait",
@@ -4515,7 +4515,7 @@ dependencies = [
 [[package]]
 name = "grust-sql-core"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "grust-core",
  "serde_json",
@@ -4524,7 +4524,7 @@ dependencies = [
 [[package]]
 name = "grust-surreal"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "async-trait",
  "grust-core",
@@ -4537,7 +4537,7 @@ dependencies = [
 [[package]]
 name = "grust-turso"
 version = "0.20.0"
-source = "git+https://github.com/querygraph/grust?rev=5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8#5dff9ac9fdcb59f8b4d32b2fd773186e9aea2cd8"
+source = "git+https://github.com/querygraph/grust?rev=2b6e536ab8d980613e2462a759b732493ddf08dc#2b6e536ab8d980613e2462a759b732493ddf08dc"
 dependencies = [
  "async-trait",
  "chrono",
