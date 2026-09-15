@@ -2,18 +2,22 @@
 
 ## Unreleased
 
-- Grust is pinned at 0291906 (branch grust-best: v0.20.0 main plus
-  automatic Cypher-to-DataFusion scan routing and the Turso MVCC load
-  work). grust-turso no longer writes the unused edge-source index, runs
-  MVCC's automatic checkpoints PASSIVE, and raises their threshold from
-  Turso's 4 MB to 64 MiB of logical log for an MVCC put_graph, which ends
-  in one TRUNCATE checkpoint. bulk_load example on quegee (16 cores), MVCC:
-  1 M edges 11.8k → 15.4k edges/s at 2.31 → 2.35 GB peak RSS; 5 M edges
-  995 s → 423 s at 11.4 GB both. The previous pin a26fdff turned the
-  checkpoints off entirely (336 s at 5 M edges, but 13.4 GB, growing with
-  the load); its turso-wal and memory rows stand, its turso-mvcc rows are
-  superseded. The harness does not enable Grust's DataFusion crates, so the
-  routing change does not reach these runs.
+- Grust is pinned at 5dff9ac (branch grust-best: v0.20.0 main plus
+  automatic Cypher-to-DataFusion scan routing and one Turso change:
+  grust-turso no longer writes the unused edge-source index, and MVCC loads
+  end in one TRUNCATE checkpoint). Its Turso crates equal 1d1e41f. On the
+  real web-Google edge list (bulk_load --snap, quegee, MVCC), against the
+  previous pin 0176718 at 13,321 edges/s and 1.8 GB peak RSS: 1d1e41f
+  16,356 edges/s at 1.7 GB. Three further changes were tried and reverted:
+  PASSIVE automatic checkpoints (5,138 edges/s, 11.5 GB), a 64 MiB
+  checkpoint threshold (15,914 edges/s, 3.5 GB without PASSIVE) and no
+  automatic checkpoints (memory grows with the load). The interim pins
+  a26fdff and 0291906 carried PASSIVE: their turso-mvcc rows (web-Google
+  failed its 1,800 s budget on eigen; cit-Patents was OOM-killed at 13 GiB
+  on lakecat) are superseded, and their turso-wal and memory rows stand,
+  since the WAL and memory code is the same. The harness does not enable
+  Grust's DataFusion crates, so the routing change does not reach these
+  runs.
 
 - Grust was pinned at 0176718 (branch lancedb-write-memory, from v0.15.0):
   grust-lancedb builds a B-tree index on each table's merge key at the end
