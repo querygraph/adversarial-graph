@@ -485,7 +485,11 @@ async fn run(root: &Path, args: &Args) {
                 t.elapsed(),
                 load_timed_out,
             ) {
-                let profile = match load_result.observations.get("profile").and_then(|v| v.as_str()) {
+                let profile = match load_result
+                    .observations
+                    .get("profile")
+                    .and_then(|v| v.as_str())
+                {
                     Some(p) => format!("{p},{extra}"),
                     None => extra,
                 };
@@ -622,7 +626,10 @@ async fn run(root: &Path, args: &Args) {
                 // The families ran on the store that load produced, so they
                 // carry its profile and are keyed with it, not as a default run.
                 if let Some(profile) = load_result.observations.get("profile").cloned() {
-                    result.observations.entry("profile".to_string()).or_insert(profile);
+                    result
+                        .observations
+                        .entry("profile".to_string())
+                        .or_insert(profile);
                 }
                 if result.gates.oom_or_crash > 0
                     && let Some(state) = kind.container().and_then(probe::container_state)

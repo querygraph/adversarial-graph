@@ -190,7 +190,23 @@ pub fn tag_run(result: &mut ScenarioResult) {
         if let Some(mode) = turso_sync() {
             tag_profile(result, format!("turso_sync={mode}"));
         }
+        if let Some(writers) = turso_load_writers() {
+            tag_profile(result, format!("turso_load_writers={writers}"));
+        }
     }
+}
+
+/// The writers an MVCC load actually used, when that is not one: a parallel
+/// MVCC load is a different load path, so its rows form their own cells. The
+/// default must match `backends::turso_load_writers`, or a run would carry no
+/// tag while loading in parallel.
+pub fn turso_load_writers() -> Option<String> {
+    let writers = std::env::var("AG_TURSO_LOAD_WRITERS")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "4".to_string());
+    Some(writers).filter(|w| w != "1")
 }
 
 /// Adds `host=<class>` to the row's profile (once), keeping what is there.

@@ -14,6 +14,24 @@ use grust::{TursoConfig, TursoGraphStore, TursoJournalMode, TursoSynchronous};
 
 /// `AG_TURSO_SYNC` (`full` | `normal` | `off`), the `PRAGMA synchronous` every
 /// Turso connection runs under; unset keeps Turso's default (`full`).
+/// `AG_TURSO_LOAD_WRITERS`: concurrent writers an MVCC `put_graph` uses
+/// (Grust's `set_mvcc_load_parallelism`). WAL admits one writer; MVCC can
+/// load slices in parallel. Default 4; 1 is the single-writer load.
+fn turso_load_writers() -> grust::Result<usize> {
+    match std::env::var("AG_TURSO_LOAD_WRITERS")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .as_deref()
+    {
+        None | Some("") => Ok(4),
+        Some(value) => value.parse().map_err(|_| {
+            grust::GrustError::Backend(format!(
+                "AG_TURSO_LOAD_WRITERS={value}: expected a positive integer"
+            ))
+        }),
+    }
+}
+
 fn turso_sync_mode() -> grust::Result<Option<TursoSynchronous>> {
     match std::env::var("AG_TURSO_SYNC")
         .ok()
@@ -713,6 +731,7 @@ impl Backend {
                 }
                 let store = Self::connect_turso(kind, &path).await?;
                 store.bootstrap().await?;
+                store.set_mvcc_load_parallelism(turso_load_writers()?);
                 let sync = turso_sync_mode()?;
                 if let Some(mode) = sync {
                     store.set_synchronous(mode).await?;
