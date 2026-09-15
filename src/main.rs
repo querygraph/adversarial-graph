@@ -206,7 +206,7 @@ async fn run(root: &Path, args: &Args) {
         use std::io::Write;
         // The journal carries the same host class as the report's copy.
         let mut result = result.clone();
-        report::tag_host(&mut result, report::host_profile().as_deref());
+        report::tag_run(&mut result);
         if let Ok(mut f) = std::fs::OpenOptions::new()
             .create(true)
             .append(true)

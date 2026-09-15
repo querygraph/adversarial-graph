@@ -166,13 +166,41 @@ impl ScenarioResult {
 /// slice and profile, not by host, so without it a row from a smaller box
 /// would supersede the reference host's row for the same cell.
 pub fn host_profile() -> Option<String> {
-    std::env::var("AG_HOST_PROFILE").ok().filter(|h| !h.is_empty())
+    std::env::var("AG_HOST_PROFILE")
+        .ok()
+        .filter(|h| !h.is_empty())
+}
+
+/// `AG_TURSO_SYNC`: the `PRAGMA synchronous` the Turso stores ran under, when
+/// it is not Turso's default `full`. A `normal` or `off` row does not fsync
+/// every commit, so it is tagged `turso_sync=<mode>` and forms its own cells
+/// instead of superseding the durable rows.
+pub fn turso_sync() -> Option<String> {
+    std::env::var("AG_TURSO_SYNC")
+        .ok()
+        .map(|s| s.trim().to_ascii_lowercase())
+        .filter(|s| !s.is_empty() && s != "full")
+}
+
+/// Every profile tag a row takes from the run's environment: the host class
+/// and, on Turso rows, a non-default synchronous mode.
+pub fn tag_run(result: &mut ScenarioResult) {
+    tag_host(result, host_profile().as_deref());
+    if result.backend.starts_with("turso") {
+        if let Some(mode) = turso_sync() {
+            tag_profile(result, format!("turso_sync={mode}"));
+        }
+    }
 }
 
 /// Adds `host=<class>` to the row's profile (once), keeping what is there.
 pub fn tag_host(result: &mut ScenarioResult, host: Option<&str>) {
     let Some(host) = host else { return };
-    let tag = format!("host={host}");
+    tag_profile(result, format!("host={host}"));
+}
+
+/// Adds `tag` to the row's comma-separated profile once, keeping what is there.
+fn tag_profile(result: &mut ScenarioResult, tag: String) {
     let merged = match result.observations.get("profile").and_then(|v| v.as_str()) {
         Some(p) if p.split(',').any(|c| c == tag) => return,
         Some(p) => format!("{p},{tag}"),
@@ -268,7 +296,7 @@ impl Report {
         }
     }
     pub fn push(&mut self, mut result: ScenarioResult) {
-        tag_host(&mut result, host_profile().as_deref());
+        tag_run(&mut result);
         self.gates.merge(&result.gates);
         self.results.push(result);
     }

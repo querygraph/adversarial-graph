@@ -10,7 +10,25 @@ use std::sync::Arc;
 #[allow(unused_imports)]
 use grust::GraphAdminStore as _;
 use grust::{Edge, EdgeQuery, Graph, GraphAdminStore, GraphStore, NodeId, Traversal};
-use grust::{TursoConfig, TursoGraphStore, TursoJournalMode};
+use grust::{TursoConfig, TursoGraphStore, TursoJournalMode, TursoSynchronous};
+
+/// `AG_TURSO_SYNC` (`full` | `normal` | `off`), the `PRAGMA synchronous` every
+/// Turso connection runs under; unset keeps Turso's default (`full`).
+fn turso_sync_mode() -> grust::Result<Option<TursoSynchronous>> {
+    match std::env::var("AG_TURSO_SYNC")
+        .ok()
+        .map(|s| s.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        None | Some("") => Ok(None),
+        Some("full") => Ok(Some(TursoSynchronous::Full)),
+        Some("normal") => Ok(Some(TursoSynchronous::Normal)),
+        Some("off") => Ok(Some(TursoSynchronous::Off)),
+        Some(other) => Err(grust::GrustError::Backend(format!(
+            "AG_TURSO_SYNC={other}: expected full, normal or off"
+        ))),
+    }
+}
 
 use crate::dataset::EDGE_LABEL;
 #[cfg(feature = "falkor")]
@@ -381,8 +399,8 @@ async fn helix_create_id_index(kind: BackendKind) -> grust::Result<()> {
     use grust::GrustError::Backend;
     if matches!(kind, BackendKind::HelixSdk) {
         use helix_db::{
-            dsl::prelude::{g, write_batch, IndexSpec},
             Client, QueryRequest,
+            dsl::prelude::{IndexSpec, g, write_batch},
         };
         let client = Client::new(Some(&helix_sdk_base_url()))
             .map_err(|e| Backend(format!("Helix SDK client for the index: {e}")))?;
@@ -695,10 +713,21 @@ impl Backend {
                 }
                 let store = Self::connect_turso(kind, &path).await?;
                 store.bootstrap().await?;
-                // MVCC: single-statement writes from this store and from every
-                // extra_handle share one group committer (one fsync per batch
-                // of concurrent writes); a no-op for WAL.
-                let store = Arc::new(store.with_group_commit().await?);
+                let sync = turso_sync_mode()?;
+                if let Some(mode) = sync {
+                    store.set_synchronous(mode).await?;
+                }
+                // Durable lane (synchronous full, Turso's default): MVCC
+                // single-statement writes from this store and from every
+                // extra_handle share one group committer, one fsync per batch
+                // of concurrent writes. At normal/off there is no per-commit
+                // fsync to share, so writers commit directly. A no-op for WAL.
+                let store = if matches!(sync, None | Some(TursoSynchronous::Full)) {
+                    store.with_group_commit().await?
+                } else {
+                    store
+                };
+                let store = Arc::new(store);
                 let mut b = Self::plain(kind, store.clone(), tag);
                 b.turso = Some(store);
                 b.turso_path = Some(path);
@@ -773,7 +802,12 @@ impl Backend {
                 // Another connection on the same open database, sharing its
                 // group committer, instead of reopening the file by path.
                 let base = self.turso.as_ref().expect("turso store");
-                Ok(Arc::new(base.connect_shared().await?))
+                let handle = base.connect_shared().await?;
+                // PRAGMA synchronous is per connection.
+                if let Some(mode) = turso_sync_mode()? {
+                    handle.set_synchronous(mode).await?;
+                }
+                Ok(Arc::new(handle))
             }
             #[cfg(feature = "postgres")]
             BackendKind::Postgres => Ok(Arc::new(connect_postgres(&self.tag).await?)),
