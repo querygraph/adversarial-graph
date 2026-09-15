@@ -2,7 +2,17 @@
 
 ## Unreleased
 
-- Grust is pinned at 0176718 (branch lancedb-write-memory, from v0.15.0):
+- Grust is pinned at a26fdff (branch grust-best: v0.20.0 main plus
+  automatic Cypher-to-DataFusion scan routing and the Turso MVCC load
+  work). grust-turso no longer writes the unused edge-source index, runs
+  MVCC's automatic checkpoints PASSIVE, and turns them off for the whole
+  of an MVCC put_graph, which ends in one TRUNCATE checkpoint. On quegee
+  (16 cores), a 1 M-edge MVCC bulk load went from 11,785–11,909 to
+  17,239–17,378 edges/s against the PASSIVE-checkpoint build, with peak
+  RSS 2,309 → 2,669 MB. The harness does not enable Grust's DataFusion
+  crates, so the routing change does not reach these runs.
+
+- Grust was pinned at 0176718 (branch lancedb-write-memory, from v0.15.0):
   grust-lancedb builds a B-tree index on each table's merge key at the end
   of a bulk load, commits concurrent single-row writes in batches, compacts
   every 64 of those commits, and drops its resident snapshot as soon as the
