@@ -190,8 +190,12 @@ pub fn tag_run(result: &mut ScenarioResult) {
         if let Some(mode) = turso_sync() {
             tag_profile(result, format!("turso_sync={mode}"));
         }
-        if let Some(writers) = turso_load_writers() {
-            tag_profile(result, format!("turso_load_writers={writers}"));
+        // WAL admits one writer and ignores the setting, so only an MVCC row
+        // carries it.
+        if result.backend == "turso-mvcc" {
+            if let Some(writers) = turso_load_writers() {
+                tag_profile(result, format!("turso_load_writers={writers}"));
+            }
         }
     }
 }
