@@ -18,3 +18,10 @@ __pycache__/
 
 # The 2xlarge-4c-32g host class (eigen, grust): bundles eigen returns, rendered as their own cells (AG_HOST_PROFILE)
 reports-2xlarge/
+
+# Lane logs (ag-h2h.sh appends to logs-<lane>.log in the repo root) and
+# voided/backup scratch from benchmark campaigns; never published
+logs-*.log
+reports-void-*/
+*.backup
+Cargo.toml.*-backup
