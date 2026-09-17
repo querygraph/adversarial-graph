@@ -32,6 +32,26 @@ fn turso_load_writers() -> grust::Result<usize> {
     }
 }
 
+/// `AG_TURSO_GROUP` (`on` | `off`, default `on`): whether an MVCC store wraps
+/// its writers in Grust's client-side group committer. Turso `main` (0.8)
+/// enables engine-level group commit by default, where our layer measures
+/// ~19% SLOWER (16x200 hot-node writes on grust: 2.6 s off vs 3.2 s on); on
+/// 0.7.2, which has no engine group commit, it is the difference between
+/// ~22 s and ~3.4 s.
+fn turso_group_commit() -> grust::Result<bool> {
+    match std::env::var("AG_TURSO_GROUP")
+        .ok()
+        .map(|s| s.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        None | Some("") | Some("on") => Ok(true),
+        Some("off") => Ok(false),
+        Some(other) => Err(grust::GrustError::Backend(format!(
+            "AG_TURSO_GROUP={other}: expected on or off"
+        ))),
+    }
+}
+
 fn turso_sync_mode() -> grust::Result<Option<TursoSynchronous>> {
     match std::env::var("AG_TURSO_SYNC")
         .ok()
@@ -741,7 +761,9 @@ impl Backend {
                 // extra_handle share one group committer, one fsync per batch
                 // of concurrent writes. At normal/off there is no per-commit
                 // fsync to share, so writers commit directly. A no-op for WAL.
-                let store = if matches!(sync, None | Some(TursoSynchronous::Full)) {
+                let store = if matches!(sync, None | Some(TursoSynchronous::Full))
+                    && turso_group_commit()?
+                {
                     store.with_group_commit().await?
                 } else {
                     store

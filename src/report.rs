@@ -190,14 +190,40 @@ pub fn tag_run(result: &mut ScenarioResult) {
         if let Some(mode) = turso_sync() {
             tag_profile(result, format!("turso_sync={mode}"));
         }
-        // WAL admits one writer and ignores the setting, so only an MVCC row
-        // carries it.
+        if let Some(engine) = turso_engine() {
+            tag_profile(result, format!("turso_engine={engine}"));
+        }
+        // WAL admits one writer and ignores both settings, so only an MVCC
+        // row carries them.
         if result.backend == "turso-mvcc" {
+            if let Some(group) = turso_group() {
+                tag_profile(result, format!("turso_group={group}"));
+            }
             if let Some(writers) = turso_load_writers() {
                 tag_profile(result, format!("turso_load_writers={writers}"));
             }
         }
     }
+}
+
+/// `AG_TURSO_GROUP=off`: the row ran without Grust's client-side group
+/// committer. Tagged, because it is a different write path and must not
+/// silently supersede rows that used it.
+pub fn turso_group() -> Option<String> {
+    std::env::var("AG_TURSO_GROUP")
+        .ok()
+        .map(|s| s.trim().to_ascii_lowercase())
+        .filter(|s| s == "off")
+}
+
+/// `AG_TURSO_ENGINE=<label>`: which Turso the binary was linked against
+/// (e.g. `main`), when it is not the crates.io pin. Rows from a different
+/// engine form their own cells.
+pub fn turso_engine() -> Option<String> {
+    std::env::var("AG_TURSO_ENGINE")
+        .ok()
+        .map(|s| s.trim().to_ascii_lowercase())
+        .filter(|s| !s.is_empty())
 }
 
 /// The writers an MVCC load actually used, when that is not one: a parallel
