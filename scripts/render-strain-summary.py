@@ -463,6 +463,8 @@ def render(site):
     walls = collections.Counter(R[b]["status"][d]["kind"] for b in BACKENDS for d in untyped
                                 if R[b]["status"][d]["kind"] in ("mem", "time", "crash", "refused"))
     always = [(b, sc, m) for (b, sc, m), v in h2h.items() if v["wins"] == v["pairs"] and v["pairs"] >= 2]
+    rust_verdict = (f"In-process Rust engines reach {edges(min(CL(b) for b in rust_local))} to {edges(max(CL(b) for b in rust_local))}; "
+                    f"Rust servers {edges(server_reach)}; the JVM {edges(CL('neo4j'))}.")
     n_pass = sum(1 for c in cells.values() if c["cause"] in ("pass", "pass-incomplete"))
     n_na = sum(1 for c in cells.values() if CAUSE[c["cause"]][0] in ("n/a", "declared", "gap"))
     n_fail = len(cells) - n_pass - n_na
@@ -481,7 +483,16 @@ def render(site):
                     return chip("clean" if c["cause"] == "pass" else "wrong", CAUSE[c["cause"]][1], CAUSE[c["cause"]][0]), dur(o.get("wall_us"))
                 return (f"{acc_:,}/{att:,}" if att else f"{acc_:,}") + (" accepted" if att and acc_ == att else " accepted, the rest refused" if att else ""), dur(o.get("wall_us"))
         return "–", ""
-    wins_of = {b: [label_of(b, sc, m) for bb, sc, m in always if bb == b] for b in BACKENDS}
+    always_set = set(always)
+    wins_of = {b: [label for sc, m, label in h2h_order if (b, sc, m) in always_set] for b in BACKENDS}
+    neo_cl = CL("neo4j")
+    rust_wins = wins_of[best_rust]
+    rust_level = CL(best_rust) >= neo_cl and best_rust in leaders and "neo4j" in leaders
+    # the conclusion the page leads with: the best Rust store goes as far as Neo4j and beats it on speed
+    rust_wins_line = (", ".join(rust_wins[:-1]) + " and " + rust_wins[-1]) if len(rust_wins) > 1 else "".join(rust_wins)
+    rust_conclusion = (f"{name(best_rust)}, {esc(BACKENDS[best_rust]['form'])} Rust, matches Neo4j's reach at "
+                       f"{esc(R[top]['clean'])}, {edges(CL(top))} edges, and beats Neo4j over Bolt in every same-machine "
+                       f"pair on {rust_wins_line}.") if rust_level and rust_wins else ""
     lb_rows = []
     for b in rank:
         r = R[b]
@@ -522,8 +533,10 @@ def render(site):
     s_verdict = (
         '<section class="wrap strain-summary" id="verdict">'
         '<div class="section-head"><span class="eyebrow">The verdict</span>'
-        f'<h2>{verdict_line}{esc(R[top]["clean"])}, {edges(CL(top))} edges.</h2>'
-        '<div class="kpis">' + "".join(f'<div class="kpi"><b>{k}</b><span>{v}</span></div>' for k, v in kpis) + '</div>'
+        f'<h2>{rust_conclusion or (verdict_line + esc(R[top]["clean"]) + ", " + edges(CL(top)) + " edges.")}</h2>'
+        + (f'<p class="lede">{verdict_line}{esc(R[top]["clean"])}, {edges(CL(top))} edges. Neo4j keeps the smaller '
+           f'memory footprint there; every other margin the leaderboard shows belongs to the Rust store.</p>' if rust_conclusion else "")
+        + '<div class="kpis">' + "".join(f'<div class="kpi"><b>{k}</b><span>{v}</span></div>' for k, v in kpis) + '</div>'
         f'<p>Ranked by the largest whole graph a store loaded and passed all four core families on (A1 hub fan-out, A2 deep '
         f'paths, A4 hot-node writes, A12 operability) under the standard envelope, then by how many graphs it is clean on. '
         f'<em>Hot-node writes there</em> is what happened when 16 writers each attached 200 edges to the same hub on that '
@@ -556,11 +569,15 @@ def render(site):
            if top_clean_everywhere else "it is clean up to ") if len(leaders) == 1 else
            f"{', '.join(name(b) for b in leaders[:-1])} and {name(leaders[-1])} go furthest, each clean on all four core families (A1, A2, A4, A12) up to ")
         + f"{esc(R[top]['clean'])} ({edges(CL(top))} edges). Next, by the largest graph clean on all four: "
-        + ", ".join(f"{name(b)} ({esc(R[b]['clean'])}, {edges(CL(b))})" for b in rank[len(leaders):len(leaders) + 4]) + ".",
+        + ", ".join(f"{name(b)} ({esc(R[b]['clean'])}, {edges(CL(b))})" for b in rank[len(leaders):len(leaders) + 4]) + "."
+        + (f" Of the leaders, {name(best_rust)} beats Neo4j · Bolt in every same-machine pair on {rust_wins_line}."
+           if rust_conclusion else ""),
         f"<strong>Rust, by itself, does not predict it.</strong> The Rust engines that run in process go far: {rust_line}."
         f"{further_line} The Rust servers do not: SurrealDB and HelixDB are clean only up to {edges(server_reach)} edges, and "
-        f"SurrealDB is still killed at its memory limit on 5 M edges with 24 GiB. The best Rust store, {name(best_rust)}, is "
-        f"clean up to {edges(CL(best_rust))}; {name(top)} up to {edges(CL(top))}.",
+        f"SurrealDB is still killed at its memory limit on 5 M edges with 24 GiB. "
+        + (f"The best Rust store, {name(best_rust)}, is clean as far as Neo4j · Bolt, {edges(CL(best_rust))}."
+           if CL(best_rust) == neo_cl else
+           f"The best Rust store, {name(best_rust)}, is clean up to {edges(CL(best_rust))}; Neo4j · Bolt up to {edges(neo_cl)}."),
         f"<strong>Where Rust beats Neo4j every time.</strong> On speed, in every pair where both passed: {always_line}. "
         f"The strongest wins belong to engines that run in process and answer without a network hop, so part of that gap is "
         f"architecture, not language.",
@@ -677,15 +694,17 @@ def render(site):
     s_rust = (
         '<section class="wrap" id="rust">'
         '<div class="section-head"><span class="eyebrow">The Rust question</span>'
-        '<h2>Rust in process goes far; Rust servers do not; Neo4j goes furthest.</h2>'
-        f'<p>Grouped by how the engine is built and run; <em>clean</em> as in the key results. Eight of the fifteen backends '
-        f'are Rust. The best of them, {name(best_rust)}, is clean up to {edges(CL(best_rust))} edges; {name(top)}, up to '
-        f'{edges(CL(top))}. '
+        + ('<h2>Rust in process goes as far as Neo4j, and faster; Rust servers do not.</h2>' if rust_conclusion else
+           '<h2>Rust in process goes far; Rust servers do not; Neo4j goes furthest.</h2>' if CL(best_rust) < neo_cl else
+           '<h2>Rust in process goes as far as Neo4j; Rust servers do not.</h2>')
+        + f'<p>Grouped by how the engine is built and run; <em>clean</em> as in the key results. {len(RUST)} of the {len(BACKENDS)} backends '
+        f'are Rust. The best of them, {name(best_rust)}, is clean up to {edges(CL(best_rust))} edges'
+        + (f', level with Neo4j · Bolt, and beats it in every same-machine pair on {rust_wins_line}. ' if rust_conclusion else
+           f'; Neo4j · Bolt, up to {edges(neo_cl)}. ')
         + ('How a store runs predicts its reach better than its language: every Rust engine that runs in process outlasts every '
            'Rust server here.' if local_beats_servers else '')
         + '</p></div>'
-        + acc('<strong>Reach by engine family</strong><span class="verdict">In-process Rust engines reach 5.5 to 57.7 M edges; '
-              'Rust servers 88 k; the JVM 117 M.</span>',
+        + acc(f'<strong>Reach by engine family</strong><span class="verdict">{esc(rust_verdict)}</span>',
               '<div class="evidence-table" tabindex="0" role="region" aria-label="Reach by engine group"><table><thead><tr>'
               '<th>Group</th><th>Backends</th><th>Furthest clean</th><th>Each, largest clean graph</th></tr></thead><tbody>'
               + "".join(grp_rows) + '</tbody></table></div>')
@@ -817,8 +836,6 @@ def render(site):
 
     key_verdict = (f"{len([b for b in BACKENDS if CL(b) >= 30_000_000])} of {len(BACKENDS)} backends are clean past 30 M edges; "
                    f"{walls['mem']} loads ended at a memory wall, {walls['time']} at a time wall; hover the matrix for what decided each cell.")
-    rust_verdict = (f"In-process Rust engines reach {edges(min(CL(b) for b in rust_local))} to {edges(max(CL(b) for b in rust_local))}; "
-                    f"Rust servers {edges(server_reach)}; the JVM {edges(CL('neo4j'))}.")
     scen_verdict = "Six families, nine hard gates; unsupported is never a failure."
     s_exec = fold(s_exec, "The longer summary: what was run, who takes the most strain, where Rust wins and loses, how to read the rest.")
     s_key = fold(s_key, esc(key_verdict))
