@@ -493,6 +493,15 @@ def render(site):
     rust_conclusion = (f"{name(best_rust)}, {esc(BACKENDS[best_rust]['form'])} Rust, matches Neo4j's reach at "
                        f"{esc(R[top]['clean'])}, {edges(CL(top))} edges, and beats Neo4j over Bolt in every same-machine "
                        f"pair on {rust_wins_line}.") if rust_level and rust_wins else ""
+    # What the leaderboard gives Neo4j at that graph, computed from its cells:
+    # memory is reported, not paired (container against whole process), and
+    # the hot-node column is Neo4j's when the Rust store refuses writes there.
+    rust_a4 = a4_at(best_rust, R[best_rust]["clean"])[0] if rust_conclusion else ""
+    neo_a4 = a4_at("neo4j", R["neo4j"]["clean"])[0] if rust_conclusion else ""
+    neo_keeps = "the smaller reported memory footprint there"
+    if "the rest refused" in rust_a4 and "the rest refused" not in neo_a4:
+        neo_keeps += (f", and accepts every hot-node write where {name(best_rust)} accepts "
+                      f"{esc(rust_a4.split(' ')[0])} and refuses the rest")
     lb_rows = []
     for b in rank:
         r = R[b]
@@ -528,14 +537,15 @@ def render(site):
     verdict_line = (
         f"{', '.join(name(b) for b in leaders[:-1])} and {name(leaders[-1])} are clean on all four core families up to "
         if len(leaders) > 1 else f"{name(top)} is clean on all four core families up to ")
+    lede = (f'<p class="lede">{verdict_line}{esc(R[top]["clean"])}, {edges(CL(top))} edges. Neo4j keeps {neo_keeps}; '
+            f'the speed margins on the leaderboard belong to the Rust store.</p>') if rust_conclusion else ""
     kpis = [(f"{len(runs)}", "runs"), (f"{len(cells):,}", "current cells"), (f"{len(history):,}", "superseded, in history"),
             (f"{len(BACKENDS)}", "backends"), (f"{len(sizes)}", "graphs"), (edges(max(sizes.values())), "edges, largest graph"), ("9", "hard gates")]
     s_verdict = (
         '<section class="wrap strain-summary" id="verdict">'
         '<div class="section-head"><span class="eyebrow">The verdict</span>'
         f'<h2>{rust_conclusion or (verdict_line + esc(R[top]["clean"]) + ", " + edges(CL(top)) + " edges.")}</h2>'
-        + (f'<p class="lede">{verdict_line}{esc(R[top]["clean"])}, {edges(CL(top))} edges. Neo4j keeps the smaller '
-           f'memory footprint there; every other margin the leaderboard shows belongs to the Rust store.</p>' if rust_conclusion else "")
+        + lede
         + '<div class="kpis">' + "".join(f'<div class="kpi"><b>{k}</b><span>{v}</span></div>' for k, v in kpis) + '</div>'
         f'<p>Ranked by the largest whole graph a store loaded and passed all four core families on (A1 hub fan-out, A2 deep '
         f'paths, A4 hot-node writes, A12 operability) under the standard envelope, then by how many graphs it is clean on. '
