@@ -1,8 +1,8 @@
 # Graph stores under strain: embedded Rust matches Neo4j's reach and beats it on speed; memory is the gap
 
-![Illustrated Bay Area infrastructure crossing the San Andreas Fault, with roads, power, fiber and water networks under strain.](../../../cover/san-andreas.png.PNG)
+![Prometheus breaks the chains of a graph, scattering sparks between its nodes.](../../../cover/prometheus-breaks-graphs-headboard.png)
 
-*The headboard illustrates infrastructure under stress. The experiments below test graph software on recorded datasets; they are not a seismic simulation.*
+*Prometheus unbound is the sign of the graph benchmarks at adversari.al. The experiments below test graph software on recorded datasets under stated budgets and hard gates.*
 
 **Grust's embedded Rust stores now match Neo4j's reach in the strain benchmark: Turso, in both of its journal modes, is clean on all four core scenario families up to com-Orkut, 117 million edges, the largest graph in the set, level with Neo4j over Bolt. In every same-machine pair where both passed, Turso's WAL store beats Neo4j on loading, hub fan-out, deep walks, cold start and tail latency. Neo4j's remaining advantage is memory: 2.5 to 3 times leaner at that scale. A rerun now under way on the harness's new default allocator has already cut the Rust stores' memory by up to 30% on the graphs it has reached.**
 
