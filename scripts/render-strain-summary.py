@@ -32,7 +32,8 @@ import sys
 BEGIN, END = "<!-- strain-summary:begin -->", "<!-- strain-summary:end -->"
 ALIAS = {"surreal": "surreal-sdk"}
 # The standard envelope: 6 GiB containers, and each store's own defaults.
-DEFAULT = {"", "resultset_size=10000", "buffer_pool_bytes=4294967296,concurrent_writes=false"}
+DEFAULT = {"", "resultset_size=10000", "buffer_pool_bytes=4294967296,concurrent_writes=false",
+           "turso_load_writers=4"}  # the harness default for MVCC loads since 2026-09-16: four parallel writers
 BIG = {"mem_limit=25769803776", "resultset_size=10000,mem_limit=25769803776"}
 PROFILE_LABEL = {
     "": "default",
@@ -42,7 +43,21 @@ PROFILE_LABEL = {
     "buffer_pool_bytes=4294967296,concurrent_writes=true": "concurrent writes on",
     "mem_limit=25769803776": "24 GiB containers",
     "resultset_size=10000,mem_limit=25769803776": "24 GiB containers, 10,000-row cap",
+    "turso_load_writers=4": "default (4 parallel MVCC load writers)",
+    "turso_load_writers=8": "8 parallel MVCC load writers",
+    "turso_sync=normal,turso_load_writers=8": "synchronous=NORMAL during the load (not fsync-durable per commit), 8 writers",
+    "turso_sync=normal,turso_load_writers=4": "synchronous=NORMAL during the load (not fsync-durable per commit), 4 writers",
 }
+
+
+def norm_profile(backend, profile):
+    """The profile as the cell key sees it: the host class is where a run was
+    taken, not a configuration; WAL admits one writer, so a writers tag on a
+    WAL row (stamped by harness revisions before 36a6897) means nothing."""
+    parts = [x for x in (profile or "").split(",") if x and not x.startswith("host=")]
+    if backend == "turso-wal":
+        parts = [x for x in parts if not x.startswith("turso_load_writers=")]
+    return ",".join(parts)
 SLICE_LABEL = {"full": "whole graph", "200k": "first 200 k edges", "50k": "first 50 k edges", "10k": "first 10 k edges"}
 
 # ---------------------------------------------------------------- backends
@@ -179,13 +194,19 @@ def machine(pub):
     raise ValueError(pub)
 
 
-def load(evidence):
+def load(evidence, before=None):
+    """Every run under the evidence tree (publications dated before `before`
+    only, when given), the latest cell per (dataset, backend, scenario, slice,
+    profile), and the history: every cell a later run superseded, with the
+    cell that superseded it and why."""
     runs = {}
     for pub in sorted(os.listdir(evidence)):
         mpath = os.path.join(evidence, pub, "manifest.json")
         if not os.path.exists(mpath):
             continue
         manifest = json.load(open(mpath))
+        if before and pub[:10] >= before:
+            continue
         for r in manifest["runs"]:
             run = r["run"]
             d = os.path.join(evidence, pub, run)
@@ -198,16 +219,37 @@ def load(evidence):
                 slices[ds["manifest"]["name"]] = f"{cap // 1000}k" if cap else "full"
             runs[run] = dict(pub=pub, host=machine(pub), cpus=(rep.get("host") or {}).get("cpus"),
                              smoke=r.get("smoke", False), slices=slices, rows=rep.get("results", []))
-    cells = {}
+    cells, history = {}, []
     for run in sorted(runs):
         R = runs[run]
         for row in R["rows"]:
             obs = row.get("observations") or {}
-            key = (row["dataset"], ALIAS.get(row["backend"], row["backend"]), row["scenario"],
-                   R["slices"].get(row["dataset"], "200k" if R["smoke"] else "full"), obs.get("profile") or "")
-            cells[key] = dict(run=run, pub=R["pub"], host=R["host"], cpus=R["cpus"], row=row, obs=obs, cause=cause_of(row))
+            backend = ALIAS.get(row["backend"], row["backend"])
+            key = (row["dataset"], backend, row["scenario"],
+                   R["slices"].get(row["dataset"], "200k" if R["smoke"] else "full"), norm_profile(backend, obs.get("profile")))
+            cell = dict(run=run, pub=R["pub"], host=R["host"], cpus=R["cpus"], row=row, obs=obs, cause=cause_of(row), key=key)
+            if key in cells:
+                history.append(dict(old=cells[key], new=cell, why="a later run at the same profile"))
+            cells[key] = cell
+    # Within the standard envelope the profiles are equivalent for the ranking
+    # (a store at its defaults, as the harness defines them at the time), so the
+    # newest default-envelope run supersedes older default runs of the same
+    # cell even when the harness's default itself moved.
+    by_cell = collections.defaultdict(list)
+    for key in list(cells):
+        if key[4] in DEFAULT:
+            by_cell[key[:4]].append(key)
+    for base, keys in by_cell.items():
+        if len(keys) < 2:
+            continue
+        newest = max(keys, key=lambda k: cells[k]["run"])
+        for k in keys:
+            if k != newest:
+                history.append(dict(old=cells[k], new=cells[newest],
+                                    why=f"a later run at the harness default ({PROFILE_LABEL.get(newest[4], newest[4])})"))
+                del cells[k]
     pubs = sorted({R["pub"] for R in runs.values()})
-    return runs, cells, pubs
+    return runs, cells, pubs, history
 
 
 # ---------------------------------------------------------------- analysis
@@ -358,12 +400,30 @@ def name(b):
     return esc(BACKENDS[b]["name"])
 
 
+def fold(section_html, verdict_html, open_=False):
+    """Keep a section's heading (eyebrow, h2, intro) visible and fold everything
+    under it behind one line that says what the section concludes."""
+    i = section_html.index('<div class="section-head"')
+    j = section_html.index("</div>", i) + len("</div>")
+    head, rest = section_html[:j], section_html[j:]
+    for close in ("</div></section>", "</section>"):
+        if rest.endswith(close):
+            body, tail = rest[:-len(close)], close
+            break
+    return head + acc(f'<strong>Detail</strong><span class="verdict">{verdict_html}</span>', body, "group", open_) + tail
+
+
 # ---------------------------------------------------------------- sections
 def render(site):
     evidence = os.path.join(site, "public", "evidence", "strain")
-    runs, cells, pubs = load(evidence)
+    runs, cells, pubs, history = load(evidence)
     sizes, nodes, hub = dataset_sizes(cells)
     R, untyped = reach(cells, sizes)
+    latest_date = pubs[-1][:10]
+    new_pubs = [p for p in pubs if p[:10] == latest_date]
+    _r, cells_before, pubs_before, _h = load(evidence, before=latest_date)
+    R_before, _u = reach(cells_before, dataset_sizes(cells_before)[0]) if cells_before else ({}, [])
+    hosts = sorted({R_["host"] for R_ in runs.values()})
     typed = sorted((d for d in sizes if d in DATASETS and DATASETS[d][1]), key=sizes.get)
     h2h, h2h_order = head_to_head(cells)
 
@@ -379,8 +439,7 @@ def render(site):
     server_reach = max(CL(b) for b in rust_servers)
     local_beats_servers = min(CL(b) for b in rust_local) > server_reach
     assert CL(top) == max(CL(b) for b in BACKENDS)
-    assert (round(min(CL(b) for b in rust_local) / 1e5) / 10, round(max(CL(b) for b in rust_local) / 1e5) / 10,
-            round(server_reach / 1e3), round(CL(top) / 1e6)) == (5.5, 57.7, 88, 117), "reach-by-family summary is stale"
+    leaders = [b for b in rank if CL(b) == CL(top)]
     assert set(b for b in BACKENDS for d in typed if status(cells, b, d, DEFAULT)["kind"] == "wrong") <= {"falkor", "memgraph", "neo4j", "neo4j-http"}, "typed summary is stale"
     surreal24 = status(cells, "surreal-http", "wiki-Talk", BIG)
     assert surreal24["kind"] == "mem", "SurrealDB at 24 GiB no longer ends at the container limit"
@@ -402,6 +461,68 @@ def render(site):
     def label_of(b, sc, m):
         return dict((mm, lab) for s, mm, lab in h2h_order if s == sc)[m]
 
+    # ---- the verdict: best results first
+    def a4_at(b, d):
+        for k, c in cells.items():
+            if k[0] == d and k[1] == b and k[2] == "A4" and k[3] == "full" and k[4] in DEFAULT:
+                o = c["obs"]
+                acc_ = o.get("accepted")
+                att = (o.get("writers") or 0) * (o.get("edges_per_writer") or 0) or None
+                if acc_ is None:
+                    return chip("clean" if c["cause"] == "pass" else "wrong", CAUSE[c["cause"]][1], CAUSE[c["cause"]][0]), dur(o.get("wall_us"))
+                return (f"{acc_:,}/{att:,}" if att else f"{acc_:,}") + (" accepted" if att and acc_ == att else " accepted, the rest refused" if att else ""), dur(o.get("wall_us"))
+        return "–", ""
+    wins_of = {b: [label_of(b, sc, m) for bb, sc, m in always if bb == b] for b in BACKENDS}
+    lb_rows = []
+    for b in rank:
+        r = R[b]
+        if not r["clean"]:
+            continue
+        a4, a4w = a4_at(b, r["clean"])
+        fw = r["first_wall"]
+        wall_txt = f'{esc(fw)}: {esc(CAUSE[r["status"][fw]["cause"]][1])}' if fw else "none reached"
+        lb_rows.append(f'<tr><td class="b">{name(b)}</td><td>{esc(BACKENDS[b]["lang"])}, {esc(BACKENDS[b]["form"])}</td>'
+                       f'<td class="num"><strong>{edges(CL(b))}</strong><br><span class="muted">{esc(r["clean"])}</span></td>'
+                       f'<td>{a4}<br><span class="muted">{a4w}</span></td>'
+                       f'<td>{esc(", ".join(wins_of[b])) if wins_of[b] else ("reference" if b == "neo4j" else "none")}</td>'
+                       f'<td>{wall_txt}</td></tr>')
+    leaderboard = ('<div class="evidence-table" tabindex="0" role="region" aria-label="Leaderboard"><table><thead><tr>'
+                   '<th class="b">Backend</th><th>Built as</th><th>Largest graph clean on all four families</th>'
+                   '<th>Hot-node writes there (A4)</th><th>Always faster than Neo4j · Bolt on</th><th>First wall</th>'
+                   '</tr></thead><tbody>' + "".join(lb_rows) + '</tbody></table></div>')
+    changed = []
+    for b in rank:
+        if b not in R_before:
+            continue
+        before, now = R_before[b]["clean"], R[b]["clean"]
+        if before != now:
+            changed.append(f"<strong>{name(b)}</strong>: {esc(before or 'no whole graph')} → {esc(now or 'no whole graph')}"
+                           + (f" ({edges(sizes.get(before, 0))} → {edges(CL(b))})" if before and now else ""))
+    n_new_runs = sum(1 for R_ in runs.values() if R_["pub"] in new_pubs)
+    n_sup = sum(1 for h in history if h["new"]["pub"] in new_pubs)
+    what_changed = (
+        f'<p><strong>What changed in the {esc(latest_date)} publication.</strong> {n_new_runs} new runs in {len(new_pubs)} bundles '
+        f'({", ".join(esc(p) for p in new_pubs)}); {n_sup} earlier cells were superseded and moved to the history below. '
+        + (("Largest clean graph moved for " + "; ".join(changed) + ".") if changed else "No backend's largest clean graph moved.")
+        + '</p>')
+    verdict_line = (
+        f"{', '.join(name(b) for b in leaders[:-1])} and {name(leaders[-1])} are clean on all four core families up to "
+        if len(leaders) > 1 else f"{name(top)} is clean on all four core families up to ")
+    kpis = [(f"{len(runs)}", "runs"), (f"{len(cells):,}", "current cells"), (f"{len(history):,}", "superseded, in history"),
+            (f"{len(BACKENDS)}", "backends"), (f"{len(sizes)}", "graphs"), (edges(max(sizes.values())), "edges, largest graph"), ("9", "hard gates")]
+    s_verdict = (
+        '<section class="wrap strain-summary" id="verdict">'
+        '<div class="section-head"><span class="eyebrow">The verdict</span>'
+        f'<h2>{verdict_line}{esc(R[top]["clean"])}, {edges(CL(top))} edges.</h2>'
+        '<div class="kpis">' + "".join(f'<div class="kpi"><b>{k}</b><span>{v}</span></div>' for k, v in kpis) + '</div>'
+        f'<p>Ranked by the largest whole graph a store loaded and passed all four core families on (A1 hub fan-out, A2 deep '
+        f'paths, A4 hot-node writes, A12 operability) under the standard envelope, then by how many graphs it is clean on. '
+        f'<em>Hot-node writes there</em> is what happened when 16 writers each attached 200 edges to the same hub on that '
+        f'graph: a durable store accepts all of them; a single-writer journal refuses most and still passes, because a '
+        f'typed refusal is not a lost write. <em>Always faster</em> counts the scenarios where the store beat Neo4j over '
+        f'Bolt in every pair on the same graph and machine.</p></div>'
+        + leaderboard + what_changed + '</section>')
+
     # ---- executive summary
     runners = ", ".join(f"{name(b)} ({esc(R[b]['clean'])}, {edges(CL(b))})" for b in rank[1:5])
     rust_line = ", ".join(f"{name(b)} up to {esc(R[b]['clean'])} ({edges(CL(b))})" for b in rust_rank[:3])
@@ -417,14 +538,16 @@ def render(site):
         return "; ".join(f"{name(b)} ({esc(', '.join(v))})" for b, v in
                          sorted(gated[cause].items(), key=lambda x: list(BACKENDS).index(x[0])))
     exec_items = [
-        f"<strong>What was run.</strong> {len(runs)} runs on five machines from {pubs[0][:10]} to {pubs[-1][:10]}, published in "
+        f"<strong>What was run.</strong> {len(runs)} runs on {len(hosts)} machines from {pubs[0][:10]} to {pubs[-1][:10]}, published in "
         f"{len(pubs)} verified bundles: {len(cells):,} latest cells over {len(BACKENDS)} backends (eleven engines, four of "
         f"them reached two ways) and {len(sizes)} graphs from {edges(min(sizes.values()))} to {edges(max(sizes.values()))} edges. "
         f"{n_pass:,} cells pass, {n_na:,} are not applicable or declared limits, and {n_fail:,} fail or were placed by a limit.",
-        f"<strong>Who takes the most strain.</strong> {name(top)} goes furthest: "
-        + (f"it passes all four core families (A1, A2, A4, A12) on every whole untyped graph, up to "
-           if top_clean_everywhere else "it is clean up to ")
-        + f"{esc(R[top]['clean'])} ({edges(CL(top))} edges). Next, by the largest graph clean on all four: {runners}.",
+        f"<strong>Who takes the most strain.</strong> "
+        + (f"{name(top)} goes furthest: " + ("it passes all four core families (A1, A2, A4, A12) on every whole untyped graph, up to "
+           if top_clean_everywhere else "it is clean up to ") if len(leaders) == 1 else
+           f"{', '.join(name(b) for b in leaders[:-1])} and {name(leaders[-1])} go furthest, each clean on all four core families (A1, A2, A4, A12) up to ")
+        + f"{esc(R[top]['clean'])} ({edges(CL(top))} edges). Next, by the largest graph clean on all four: "
+        + ", ".join(f"{name(b)} ({esc(R[b]['clean'])}, {edges(CL(b))})" for b in rank[len(leaders):len(leaders) + 4]) + ".",
         f"<strong>Rust, by itself, does not predict it.</strong> The Rust engines that run in process go far: {rust_line}."
         f"{further_line} The Rust servers do not: SurrealDB and HelixDB are clean only up to {edges(server_reach)} edges, and "
         f"SurrealDB is still killed at its memory limit on 5 M edges with 24 GiB. The best Rust store, {name(best_rust)}, is "
@@ -442,13 +565,10 @@ def render(site):
         f"<strong>How to read the rest.</strong> <em>unsupported</em> is never a failure: A3 runs only on the in-process "
         f"reference and A7 only on stores with guarded commits, by design. Every cell below links to the run it came from.",
     ]
-    kpis = [(f"{len(runs)}", "runs"), (f"{len(cells):,}", "latest cells"), (f"{len(BACKENDS)}", "backends"),
-            (f"{len(sizes)}", "graphs"), (edges(max(sizes.values())), "edges, largest graph"), ("9", "hard gates")]
     s_exec = (
         '<section class="wrap strain-summary" id="summary">'
         '<div class="section-head"><span class="eyebrow">Executive summary</span>'
         '<h2>Which graph stores take the strain, and which only look fast until they break.</h2></div>'
-        '<div class="kpis">' + "".join(f'<div class="kpi"><b>{k}</b><span>{v}</span></div>' for k, v in kpis) + '</div>'
         '<div class="exec"><ul>' + "".join(f"<li>{x}</li>" for x in exec_items) + '</ul></div>'
         '</section>'
     )
@@ -686,7 +806,56 @@ def render(site):
         f'and what decided each graph. Under a graph is its evidence, one row per scenario, linked to the run it came from. '
         f'{len(cells):,} results in all, the latest per dataset, backend, scenario, slice and profile.</p></div>' + "".join(group_blocks) + '</section>')
 
-    return "\n".join([BEGIN, s_exec, s_key, s_rust, s_scen, s_cells, END])
+    key_verdict = (f"{len([b for b in BACKENDS if CL(b) >= 30_000_000])} of {len(BACKENDS)} backends are clean past 30 M edges; "
+                   f"{walls['mem']} loads ended at a memory wall, {walls['time']} at a time wall; hover the matrix for what decided each cell.")
+    rust_verdict = (f"In-process Rust engines reach {edges(min(CL(b) for b in rust_local))} to {edges(max(CL(b) for b in rust_local))}; "
+                    f"Rust servers {edges(server_reach)}; the JVM {edges(CL('neo4j'))}.")
+    scen_verdict = "Six families, nine hard gates; unsupported is never a failure."
+    s_exec = fold(s_exec, "The longer summary: what was run, who takes the most strain, where Rust wins and loses, how to read the rest.")
+    s_key = fold(s_key, esc(key_verdict))
+    s_rust = fold(s_rust, esc(rust_verdict))
+    s_scen = fold(s_scen, esc(scen_verdict))
+
+    # ---- history: every superseded cell, by the publication it came from
+    hist_by_pub = collections.defaultdict(list)
+    for h in history:
+        hist_by_pub[h["old"]["pub"]].append(h)
+    pub_blocks = []
+    for pub in sorted(hist_by_pub, reverse=True):
+        items = hist_by_pub[pub]
+        by_backend = collections.defaultdict(list)
+        for h in items:
+            by_backend[h["old"]["key"][1]].append(h)
+        b_blocks = []
+        for b in [b for b in BACKENDS if b in by_backend]:
+            rows = []
+            for h in sorted(by_backend[b], key=lambda h: (sizes.get(h["old"]["key"][0], 0), h["old"]["key"][2])):
+                o, n = h["old"], h["new"]
+                ok, nk = o["key"], n["key"]
+                rows.append(f'<tr><td>{esc(ok[0])}</td><td>{esc(ok[2])}</td><td>{esc(PROFILE_LABEL.get(ok[4], ok[4]) or "default")}</td>'
+                            f'<td>{chip("clean" if o["cause"] == "pass" else "partial" if o["cause"] == "pass-incomplete" else "wrong" if o["cause"] in BAD else WALL.get(o["cause"], "none"), CAUSE[o["cause"]][1], CAUSE[o["cause"]][0])}</td>'
+                            f'<td><a href="/evidence/strain/{esc(o["pub"])}/{esc(o["run"])}/report.json">{esc(o["host"])} · {esc(o["run"][:8])}</a></td>'
+                            f'<td>{esc(h["why"])}: <a href="/evidence/strain/{esc(n["pub"])}/{esc(n["run"])}/report.json">{esc(n["pub"])} · {esc(n["run"][:8])}</a>, '
+                            f'{chip("clean" if n["cause"] == "pass" else "partial" if n["cause"] == "pass-incomplete" else "wrong" if n["cause"] in BAD else WALL.get(n["cause"], "none"), CAUSE[n["cause"]][1], CAUSE[n["cause"]][0])}</td></tr>')
+            b_blocks.append(acc(f'<strong>{name(b)}</strong><span class="muted">{len(rows)} cells superseded</span>',
+                                '<div class="evidence-table compact-table" tabindex="0" role="region" aria-label="Superseded cells"><table><thead><tr>'
+                                '<th>Graph</th><th>Scenario</th><th>Profile</th><th>Was</th><th>Run</th><th>Superseded by</th></tr></thead><tbody>'
+                                + "".join(rows) + '</tbody></table></div>', "backend"))
+        n_same = sum(1 for h in items if h["why"].startswith("a later run at the same"))
+        pub_blocks.append(acc(f'<strong>{esc(pub)}</strong><span class="verdict">{len(items)} cells superseded: {n_same} by a later run at the same profile, '
+                              f'{len(items) - n_same} by the harness default moving on.</span>',
+                              "".join(b_blocks), "group"))
+    s_hist = (
+        '<section class="band"><div class="wrap">'
+        '<div class="section-head" id="history"><span class="eyebrow">History</span>'
+        '<h2>What later runs superseded, and by what.</h2>'
+        f'<p>Nothing published is deleted. {len(history)} cells above were replaced by a later run of the same backend, graph, '
+        f'scenario and slice: either at the same profile, or by a run at the harness\'s current default after that default moved '
+        f'(Turso MVCC loads went from one writer to four on 2026-09-16). Each row links the cell that was superseded and the one that '
+        f'superseded it; every bundle they came from is still pinned in the evidence section.</p></div>'
+        + "".join(pub_blocks) + '</div></section>')
+
+    return "\n".join([BEGIN, s_verdict, s_exec, s_key, s_rust, s_scen, s_cells, s_hist, END])
 
 
 def main():
