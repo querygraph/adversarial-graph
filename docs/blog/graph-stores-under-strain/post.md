@@ -1,4 +1,4 @@
-# Graph stores under strain: embedded Rust matches Neo4j's reach and beats its speed; memory is the gap
+# Graph stores under strain: embedded Rust matches Neo4j's reach and beats it on speed; memory is the gap
 
 ![Illustrated Bay Area infrastructure crossing the San Andreas Fault, with roads, power, fiber and water networks under strain.](../../../cover/san-andreas.png.PNG)
 
@@ -10,7 +10,7 @@ A graph store can answer quickly and still fail the workload around that answer.
 
 The [published strain benchmark](https://adversari.al/graph/strain) now brings together 331 runs in 32 verified evidence bundles, covering September 5–16, 2026, on five machines. Its summary holds 1,097 current cells across 15 backend routes and 14 graphs; the 805 cells that later runs superseded stay on the page in a history section, with the run that replaced each one. A cell identifies a graph, backend, scenario, edge slice and configuration profile. It is one piece of evidence, not a certification of the whole engine.
 
-Those distinctions still govern how the results should be read. A small sliced graph is not a completed whole-graph run. An unsupported operation is not a correctness failure. Passing three scenarios does not establish that a fourth, unrun scenario would pass. The [summary generator](https://github.com/querygraph/adversarial-graph/blob/c13a2a8/scripts/render-strain-summary.py) derives every classification below from the published reports, and the page opens with the verdict it computes.
+Those distinctions still govern how the results should be read. A small sliced graph is not a completed whole-graph run. An unsupported operation is not a correctness failure. Passing three scenarios does not establish that a fourth, unrun scenario would pass. The [summary generator](https://github.com/querygraph/adversarial-graph/blob/ab84d11/scripts/render-strain-summary.py) derives every classification below from the published reports, and the page opens with the verdict it computes.
 
 The benchmark asks six practical questions:
 
