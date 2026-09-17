@@ -6,6 +6,11 @@
 //!   ag datasets                  list the datasets in datasets/MANIFEST.json
 //!   ag backends                  list built-in backends
 
+/// The harness's process allocator, for every in-process backend (Cargo.toml).
+#[cfg(feature = "mimalloc")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 #[cfg(feature = "age")]
 mod age;
 mod backends;

@@ -32,9 +32,12 @@ import sys
 BEGIN, END = "<!-- strain-summary:begin -->", "<!-- strain-summary:end -->"
 ALIAS = {"surreal": "surreal-sdk"}
 # The standard envelope: 6 GiB containers, and each store's own defaults.
-DEFAULT = {"", "resultset_size=10000", "buffer_pool_bytes=4294967296,concurrent_writes=false",
-           "turso_load_writers=4"}  # the harness default for MVCC loads since 2026-09-16: four parallel writers
-BIG = {"mem_limit=25769803776", "resultset_size=10000,mem_limit=25769803776"}
+ALLOC = "alloc=mimalloc"  # the harness's process allocator since 2026-09-17; rows before it ran on glibc
+def _with_alloc(profiles):
+    return set(profiles) | {f"{p},{ALLOC}" if p else ALLOC for p in profiles}
+DEFAULT = _with_alloc({"", "resultset_size=10000", "buffer_pool_bytes=4294967296,concurrent_writes=false",
+                       "turso_load_writers=4"})  # the harness default for MVCC loads since 2026-09-16: four parallel writers
+BIG = _with_alloc({"mem_limit=25769803776", "resultset_size=10000,mem_limit=25769803776"})
 PROFILE_LABEL = {
     "": "default",
     "resultset_size=10000": "default (FalkorDB's 10,000-row result cap)",
@@ -48,6 +51,8 @@ PROFILE_LABEL = {
     "turso_sync=normal,turso_load_writers=8": "synchronous=NORMAL during the load (not fsync-durable per commit), 8 writers",
     "turso_sync=normal,turso_load_writers=4": "synchronous=NORMAL during the load (not fsync-durable per commit), 4 writers",
 }
+for _p, _l in list(PROFILE_LABEL.items()):
+    PROFILE_LABEL[f"{_p},{ALLOC}" if _p else ALLOC] = f"{_l}, mimalloc"
 
 
 def norm_profile(backend, profile):
@@ -57,6 +62,10 @@ def norm_profile(backend, profile):
     parts = [x for x in (profile or "").split(",") if x and not x.startswith("host=")]
     if backend == "turso-wal":
         parts = [x for x in parts if not x.startswith("turso_load_writers=")]
+    # The allocator tag goes last whatever the harness's tag order, so the
+    # DEFAULT and BIG sets can be written once.
+    alloc = [x for x in parts if x.startswith("alloc=")]
+    parts = [x for x in parts if not x.startswith("alloc=")] + alloc
     return ",".join(parts)
 SLICE_LABEL = {"full": "whole graph", "200k": "first 200 k edges", "50k": "first 50 k edges", "10k": "first 10 k edges"}
 

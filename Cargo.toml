@@ -11,7 +11,7 @@ name = "ag"
 path = "src/main.rs"
 
 [dependencies]
-grust = { package = "grust-graph", git = "https://github.com/querygraph/grust", rev = "f6d33918249e30941b9dbc09929d1fdd336fb27a", features = ["memory", "turso", "cypher"] }
+grust = { package = "grust-graph", git = "https://github.com/querygraph/grust", rev = "a04ebd7578c7ab87d29d31575e12db1193b1e9b1", features = ["memory", "turso", "cypher"] }
 # Every Grust crate comes from one git revision of github.com/querygraph/grust,
 # never from crates.io and never from a local checkout: the facade, the Cypher
 # crate, the PostgreSQL core, and the internal backends that are not published
@@ -19,8 +19,8 @@ grust = { package = "grust-graph", git = "https://github.com/querygraph/grust", 
 # trait. (Until 2026-09-13 the facade came from crates.io at 0.13 with the
 # internals patched to git; when Grust main moved to 0.14 the patches stopped
 # applying and the build silently mixed crates.io 0.13 code with git code.)
-grust-helix = { git = "https://github.com/querygraph/grust", rev = "f6d33918249e30941b9dbc09929d1fdd336fb27a", optional = true }
-grust-ladybug = { git = "https://github.com/querygraph/grust", rev = "f6d33918249e30941b9dbc09929d1fdd336fb27a", optional = true }
+grust-helix = { git = "https://github.com/querygraph/grust", rev = "a04ebd7578c7ab87d29d31575e12db1193b1e9b1", optional = true }
+grust-ladybug = { git = "https://github.com/querygraph/grust", rev = "a04ebd7578c7ab87d29d31575e12db1193b1e9b1", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -30,6 +30,12 @@ hdrhistogram = "7"
 sha2 = "0.10"
 chrono = { version = "0.4", features = ["serde"] }
 libc = "0.2"
+# The process allocator, on by default: Turso's own default build uses it and
+# Grust's facade turns Turso's defaults off, so without this the harness ran
+# every Turso row on glibc malloc (measured 14-16% slower on loads). It is a
+# global allocator, so every in-process backend gets it; rows are tagged
+# `alloc=mimalloc`. `--no-default-features` builds the glibc harness.
+mimalloc = { version = "0.1", default-features = false, optional = true }
 redis = { version = "1", optional = true }
 neo4rs = { version = "0.8", optional = true }
 tokio-postgres = { version = "0.7", optional = true }
@@ -41,11 +47,12 @@ helix-db = { version = "=3.0.0", optional = true }
 async-trait = { version = "0.1", optional = true }
 csv = "1"
 zip = { version = "4", default-features = false, features = ["deflate"] }
-grust-cypher = { git = "https://github.com/querygraph/grust", rev = "f6d33918249e30941b9dbc09929d1fdd336fb27a" }
-grust-postgres-core = { git = "https://github.com/querygraph/grust", rev = "f6d33918249e30941b9dbc09929d1fdd336fb27a", optional = true }
+grust-cypher = { git = "https://github.com/querygraph/grust", rev = "a04ebd7578c7ab87d29d31575e12db1193b1e9b1" }
+grust-postgres-core = { git = "https://github.com/querygraph/grust", rev = "a04ebd7578c7ab87d29d31575e12db1193b1e9b1", optional = true }
 
 [features]
-default = []
+default = ["mimalloc"]
+mimalloc = ["dep:mimalloc"]
 postgres = ["grust/postgres", "dep:grust-postgres-core"]
 postgres-pgq = ["grust/postgres-pgq"]
 pggraph = ["grust/pggraph"]

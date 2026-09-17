@@ -182,10 +182,24 @@ pub fn turso_sync() -> Option<String> {
         .filter(|s| !s.is_empty() && s != "full")
 }
 
-/// Every profile tag a row takes from the run's environment: the host class
-/// and, on Turso rows, a non-default synchronous mode.
+/// The process allocator this binary was built with, when it is not the
+/// platform's. `mimalloc` is a `#[global_allocator]` in the harness, so it
+/// changes every in-process backend, not only Turso: every row is tagged.
+pub fn alloc() -> Option<String> {
+    if cfg!(feature = "mimalloc") {
+        Some("mimalloc".to_string())
+    } else {
+        None
+    }
+}
+
+/// Every profile tag a row takes from the run's environment: the host class,
+/// the allocator and, on Turso rows, a non-default synchronous mode.
 pub fn tag_run(result: &mut ScenarioResult) {
     tag_host(result, host_profile().as_deref());
+    if let Some(alloc) = alloc() {
+        tag_profile(result, format!("alloc={alloc}"));
+    }
     if result.backend.starts_with("turso") {
         if let Some(mode) = turso_sync() {
             tag_profile(result, format!("turso_sync={mode}"));
