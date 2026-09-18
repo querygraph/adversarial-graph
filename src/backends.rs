@@ -524,6 +524,8 @@ fn connect_ladybug(
         query_timeout_ms: None,
         buffer_pool_bytes: Some(ladybug_buffer_pool_bytes()),
         concurrent_writes: ladybug_concurrent_writes(),
+        // The engine's database size cap; `None` keeps its default.
+        max_db_bytes: None,
     })
 }
 
