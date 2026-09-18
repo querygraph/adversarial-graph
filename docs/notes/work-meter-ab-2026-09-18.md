@@ -70,3 +70,32 @@ Raw reports: eigen `~/meter-ab/{base,patch}-{1..5}/*/report.json`, script
 `meter-ab.sh`, comparison `meter-ab-compare.py` (session scratch). Not
 published evidence: a different host, an unranked arm, and a pin the page
 does not use.
+
+## Addendum, 19:47Z: the Cypher reference-executor series on `main`
+
+Same rig, same host, same protocol; the arms are the strain pin `7152d6a`
+(base) and `origin/main` `37fdf9c` (patch), which merges the executor
+performance series (shared elements instead of deep copies, compact rows,
+folded aggregates, sampled deadlines, `count_json_bytes`) and the list
+binding forms. The diffstat against the strain pin: 29 files in
+`grust-cypher`, 3 in `grust-core`, 2 in `grust-procedures`, a test in
+`grust-turso`; no strain adapter touched, so the ranked arms cannot move.
+
+| | base | patch | patch / base |
+|---|---:|---:|---:|
+| A8 wall, median of 5 | 234.9 s | 228.7 s | 0.974 |
+| the 27 completed queries, store side, per-round sum: median (MAD) | 12,855 (85) ms | 6,673 (98) ms | **0.519** |
+| oracle side | 1,329 ms | 1,353 ms | 1.017 |
+
+The gain is concentrated where the series says: `r4-female-persons` 15×,
+`r7-knows-unordered` 7.6×, `r6-countries-distinct` 7.6×, `r3-tag-popularity`
+4.4×, `r1-knows-pairs` 2.2× (aggregation, DISTINCT, UNWIND); the plain
+pattern queries are 2–9% slower, the meter's share. The two budget refusals
+(`r2-posts-per-creator`, `r5-reply-fanin`) still time out at 110 s on both,
+so no typed-graph cell changes outcome; A8's wall on this graph drops about
+6 s of 235.
+
+Decision unchanged: no strain re-run for this series either. When strain
+next moves its pin, it picks this up and A8 walls read ~2× lower on the
+completed queries; the refusals stay declared limits until the executor is
+another several times faster or the budget moves.
