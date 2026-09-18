@@ -200,6 +200,11 @@ pub fn tag_run(result: &mut ScenarioResult) {
     if let Some(alloc) = alloc() {
         tag_profile(result, format!("alloc={alloc}"));
     }
+    if result.backend == "ladybug" {
+        if let Some(bulk) = ladybug_bulk() {
+            tag_profile(result, format!("ladybug_bulk={bulk}"));
+        }
+    }
     if result.backend.starts_with("turso") {
         if let Some(mode) = turso_sync() {
             tag_profile(result, format!("turso_sync={mode}"));
@@ -218,6 +223,20 @@ pub fn tag_run(result: &mut ScenarioResult) {
             }
         }
     }
+}
+
+/// `AG_LADYBUG_BULK`: how Ladybug bulk loads treat rows already stored. The
+/// harness default `fresh` skips the adapter's per-chunk read-back (the
+/// caller vouches its chunks carry no stored key); `readback` keeps it. Only
+/// `fresh` is tagged, because rows before 2026-09-18 used the read-back and
+/// must not be superseded silently. Must match `backends::ladybug_bulk_fresh`.
+pub fn ladybug_bulk() -> Option<String> {
+    let mode = std::env::var("AG_LADYBUG_BULK")
+        .ok()
+        .map(|s| s.trim().to_ascii_lowercase())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "fresh".to_string());
+    Some(mode).filter(|m| m != "readback")
 }
 
 /// `AG_TURSO_GROUP=off`: the row ran without Grust's client-side group

@@ -517,7 +517,7 @@ fn connect_ladybug(
 ) -> grust::Result<grust_ladybug::LadybugGraphStore> {
     let dir = work_dir.join(format!("ladybug-{tag}"));
     let _ = std::fs::remove_dir_all(&dir);
-    grust_ladybug::LadybugGraphStore::new(grust_ladybug::LadybugConfig {
+    let store = grust_ladybug::LadybugGraphStore::new(grust_ladybug::LadybugConfig {
         path: grust_ladybug::LadybugPath::Directory(dir),
         table_prefix: "ag".to_string(),
         dynamic_schema: true,
@@ -526,7 +526,20 @@ fn connect_ladybug(
         concurrent_writes: ladybug_concurrent_writes(),
         // The engine's database size cap; `None` keeps its default.
         max_db_bytes: None,
-    })
+    })?;
+    // The harness loads one fresh graph per run, in disjoint chunks (the
+    // compact loader's CSR order), so the adapter's per-chunk read-back of
+    // every stored key — quadratic in the chunk count — has nothing to find.
+    // Rows are tagged `ladybug_bulk=fresh` (report::ladybug_bulk).
+    store.set_bulk_load_trusts_fresh_rows(ladybug_bulk_fresh());
+    Ok(store)
+}
+
+/// `AG_LADYBUG_BULK=readback` restores the adapter's default read-back;
+/// the harness default is `fresh`.
+#[cfg(feature = "ladybug")]
+fn ladybug_bulk_fresh() -> bool {
+    env_or("AG_LADYBUG_BULK", "fresh") != "readback"
 }
 
 /// The engine's multi-writer mode is off by default; `AG_LADYBUG_CONCURRENT_WRITES=1`

@@ -36,7 +36,8 @@ ALLOC = "alloc=mimalloc"  # the harness's process allocator since 2026-09-17; ro
 def _with_alloc(profiles):
     return set(profiles) | {f"{p},{ALLOC}" if p else ALLOC for p in profiles}
 DEFAULT = _with_alloc({"", "resultset_size=10000", "buffer_pool_bytes=4294967296,concurrent_writes=false",
-                       "turso_load_writers=4"})  # the harness default for MVCC loads since 2026-09-16: four parallel writers
+                       "turso_load_writers=4",
+                       "buffer_pool_bytes=4294967296,concurrent_writes=false,ladybug_bulk=fresh"})  # the harness default for MVCC loads since 2026-09-16: four parallel writers
 BIG = _with_alloc({"mem_limit=25769803776", "resultset_size=10000,mem_limit=25769803776"})
 PROFILE_LABEL = {
     "": "default",
@@ -50,6 +51,7 @@ PROFILE_LABEL = {
     "turso_load_writers=8": "8 parallel MVCC load writers",
     "turso_sync=normal,turso_load_writers=8": "synchronous=NORMAL during the load (not fsync-durable per commit), 8 writers",
     "turso_sync=normal,turso_load_writers=4": "synchronous=NORMAL during the load (not fsync-durable per commit), 4 writers",
+    "buffer_pool_bytes=4294967296,concurrent_writes=false,ladybug_bulk=fresh": "default (4 GiB buffer pool; bulk loads skip the stored-key read-back)",
 }
 for _p, _l in list(PROFILE_LABEL.items()):
     PROFILE_LABEL[f"{_p},{ALLOC}" if _p else ALLOC] = f"{_l}, mimalloc"
