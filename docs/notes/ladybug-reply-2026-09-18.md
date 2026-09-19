@@ -2,7 +2,8 @@
 
 Status: draft, for the user to send. Answers his two messages of 2026-09-17:
 the 0.20.4 / 0.21.x recommendation with the cit-Patents question, and the
-pointer to `ldbc_data_gen_columnar/lbug_datagen/bulk.py`. Measurements are in
+pointer to `ldbc_data_gen_columnar/lbug_datagen/bulk.py`. Also answers his
+later question about where to find Icecat. Measurements are in
 Grust PR #7 (https://github.com/querygraph/grust/pull/7) and
 `crates/grust-ladybug/examples/copy_bench.rs`.
 
@@ -61,3 +62,29 @@ One earlier item still applies: the buffer pool auto-sizes to host RAM from
 for a library on a shared host; our harness caps it at 4 GiB, and a
 documented default cap or env override in the crate would make co-tenancy
 predictable for everyone else.
+
+**On Icecat, since you asked where to look.** The branch you found,
+`feat/rust-rewrite`, is gone — it was fast-forwarded into `main` and deleted, so
+that URL now 404s. Everything is on the default branch:
+
+  https://github.com/querygraph/icecat
+
+The README there now names what the repository holds, which it previously did
+not: **Icebug**, the Arrow update of the NetworKit C++ codebase; **Icecat**, the
+Rust rewrite under `rust/` (`icebug-core`, `icebug-algorithms`, `icebug-io`,
+`icebug-datafusion`, `icebug-python`); and **Grustcat** and **Grustcat Cypher**,
+Rust adapters exposing those kernels through the Grust property-graph API. The
+last two sit outside the Rust workspace on purpose, because they answer to
+Grust's dependency graph rather than Icebug's.
+
+If you want the exact sources behind the published algorithm benchmark rather
+than current `main`, they are tagged `algorithms-benchmark-2026-09-13`. That
+tag's message records how faithfully the published snapshot corresponds to the
+commit: 1,085 of 1,087 tracked files match, two READMEs match no commit because
+they were staged from a working tree, and 601 files under `extlibs/` are
+submodule contents outside the commit tree.
+
+One caveat if you are evaluating rather than browsing: `rust/README.md` still
+describes the rewrite as experimental and points at a status and roadmap
+document. That framing is from when the crates landed and has not been revised,
+so treat the code as current and the maturity claims as dated.
