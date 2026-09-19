@@ -10,7 +10,7 @@ A graph store can answer quickly and still fail the workload around that answer.
 
 The [published strain benchmark](https://adversari.al/graph/strain) now brings together 365 runs in 34 verified evidence bundles, covering September 5–19, 2026, on five machines. Its summary holds 1,189 current cells across 15 backend routes and 14 graphs; the 941 cells that later runs superseded stay on the page in a history section, with the run that replaced each one. A cell identifies a graph, backend, scenario, edge slice and configuration profile. It is one piece of evidence, not a certification of the whole engine.
 
-Those distinctions still govern how the results should be read. A small sliced graph is not a completed whole-graph run. An unsupported operation is not a correctness failure. Passing three scenarios does not establish that a fourth, unrun scenario would pass. The [summary generator](https://github.com/querygraph/adversarial-graph/blob/910fbed/scripts/render-strain-summary.py) derives every classification below from the published reports, and the page opens with the verdict it computes.
+Those distinctions still govern how the results should be read. A small sliced graph is not a completed whole-graph run. An unsupported operation is not a correctness failure. Passing three scenarios does not establish that a fourth, unrun scenario would pass. The [summary generator](https://github.com/querygraph/adversarial-graph/blob/cd79277/scripts/render-strain-summary.py) derives every classification below from the published reports, and the page opens with the verdict it computes.
 
 The benchmark asks six practical questions:
 
@@ -23,7 +23,7 @@ The benchmark asks six practical questions:
 | Policy and commits | Are unbounded requests refused in time, and do replayed guarded commits have exactly one durable effect? |
 | Typed graphs | Do recursive deletes, isolation under contention, and schema-sensitive queries preserve their declared semantics? |
 
-A pass requires all nine hard gates to remain zero: wrong answers, lost writes, duplicate durable mutations, isolation anomalies, policy bypasses, hangs without refusal, out-of-memory or crashes, unauthorized disclosure, and nondeterministic receipts. Latency cannot compensate for a fired gate. The [harness and scenario specification](https://github.com/querygraph/adversarial-graph/blob/910fbed/ADVERSARIAL-GRAPH.md) make those obligations inspectable.
+A pass requires all nine hard gates to remain zero: wrong answers, lost writes, duplicate durable mutations, isolation anomalies, policy bypasses, hangs without refusal, out-of-memory or crashes, unauthorized disclosure, and nondeterministic receipts. Latency cannot compensate for a fired gate. The [harness and scenario specification](https://github.com/querygraph/adversarial-graph/blob/cd79277/ADVERSARIAL-GRAPH.md) make those obligations inspectable.
 
 ## Reach
 
@@ -47,7 +47,7 @@ These are the largest qualifying graphs in this evidence set, not maximum suppor
 
 ## Speed, in same-machine pairs
 
-A pair is one Rust route and Neo4j over Bolt that both passed the same scenario on the same graph, edge slice and machine, under the standard profiles. Rows from different machines are never compared. The [full pairing](https://github.com/querygraph/adversarial-graph/blob/910fbed/rust-vs-neo4j.md) is generated from the same evidence as the page; there are 176 pairs.
+A pair is one Rust route and Neo4j over Bolt that both passed the same scenario on the same graph, edge slice and machine, under the standard profiles. Rows from different machines are never compared. The [full pairing](https://github.com/querygraph/adversarial-graph/blob/cd79277/rust-vs-neo4j.md) is generated from the same evidence as the page; there are 176 pairs.
 
 | Rust route | Beats Neo4j in every pair on | Median advantage |
 |---|---|---|
