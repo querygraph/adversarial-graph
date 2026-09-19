@@ -88,3 +88,39 @@ One caveat if you are evaluating rather than browsing: `rust/README.md` still
 describes the rewrite as experimental and points at a status and roadmap
 document. That framing is from when the crates landed and has not been revised,
 so treat the code as current and the maturity claims as dated.
+
+**Why the Rust rewrite is faster than the C++ it came from, since it is the same
+class of finding as your `COPY`.** In the algorithm benchmark the Rust
+implementation beats the NetworKit-derived C++ one on full-path Dijkstra by
+1.55x at 4,096 nodes and 2.8x at 65,536 — 10,888 ms against 30,454. The widening
+is the clue: a language or codegen difference is a constant factor, and this one
+grows with the work.
+
+`perf` on both, same 65,536-node chain, same container limits. C++: 36.2% in
+`NetworKit::SSSP::getPath`, 20.1% in the caller's loop, **15.2% in
+`do_user_addr_fault`** — kernel page-fault handling — plus 7.7% in libc and 3.0%
+in kernel memory locking. Rust: 66.7% in `dijkstra_impl`, 33.2% in `main`, and no
+allocator or kernel frame above 2%. About a quarter of the C++ run is the
+allocator and the kernel; none of the Rust run is.
+
+The mechanism is in the data structures, not the compilers. NetworKit stores
+predecessors as `std::vector<std::vector<node>>`, one heap block per node, so
+walking a path chases pointers across n separate allocations — the price of
+supporting multiple shortest paths through `getPaths`. Then `getPath` builds a
+fresh `std::vector<node>` per target with `push_back` and no `reserve`, so each
+path reallocates as it grows, and reverses it; the caller allocates a second
+vector for costs per target. On a chain the paths sum to `n(n+1)/2` entries, so
+at 65,536 that is 2.1 billion entries pushed through 131,072 allocations whose
+sizes grow linearly with the target index. That churn is what surfaces as page
+faults.
+
+The Rust side keeps a flat `Vec<u64>` of parents and two reconstruction buffers
+allocated once and `clear()`ed per target, so after the first few paths it never
+allocates again.
+
+None of that is a verdict on the languages. It is an API shape forcing an
+allocation per item — `getPath` returning by value cannot reuse a caller buffer,
+so the cost is structural rather than incidental, and the same code with an
+out-parameter or a visitor would close most of the gap. It reads as the same
+lesson as the row-probing `COPY`: the expensive thing was the shape of the
+interface, not the engine underneath it.
