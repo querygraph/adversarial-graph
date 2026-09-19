@@ -124,3 +124,29 @@ so the cost is structural rather than incidental, and the same code with an
 out-parameter or a visitor would close most of the gap. It reads as the same
 lesson as the row-probing `COPY`: the expensive thing was the shape of the
 interface, not the engine underneath it.
+---
+
+*Addendum, 2026-09-19, after the ladder ran to its end:*
+
+The ladder ran on the fixed adapter with 0.20.4 on our reference host
+(c5n.4xlarge, 40 GiB, the store's buffer pool capped at 4 GiB, mimalloc as
+the process allocator). LadybugDB is now clean on all four core families —
+loading, hub fan-out, deep walk, 3,200 concurrent hot-node writes, and the
+operability probe — on web-Google (5.1 M edges), soc-Pokec (30.6 M),
+cit-Patents (16.5 M) and GAP-road (57.7 M); two days ago its largest clean
+whole graph was 88 k edges. Loads: 140 k edges/s on web-Google in one chunk,
+46–78 k/s on the larger graphs loaded in 5 M-edge chunks through CSV `COPY`
+(so still well short of your CSR import, which is why we'd like that as a
+tagged second profile). Hot-node writes: 136–159 s for 3,200 accepted.
+sx-stackoverflow (63.5 M, a multigraph — parallel edges kept, and the
+adapter now keeps them) and soc-LiveJournal1 (69 M) loaded and passed the
+hub fan-out but their deep walks did not finish inside our standard
+four-hour pair; those rows are published as partial. Memory peaked at
+30.5 GB on GAP-road and 34.2 GB on soc-LiveJournal1 with the 4 GiB pool cap
+— the other embedded stores sit at 5–7 GB at that scale — so a look at what
+holds memory outside the buffer pool during a large COPY would be
+worthwhile on your side. Two adapter defects of ours surfaced and were
+fixed on the way (a duplicate-primary-key failure on re-carried endpoint
+nodes, and parallel edges collapsed on one load path); both runs are
+excluded from the published evidence with the reason stated. Results and
+receipts: https://adversari.al/graph/strain, publication `2026-09-19-quegee`.
